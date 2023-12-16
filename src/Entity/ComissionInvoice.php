@@ -17,7 +17,7 @@ use App\Filter\ComissionInvoiceEntityFilter;
  *
  * @ORM\EntityListeners ({App\Listener\LogListener::class})
  * @ORM\Table (name="invoice", indexes={@ORM\Index (name="invoice_subtype", columns={"invoice_subtype"})})
- * @ORM\Entity (repositoryClass="App\Repository\ComissionInvoiceRepository")
+ * @ORM\Entity (repositoryClass="ControleOnline\Repository\ComissionInvoiceRepository")
  */
 #[ApiResource(operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')', uriTemplate: '/finance/comission/{id}'), new GetCollection(security: 'is_granted(\'ROLE_CLIENT\')', uriTemplate: '/finance/comission')], formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']], filters: [\App\Filter\ComissionInvoiceEntityFilter::class], normalizationContext: ['groups' => ['invoice_read']], denormalizationContext: ['groups' => ['invoice_write']])]
 #[ApiFilter(filterClass: OrderFilter::class, properties: ['dueDate' => 'DESC'])]

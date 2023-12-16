@@ -18,7 +18,7 @@ use ControleOnline\Entity\Order;
  *
  * @ORM\EntityListeners ({App\Listener\LogListener::class})
  * @ORM\Table (name="orders")
- * @ORM\Entity (repositoryClass="App\Repository\ComissionOrderRepository")
+ * @ORM\Entity (repositoryClass="ControleOnline\Repository\ComissionOrderRepository")
  */
 #[ApiResource(operations: [new Get(uriTemplate: '/comission/orders/{id}', security: 'is_granted(\'ROLE_CLIENT\')'), new GetCollection(security: 'is_granted(\'ROLE_CLIENT\')', uriTemplate: '/comission/orders')], formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']], normalizationContext: ['groups' => ['order_read']], denormalizationContext: ['groups' => ['order_write']])]
 #[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]

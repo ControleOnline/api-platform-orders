@@ -1,9 +1,9 @@
 services:
     ControleOnline\:
-        resource: "../../vendor/controleonline/orders/src/*"
+        resource: "../../src/*"
         exclude: "../src/{DependencyInjection,Entity,Resource,Migrations,Library,Tests,Kernel.php}"
     ControleOnline\Repository\:
-        resource: "../../vendor/controleonline/orders/src/Repository"
+        resource: "../../src/Repository"
         tags: ["doctrine.repository_service"]
         arguments:
             $registry: '@doctrine'   

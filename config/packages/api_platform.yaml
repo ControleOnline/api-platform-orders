@@ -2,7 +2,7 @@ api_platform:
     mapping:
         paths:
             [
-                "../../src/Entity",
-                "../../src/Resource",
+                "%kernel.project_dir%/vendor/controleonline/orders/src/Entity",
+                "%kernel.project_dir%/vendor/controleonline/orders/Resource",
             ]
     

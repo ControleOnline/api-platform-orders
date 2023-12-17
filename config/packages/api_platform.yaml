@@ -1,0 +1,8 @@
+api_platform:
+    mapping:
+        paths:
+            [
+                "../../src/Entity",
+                "../../src/Resource",
+            ]
+    

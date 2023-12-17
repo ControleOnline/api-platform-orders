@@ -1,0 +1,9 @@
+doctrine:
+    orm:
+        mappings:
+            ControleOnline:
+                is_bundle: false
+                type: annotation
+                dir: "../../src/Entity"
+                prefix: 'ControleOnline\Entity'
+                alias: ControleOnline

@@ -6,5 +6,4 @@ services:
         resource: "../../src/Repository"
         tags: ["doctrine.repository_service"]
         arguments:
-            $registry: '@doctrine'   
-        
+            $registry: '@doctrine'        

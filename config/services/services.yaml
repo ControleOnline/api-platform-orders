@@ -12,5 +12,5 @@ services:
         resource: '../../src/Controller'
         tags: ['controller.service_arguments']
     ControleOnline\Command\:
-        tags:
-            - { name: 'console.command' }
+        resource: '../../src/Command'
+        tags: ['console.command']

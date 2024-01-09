@@ -41,8 +41,6 @@ use App\Filter\OrderLogisticEntityFilter;
     denormalizationContext: ['groups' => ['logistic_write']])]
 #[ApiFilter(filterClass: SearchFilter::class, properties: ['shippingDate' => 'exact', 'arrivalDate' => 'exact', 'order.id' => 'partial', 'order.contract.id' => 'partial', 'order.client.name' => 'partial', 'order.productType' => 'partial', 'order.otherInformations' => 'partial', 'provider' => 'exact', 'destinationProvider' => 'exact', 'status' => 'exact', 'originAddress' => 'partial'])]
 
-#[ApiFilter(CustomOrFilter::class, properties:['originCity', 'originState'])]
-
 class OrderLogistic
 {
     /**

@@ -18,7 +18,7 @@ use App\Controller\CreateLogisticAction;
 use App\Controller\UpdateLogisticAction;
 use ControleOnline\Entity\Status;
 use ControleOnline\Entity\Order;
-use ControleOnline\Entity\PurchasingOrder;
+use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use DateTime;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -154,15 +154,15 @@ class OrderLogistic
      */
     private $order;
     /**
-     * @var \ControleOnline\Entity\PurchasingOrder
+     * @var \ControleOnline\Entity\Order
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\PurchasingOrder")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order")
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="purchasing_order_id", referencedColumnName="id")
      * })
      * @Groups({"logistic_read","logistic_write"})
      */
-    private $purchasingOrder;
+    private $Order;
     /**
      * @var \People
      *
@@ -737,18 +737,18 @@ class OrderLogistic
         return $this;
     }
     /**
-     * Get the value of purchasingOrder
+     * Get the value of Order
      */
-    public function getPurchasingOrder()
+    public function getOrder()
     {
-        return $this->purchasingOrder;
+        return $this->Order;
     }
     /**
-     * Set the value of purchasingOrder
+     * Set the value of Order
      */
-    public function setPurchasingOrder(\ControleOnline\Entity\PurchasingOrder $purchasingOrder)
+    public function setOrder(\ControleOnline\Entity\Order $Order)
     {
-        $this->purchasingOrder = $purchasingOrder;
+        $this->Order = $Order;
         return $this;
     }
 

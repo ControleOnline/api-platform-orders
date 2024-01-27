@@ -166,7 +166,7 @@ class OrderLogistic
      * })
      * @Groups({"logistic_read","logistic_write"})
      */
-    private $PurchasingOrder;
+    private $Order;
     /**
      * @var \People
      *
@@ -797,19 +797,19 @@ class OrderLogistic
     }
 
     /**
-     * Get the value of PurchasingOrder
+     * Get the value of Order
      */
-    public function getPurchasingOrder(): ?Order
+    public function getOrder(): ?Order
     {
-        return $this->PurchasingOrder;
+        return $this->Order;
     }
 
     /**
-     * Set the value of PurchasingOrder
+     * Set the value of Order
      */
-    public function setPurchasingOrder(Order $PurchasingOrder): self
+    public function setOrder(Order $Order): self
     {
-        $this->PurchasingOrder = $PurchasingOrder;
+        $this->Order = $Order;
 
         return $this;
     }

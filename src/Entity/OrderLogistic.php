@@ -18,7 +18,6 @@ use App\Controller\CreateLogisticAction;
 use App\Controller\UpdateLogisticAction;
 use ControleOnline\Entity\Status;
 use ControleOnline\Entity\Order;
-use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use DateTime;
 use Symfony\Component\Validator\Constraints as Assert;

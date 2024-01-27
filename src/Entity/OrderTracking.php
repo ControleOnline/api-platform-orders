@@ -32,7 +32,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ApiResource(
     uriTemplate: '/sales_orders/{id}/trackings.{_format}',
     uriVariables: ['id' =>
-    new Link(fromClass: \ControleOnline\Entity\SalesOrder::class, identifiers: ['id'], toProperty: 'order')],
+    new Link(fromClass: \ControleOnline\Entity\Order::class, identifiers: ['id'], toProperty: 'order')],
     status: 200,
     filters: ['annotated_app_entity_order_tracking_api_platform_core_bridge_doctrine_orm_filter_order_filter'],
     normalizationContext: ['groups' => ['order_tracking_read']],
@@ -49,9 +49,9 @@ class OrderTracking
      */
     private $id;
     /**
-     * @var \ControleOnline\Entity\SalesOrder
+     * @var \ControleOnline\Entity\Order
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\SalesOrder", inversedBy="tracking")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order", inversedBy="tracking")
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="order_id", referencedColumnName="id", nullable=false)
      * })
@@ -147,10 +147,10 @@ class OrderTracking
     /**
      * Set order
      *
-     * @param \ControleOnline\Entity\SalesOrder $order
+     * @param \ControleOnline\Entity\Order $order
      * @return OrderPackage
      */
-    public function setOrder(\ControleOnline\Entity\SalesOrder $order = null)
+    public function setOrder(\ControleOnline\Entity\Order $order = null)
     {
         $this->order = $order;
         return $this;
@@ -158,7 +158,7 @@ class OrderTracking
     /**
      * Get order
      *
-     * @return \ControleOnline\Entity\SalesOrder
+     * @return \ControleOnline\Entity\Order
      */
     public function getOrder()
     {

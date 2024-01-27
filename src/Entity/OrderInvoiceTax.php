@@ -9,14 +9,14 @@ use ApiPlatform\Metadata\ApiFilter;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 /**
- * SalesOrderInvoiceTax
+ * InvoiceTax
  *
  * @ORM\EntityListeners ({App\Listener\LogListener::class})
  * @ORM\Table (name="order_invoice_tax", uniqueConstraints={@ORM\UniqueConstraint (name="order_id", columns={"order_id", "invoice_tax_id"}),@ORM\UniqueConstraint(name="invoice_type", columns={"issuer_id", "invoice_type", "order_id"})}, indexes={@ORM\Index (name="invoice_tax_id", columns={"invoice_tax_id"})})
  * @ORM\Entity
  */
 #[ApiResource(operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')')], formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']], normalizationContext: ['groups' => ['order_invoice_tax_read']], denormalizationContext: ['groups' => ['order_invoice_tax_write']])]
-class SalesOrderInvoiceTax
+class InvoiceTax
 {
     /**
      * @var integer
@@ -37,9 +37,9 @@ class SalesOrderInvoiceTax
      */
     private $invoiceTax;
     /**
-     * @var \ControleOnline\Entity\SalesOrder
+     * @var \ControleOnline\Entity\Order
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\SalesOrder", inversedBy="invoiceTax")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order", inversedBy="invoiceTax")
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="order_id", referencedColumnName="id")
      * })
@@ -79,7 +79,7 @@ class SalesOrderInvoiceTax
      * Set invoiceTax
      *
      * @param \ControleOnline\Entity\SalesInvoiceTax $invoice_tax
-     * @return SalesOrderInvoiceTax
+     * @return InvoiceTax
      */
     public function setInvoiceTax(\ControleOnline\Entity\SalesInvoiceTax $invoice_tax = null)
     {
@@ -98,10 +98,10 @@ class SalesOrderInvoiceTax
     /**
      * Set order
      *
-     * @param \ControleOnline\Entity\SalesOrder $order
-     * @return SalesOrderInvoiceTax
+     * @param \ControleOnline\Entity\Order $order
+     * @return InvoiceTax
      */
-    public function setOrder(\ControleOnline\Entity\SalesOrder $order = null)
+    public function setOrder(\ControleOnline\Entity\Order $order = null)
     {
         $this->order = $order;
         return $this;

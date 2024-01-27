@@ -27,9 +27,9 @@ class OrderPackage
      */
     private $id;
     /**
-     * @var \ControleOnline\Entity\SalesOrder
+     * @var \ControleOnline\Entity\Order
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\SalesOrder", inversedBy="orderPackage")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order", inversedBy="orderPackage")
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="order_id", referencedColumnName="id", nullable=false)
      * })
@@ -82,10 +82,10 @@ class OrderPackage
     /**
      * Set order
      *
-     * @param \ControleOnline\Entity\SalesOrder $order
+     * @param \ControleOnline\Entity\Order $order
      * @return OrderPackage
      */
-    public function setOrder(\ControleOnline\Entity\SalesOrder $order = null)
+    public function setOrder(\ControleOnline\Entity\Order $order = null)
     {
         $this->order = $order;
         return $this;
@@ -93,7 +93,7 @@ class OrderPackage
     /**
      * Get order
      *
-     * @return \ControleOnline\Entity\SalesOrder
+     * @return \ControleOnline\Entity\Order
      */
     public function getOrder()
     {

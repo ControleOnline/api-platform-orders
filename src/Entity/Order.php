@@ -1,7 +1,13 @@
 <?php
 
 namespace ControleOnline\Entity;
-
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Put;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\ApiProperty;
 use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
 use ApiPlatform\Core\Annotation\ApiResource;
@@ -10,14 +16,12 @@ use Symfony\Component\Serializer\Annotation\Groups;
 use ApiPlatform\Core\Annotation\ApiFilter;
 use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
-use App\Filter\SalesOrderEntityFilter;
-use ControleOnline\Entity\Order;
-use ControleOnline\Entity\SalesOrderInvoice;
+use ControleOnline\Entity\Invoice;
 use \DateTime;
 use stdClass;
 
 /**
- * SalesOrder
+ * Order
  *
  * @ORM\EntityListeners({App\Listener\LogListener::class})
  * @ApiResource(
@@ -28,7 +32,6 @@ use stdClass;
  *     denormalizationContext={"groups"={"order_write"}},
  *     collectionOperations  ={
  *         "get" ={ 
- *             "attributes"    ={"filters"={App\Filter\SalesOrderEntityFilter::class}}, 
  *             "access_control"="is_granted('ROLE_CLIENT')",
  *             "path"="/sales/orders",
  *          },
@@ -90,13 +93,13 @@ use stdClass;
  *           "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_CLIENT') and previous_object.canAccess(user))",
  *           "method"        ="GET",
  *           "path"          ="/sales/orders/{id}/detail/summary",
- *           "controller"    =App\Controller\GetSalesOrderSummaryAction::class,
+ *           "controller"    =App\Controller\GetOrderSummaryAction::class,
  *         },
  *         "get_quotation" ={
  *           "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_CLIENT') and previous_object.canAccess(user))",
  *           "method"        ="GET",
  *           "path"          ="/sales/orders/{id}/detail/quotation",
- *           "controller"    =App\Controller\GetSalesOrderQuotationAction::class,
+ *           "controller"    =App\Controller\GetOrderQuotationAction::class,
  *         },
  *         "add_other_informations" ={
  *           "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_CLIENT') and previous_object.canAccess(user))",
@@ -108,7 +111,7 @@ use stdClass;
  *           "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_CLIENT') and previous_object.canAccess(user))",
  *           "method"        ="GET",
  *           "path"          ="/sales/orders/{id}/detail/invoice",
- *           "controller"    =App\Controller\GetSalesOrderInvoiceAction::class,
+ *           "controller"    =App\Controller\GetInvoiceAction::class,
  *         },
  *         "update_status"={
  *            "access_control"="is_granted('ROLE_CLIENT')",
@@ -126,18 +129,18 @@ use stdClass;
  *            "access_control"="is_granted('ROLE_CLIENT')",
  *            "method"        ="PUT",
  *            "path"          ="/sales/orders/{id}/detail/update-dacte",
- *            "controller"    =App\Controller\UpdateSalesOrderDacteAction::class,
+ *            "controller"    =App\Controller\UpdateOrderDacteAction::class,
  *         },
  *         "update_deadline"={
  *            "access_control"="is_granted('ROLE_CLIENT')",
  *            "method"        ="PUT",
  *            "path"          ="/sales/orders/{id}/detail/update-deadline",
- *            "controller"    =App\Controller\UpdateSalesOrderDeadlineAction::class,
+ *            "controller"    =App\Controller\UpdateOrderDeadlineAction::class,
  *         },
  *         "update_remote"={
  *            "method"        ="PUT",
  *            "path"          ="/sales/orders/{id}/detail/update-remote",
- *            "controller"    =App\Controller\UpdateSalesOrderRemoteAction::class,
+ *            "controller"    =App\Controller\UpdateOrderRemoteAction::class,
  *         },
  *         "update_fields"         ={
  *           "access_control"="is_granted('ROLE_CLIENT')",
@@ -148,7 +151,7 @@ use stdClass;
  *     }
  * )
  * @ORM\Table(name="orders", uniqueConstraints={@ORM\UniqueConstraint(name="discount_id", columns={"discount_coupon_id"})}, indexes={@ORM\Index(name="adress_destination_id", columns={"address_destination_id"}), @ORM\Index(name="notified", columns={"notified"}), @ORM\Index(name="delivery_contact_id", columns={"delivery_contact_id"}), @ORM\Index(name="contract_id", columns={"contract_id"}), @ORM\Index(name="delivery_people_id", columns={"delivery_people_id"}), @ORM\Index(name="status_id", columns={"status_id"}), @ORM\Index(name="order_date", columns={"order_date"}), @ORM\Index(name="provider_id", columns={"provider_id"}), @ORM\Index(name="quote_id", columns={"quote_id", "provider_id"}), @ORM\Index(name="adress_origin_id", columns={"address_origin_id"}), @ORM\Index(name="retrieve_contact_id", columns={"retrieve_contact_id"}), @ORM\Index(name="main_order_id", columns={"main_order_id"}), @ORM\Index(name="retrieve_people_id", columns={"retrieve_people_id"}), @ORM\Index(name="payer_people_id", columns={"payer_people_id"}), @ORM\Index(name="client_id", columns={"client_id"}), @ORM\Index(name="alter_date", columns={"alter_date"}), @ORM\Index(name="IDX_E52FFDEEDB805178", columns={"quote_id"})})
- * @ORM\Entity(repositoryClass="ControleOnline\Repository\SalesOrderRepository")
+ * @ORM\Entity(repositoryClass="ControleOnline\Repository\OrderRepository")
  * @ApiFilter(
  *   OrderFilter::class , properties={"alterDate": "DESC"},
  * )
@@ -165,12 +168,9 @@ use stdClass;
  *     "quote.carrier"                          : "exact", 
  *   }
  * )
- * @ApiFilter(
- *   App\Filter\SalesOrderEntityFilter::class
- * )
  */
 
-class SalesOrder extends Order
+class Order
 {
     /**
      * @var integer
@@ -204,7 +204,7 @@ class SalesOrder extends Order
     /**
      * @var \Doctrine\Common\Collections\Collection
      *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\SalesOrderInvoice", mappedBy="order")
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Invoice", mappedBy="order")
      * @Groups({"order_read"}) 
      */
     private $invoice;
@@ -220,7 +220,7 @@ class SalesOrder extends Order
     /**
      * @var \Doctrine\Common\Collections\Collection
      *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\SalesOrderInvoiceTax", mappedBy="order")
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\InvoiceTax", mappedBy="order")
      * @Groups({"order_read"})
      */
     private $invoiceTax;
@@ -303,9 +303,9 @@ class SalesOrder extends Order
     private $otherInformations;
 
     /**
-     * @var \ControleOnline\Entity\SalesOrder
+     * @var \ControleOnline\Entity\Order
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\SalesOrder")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order")
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="main_order_id", referencedColumnName="id")
      * })
@@ -968,10 +968,10 @@ class SalesOrder extends Order
     /**
      * Add invoiceTax
      *
-     * @param \ControleOnline\Entity\SalesOrderInvoiceTax $invoice_tax
+     * @param \ControleOnline\Entity\InvoiceTax $invoice_tax
      * @return Order
      */
-    public function addAInvoiceTax(SalesOrderInvoiceTax $invoice_tax)
+    public function addAInvoiceTax(InvoiceTax $invoice_tax)
     {
         $this->invoiceTax[] = $invoice_tax;
 
@@ -981,9 +981,9 @@ class SalesOrder extends Order
     /**
      * Remove invoiceTax
      *
-     * @param \ControleOnline\Entity\SalesOrderInvoiceTax $invoice_tax
+     * @param \ControleOnline\Entity\InvoiceTax $invoice_tax
      */
-    public function removeInvoiceTax(SalesOrderInvoiceTax $invoice_tax)
+    public function removeInvoiceTax(InvoiceTax $invoice_tax)
     {
         $this->invoiceTax->removeElement($invoice_tax);
     }
@@ -1042,12 +1042,12 @@ class SalesOrder extends Order
     }
 
     /**
-     * Add SalesOrderInvoice
+     * Add Invoice
      *
-     * @param \ControleOnline\Entity\SalesOrderInvoice $invoice
+     * @param \ControleOnline\Entity\Invoice $invoice
      * @return People
      */
-    public function addInvoice(SalesOrderInvoice $invoice)
+    public function addInvoice(Invoice $invoice)
     {
         $this->invoice[] = $invoice;
 
@@ -1055,17 +1055,17 @@ class SalesOrder extends Order
     }
 
     /**
-     * Remove SalesOrderInvoice
+     * Remove Invoice
      *
-     * @param \ControleOnline\Entity\SalesOrderInvoice $invoice
+     * @param \ControleOnline\Entity\Invoice $invoice
      */
-    public function removeInvoice(SalesOrderInvoice $invoice)
+    public function removeInvoice(Invoice $invoice)
     {
         $this->invoice->removeElement($invoice);
     }
 
     /**
-     * Get SalesOrderInvoice
+     * Get Invoice
      *
      * @return \Doctrine\Common\Collections\Collection
      */
@@ -1283,10 +1283,10 @@ class SalesOrder extends Order
     /**
      * Set mainOrder
      *
-     * @param \ControleOnline\Entity\SalesOrder $mainOrder
+     * @param \ControleOnline\Entity\Order $mainOrder
      * @return Order
      */
-    public function setMainOrder(\ControleOnline\Entity\SalesOrder $main_order = null)
+    public function setMainOrder(\ControleOnline\Entity\Order $main_order = null)
     {
         $this->mainOrder = $main_order;
 
@@ -1296,7 +1296,7 @@ class SalesOrder extends Order
     /**
      * Get mainOrder
      *
-     * @return \ControleOnline\Entity\SalesOrder
+     * @return \ControleOnline\Entity\Order
      */
     public function getMainOrder()
     {
@@ -1330,7 +1330,7 @@ class SalesOrder extends Order
      * Set contract
      *
      * @param \ControleOnline\Entity\Contract $contract
-     * @return SalesOrder
+     * @return Order
      */
     public function setContract($contract)
     {
@@ -1341,8 +1341,8 @@ class SalesOrder extends Order
 
     public function getInvoiceByStatus(array $status)
     {
-        foreach ($this->getInvoice() as $purchasingOrderInvoice) {
-            $invoice = $purchasingOrderInvoice->getInvoice();
+        foreach ($this->getInvoice() as $purchasingInvoice) {
+            $invoice = $purchasingInvoice->getInvoice();
             if (in_array($invoice->getStatus()->getStatus(), $status)) {
                 return $invoice;
             }
@@ -1395,7 +1395,7 @@ class SalesOrder extends Order
      * Add Task
      *
      * @param \ControleOnline\Entity\Task $task
-     * @return SalesOrder
+     * @return Order
      */
     public function addTask(\ControleOnline\Entity\Task $task)
     {
@@ -1502,45 +1502,45 @@ class SalesOrder extends Order
 
     public function isOriginAndDestinationTheSame(): ?bool
     {
-      if (($origin = $this->getAddressOrigin()) === null) {
-        return null;
-      }
-  
-      if (($destination = $this->getAddressDestination()) === null) {
-        return null;
-      }
-  
-      $origCity = $origin->getStreet()->getDistrict()->getCity();
-      $destCity = $destination->getStreet()->getDistrict()->getCity();
-  
-      // both objects are the same entity ( = same name and same state)
-  
-      if ($origCity === $destCity) {
-        return true;
-      }
-  
-      return false;
+        if (($origin = $this->getAddressOrigin()) === null) {
+            return null;
+        }
+
+        if (($destination = $this->getAddressDestination()) === null) {
+            return null;
+        }
+
+        $origCity = $origin->getStreet()->getDistrict()->getCity();
+        $destCity = $destination->getStreet()->getDistrict()->getCity();
+
+        // both objects are the same entity ( = same name and same state)
+
+        if ($origCity === $destCity) {
+            return true;
+        }
+
+        return false;
     }
-  
-    public function isOriginAndDestinationTheSameState(): ?bool 
+
+    public function isOriginAndDestinationTheSameState(): ?bool
     {
-      if (($origin = $this->getAddressOrigin()) === null) {
-        return null;
-      }
-  
-      if (($destination = $this->getAddressDestination()) === null) {
-        return null;
-      }
-  
-      $origState = $origin->getStreet()->getDistrict()->getCity()->getState();
-      $destState = $destination->getStreet()->getDistrict()->getCity()->getState();
-  
-      // both objects are the same entity ( = same name and same country)
-  
-      if ($origState === $destState) {
-        return true;
-      }
-  
-      return false;
+        if (($origin = $this->getAddressOrigin()) === null) {
+            return null;
+        }
+
+        if (($destination = $this->getAddressDestination()) === null) {
+            return null;
+        }
+
+        $origState = $origin->getStreet()->getDistrict()->getCity()->getState();
+        $destState = $destination->getStreet()->getDistrict()->getCity()->getState();
+
+        // both objects are the same entity ( = same name and same country)
+
+        if ($origState === $destState) {
+            return true;
+        }
+
+        return false;
     }
 }

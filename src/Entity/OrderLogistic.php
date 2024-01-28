@@ -156,7 +156,7 @@ class OrderLogistic
      * })
      * @Groups({"logistic_read","logistic_write"})
      */
-    private $Order;
+    private $SalesOrder;
     /**
      * @var \ControleOnline\Entity\Order
      *
@@ -166,7 +166,7 @@ class OrderLogistic
      * })
      * @Groups({"logistic_read","logistic_write"})
      */
-    private $Order;
+    private $PurchasingOrder;
     /**
      * @var \People
      *
@@ -781,35 +781,35 @@ class OrderLogistic
     /**
      * Get the value of Order
      */
-    public function getOrder(): ?Order
+    public function getSalesOrder(): ?Order
     {
-        return $this->Order;
+        return $this->SalesOrder;
     }
 
     /**
      * Set the value of Order
      */
-    public function setOrder(Order $Order): self
+    public function setSalesOrder(Order $SalesOrder): self
     {
-        $this->Order = $Order;
+        $this->SalesOrder = $SalesOrder;
 
         return $this;
     }
 
     /**
-     * Get the value of Order
+     * Get the value of PurchasingOrder
      */
-    public function getOrder(): ?Order
+    public function getPurchasingOrder(): ?Order
     {
-        return $this->Order;
+        return $this->PurchasingOrder;
     }
 
     /**
-     * Set the value of Order
+     * Set the value of PurchasingOrder
      */
-    public function setOrder(Order $Order): self
+    public function setPurchasingOrder(Order $PurchasingOrder): self
     {
-        $this->Order = $Order;
+        $this->PurchasingOrder = $PurchasingOrder;
 
         return $this;
     }

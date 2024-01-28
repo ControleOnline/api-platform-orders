@@ -203,7 +203,7 @@ class Order
     /**
      * @var \Doctrine\Common\Collections\Collection
      *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Invoice", mappedBy="order")
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderInvoice", mappedBy="order")
      * @Groups({"order_read"}) 
      */
     private $invoice;
@@ -219,7 +219,7 @@ class Order
     /**
      * @var \Doctrine\Common\Collections\Collection
      *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\InvoiceTax", mappedBy="order")
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderInvoiceTax", mappedBy="order")
      * @Groups({"order_read"})
      */
     private $invoiceTax;
@@ -967,10 +967,10 @@ class Order
     /**
      * Add invoiceTax
      *
-     * @param \ControleOnline\Entity\InvoiceTax $invoice_tax
+     * @param \ControleOnline\Entity\OrderInvoiceTax $invoice_tax
      * @return Order
      */
-    public function addAInvoiceTax(InvoiceTax $invoice_tax)
+    public function addAInvoiceTax(OrderInvoiceTax $invoice_tax)
     {
         $this->invoiceTax[] = $invoice_tax;
 
@@ -980,9 +980,9 @@ class Order
     /**
      * Remove invoiceTax
      *
-     * @param \ControleOnline\Entity\InvoiceTax $invoice_tax
+     * @param \ControleOnline\Entity\OrderInvoiceTax $invoice_tax
      */
-    public function removeInvoiceTax(InvoiceTax $invoice_tax)
+    public function removeInvoiceTax(OrderInvoiceTax $invoice_tax)
     {
         $this->invoiceTax->removeElement($invoice_tax);
     }
@@ -1000,7 +1000,7 @@ class Order
     /**
      * Get invoiceTax
      *
-     * @return \ControleOnline\Entity\InvoiceTax
+     * @return \ControleOnline\Entity\OrderInvoiceTax
      */
     public function getClientInvoiceTax()
     {
@@ -1013,7 +1013,7 @@ class Order
     /**
      * Get invoiceTax
      *
-     * @return \ControleOnline\Entity\InvoiceTax
+     * @return \ControleOnline\Entity\OrderInvoiceTax
      */
     public function getCarrierInvoiceTax()
     {
@@ -1027,10 +1027,10 @@ class Order
     /**
      * Add Invoice
      *
-     * @param \ControleOnline\Entity\Invoice $invoice
+     * @param \ControleOnline\Entity\OrderInvoice $invoice
      * @return People
      */
-    public function addInvoice(Invoice $invoice)
+    public function addInvoice(OrderInvoice $invoice)
     {
         $this->invoice[] = $invoice;
 
@@ -1040,9 +1040,9 @@ class Order
     /**
      * Remove Invoice
      *
-     * @param \ControleOnline\Entity\Invoice $invoice
+     * @param \ControleOnline\Entity\OrderInvoice $invoice
      */
-    public function removeInvoice(Invoice $invoice)
+    public function removeInvoice(OrderInvoice $invoice)
     {
         $this->invoice->removeElement($invoice);
     }

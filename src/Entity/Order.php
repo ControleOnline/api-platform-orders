@@ -1002,9 +1002,9 @@ class Order
     /**
      * Get invoiceTax
      *
-     * @return \ControleOnline\Entity\SalesInvoiceTax
+     * @return \ControleOnline\Entity\InvoiceTax
      */
-    public function getClientSalesInvoiceTax()
+    public function getClientInvoiceTax()
     {
         foreach ($this->getInvoiceTax() as $invoice) {
             if ($invoice->getInvoiceType() == 55) {
@@ -1016,7 +1016,7 @@ class Order
     /**
      * Get invoiceTax
      *
-     * @return \ControleOnline\Entity\SalesInvoiceTax
+     * @return \ControleOnline\Entity\InvoiceTax
      */
     public function getClientInvoiceTax()
     {
@@ -1029,7 +1029,7 @@ class Order
     /**
      * Get invoiceTax
      *
-     * @return \ControleOnline\Entity\SalesInvoiceTax
+     * @return \ControleOnline\Entity\InvoiceTax
      */
     public function getCarrierInvoiceTax()
     {
@@ -1340,8 +1340,8 @@ class Order
 
     public function getInvoiceByStatus(array $status)
     {
-        foreach ($this->getInvoice() as $purchasingInvoice) {
-            $invoice = $purchasingInvoice->getInvoice();
+        foreach ($this->getInvoice() as $Invoice) {
+            $invoice = $Invoice->getInvoice();
             if (in_array($invoice->getStatus()->getStatus(), $status)) {
                 return $invoice;
             }

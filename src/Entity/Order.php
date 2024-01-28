@@ -997,22 +997,6 @@ class Order
         return $this->invoiceTax;
     }
 
-
-
-    /**
-     * Get invoiceTax
-     *
-     * @return \ControleOnline\Entity\InvoiceTax
-     */
-    public function getClientInvoiceTax()
-    {
-        foreach ($this->getInvoiceTax() as $invoice) {
-            if ($invoice->getInvoiceType() == 55) {
-                return $invoice;
-            }
-        }
-    }
-
     /**
      * Get invoiceTax
      *

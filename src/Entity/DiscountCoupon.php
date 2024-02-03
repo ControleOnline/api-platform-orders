@@ -16,7 +16,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
 use stdClass;
 /**
  * DiscountCoupon
- * Order
+ * SalesOrder
  *
  * @ORM\EntityListeners ({App\Listener\LogListener::class})
  * @ORM\Table (name="discount_coupon", uniqueConstraints={@ORM\UniqueConstraint (name="code", columns={"code"})}, indexes={@ORM\Index (name="creator_id", columns={"creator_id"}), @ORM\Index(name="client_id", columns={"client_id"})})
@@ -113,9 +113,9 @@ class DiscountCoupon
      */
     private $client;
     /**
-     * @var \ControleOnline\Entity\Order
+     * @var \ControleOnline\Entity\SalesOrder
      *
-     * @ORM\OneToOne(targetEntity="ControleOnline\Entity\Order", mappedBy="discountCoupon", cascade={"persist", "remove"})
+     * @ORM\OneToOne(targetEntity="ControleOnline\Entity\SalesOrder", mappedBy="discountCoupon", cascade={"persist", "remove"})
      *  @Groups({"coupon_read"}) 
      */
     private $order;
@@ -216,10 +216,10 @@ class DiscountCoupon
     /**
      * Set order
      *
-     * @param \ControleOnline\Entity\Order $order
+     * @param \ControleOnline\Entity\SalesOrder $order
      * @return DiscountCoupon
      */
-    public function setOrder(\ControleOnline\Entity\Order $order = null)
+    public function setOrder(\ControleOnline\Entity\SalesOrder $order = null)
     {
         $this->order = $order;
         return $this;
@@ -227,7 +227,7 @@ class DiscountCoupon
     /**
      * Get order
      *
-     * @return \ControleOnline\Entity\Order
+     * @return \ControleOnline\Entity\SalesOrder
      */
     public function getOrder()
     {

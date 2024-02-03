@@ -17,7 +17,8 @@ use ControleOnline\Repository\OrderLogisticRepository;
 use App\Controller\CreateLogisticAction;
 use App\Controller\UpdateLogisticAction;
 use ControleOnline\Entity\Status;
-use ControleOnline\Entity\Order;
+use ControleOnline\Entity\SalesOrder;
+use ControleOnline\Entity\PurchasingOrder;
 use ControleOnline\Entity\People;
 use DateTime;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -29,20 +30,15 @@ use App\Filter\OrderLogisticEntityFilter;
  * @ORM\Table (name="order_logistic", indexes={@ORM\Index (name="provider_id", columns={"provider_id"}), @ORM\Index(name="order_id", columns={"order_id"}), @ORM\Index(name="status_id", columns={"status_id"})})
  * @ORM\Entity (repositoryClass="ControleOnline\Repository\OrderLogisticRepository")
  */
-#[ApiResource(
-    operations: [
-        new Get(security: 'is_granted(\'ROLE_CLIENT\')'),
-        new Put(security: 'is_granted(\'ROLE_CLIENT\')', denormalizationContext: ['groups' => ['logistic_write']]),
-        new GetCollection(security: 'is_granted(\'ROLE_CLIENT\')'),
-        new Delete(name: 'order_logistics_delete', security: 'is_granted(\'ROLE_CLIENT\')', denormalizationContext: ['groups' => ['logistic_write']]),
-        new Post(security: 'is_granted(\'ROLE_CLIENT\')', uriTemplate: '/order_logistics', denormalizationContext: ['groups' => ['logistic_write']])
-    ],
-    formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
-    security: 'is_granted(\'ROLE_CLIENT\')',
+#[ApiResource(operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')'), 
+    new Put(security: 'is_granted(\'ROLE_CLIENT\')', denormalizationContext: ['groups' => ['logistic_write']]), 
+    new GetCollection(security: 'is_granted(\'ROLE_CLIENT\')'), 
+    new Delete(name: 'order_logistics_delete', security: 'is_granted(\'ROLE_CLIENT\')', denormalizationContext: ['groups' => ['logistic_write']]),
+    new Post(security: 'is_granted(\'ROLE_CLIENT\')', uriTemplate: '/order_logistics', denormalizationContext: ['groups' => ['logistic_write']])], 
+    formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']], security: 'is_granted(\'ROLE_CLIENT\')', 
     filters: [\App\Filter\OrderLogisticEntityFilter::class],
     normalizationContext: ['groups' => ['logistic_read']],
-    denormalizationContext: ['groups' => ['logistic_write']]
-)]
+    denormalizationContext: ['groups' => ['logistic_write']])]
 #[ApiFilter(filterClass: SearchFilter::class, properties: ['shippingDate' => 'exact', 'arrivalDate' => 'exact', 'order.id' => 'partial', 'order.contract.id' => 'partial', 'order.client.name' => 'partial', 'order.productType' => 'partial', 'order.otherInformations' => 'partial', 'provider' => 'exact', 'destinationProvider' => 'exact', 'status' => 'exact', 'originAddress' => 'partial'])]
 
 class OrderLogistic
@@ -148,25 +144,25 @@ class OrderLogistic
      */
     private $balance = 0;
     /**
-     * @var \ControleOnline\Entity\Order
+     * @var \SalesOrder
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order")
+     * @ORM\ManyToOne(targetEntity="SalesOrder")
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="order_id", referencedColumnName="id")
      * })
      * @Groups({"logistic_read","logistic_write"})
      */
-    private $SalesOrder;
+    private $order;
     /**
-     * @var \ControleOnline\Entity\Order
+     * @var \ControleOnline\Entity\PurchasingOrder
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\PurchasingOrder")
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="purchasing_order_id", referencedColumnName="id")
      * })
      * @Groups({"logistic_read","logistic_write"})
      */
-    private $PurchasingOrder;
+    private $purchasingOrder;
     /**
      * @var \People
      *
@@ -473,7 +469,25 @@ class OrderLogistic
         $this->price = $price ?: 0;
         return $this;
     }
-
+    /**
+     * Get order
+     *
+     * @return \ControleOnline\Entity\SalesOrder
+     */
+    public function getOrder()
+    {
+        return $this->order;
+    }
+    /**
+     * Set order
+     *
+     * @param \ControleOnline\Entity\SalesOrder $order
+     */
+    public function setOrder(\ControleOnline\Entity\SalesOrder $order)
+    {
+        $this->order = $order;
+        return $this;
+    }
     /**
      * Get the value of provider
      *
@@ -705,7 +719,7 @@ class OrderLogistic
         $this->amountPaid = $amountPaid;
         return $this;
     }
-    /**
+        /**
      * Get the value of balance
      */
     public function getBalance()
@@ -722,7 +736,21 @@ class OrderLogistic
 
         return $this;
     }
-
+    /**
+     * Get the value of purchasingOrder
+     */
+    public function getPurchasingOrder()
+    {
+        return $this->purchasingOrder;
+    }
+    /**
+     * Set the value of purchasingOrder
+     */
+    public function setPurchasingOrder(\ControleOnline\Entity\PurchasingOrder $purchasingOrder)
+    {
+        $this->purchasingOrder = $purchasingOrder;
+        return $this;
+    }
 
     /**
      * Get the value of orderLogisticSurvey
@@ -774,42 +802,6 @@ class OrderLogistic
     public function setDestinationLocator(?string $destinationLocator): self
     {
         $this->destinationLocator = $destinationLocator;
-
-        return $this;
-    }
-
-    /**
-     * Get the value of Order
-     */
-    public function getSalesOrder(): ?Order
-    {
-        return $this->SalesOrder;
-    }
-
-    /**
-     * Set the value of Order
-     */
-    public function setSalesOrder(Order $SalesOrder): self
-    {
-        $this->SalesOrder = $SalesOrder;
-
-        return $this;
-    }
-
-    /**
-     * Get the value of PurchasingOrder
-     */
-    public function getPurchasingOrder(): ?Order
-    {
-        return $this->PurchasingOrder;
-    }
-
-    /**
-     * Set the value of PurchasingOrder
-     */
-    public function setPurchasingOrder(Order $PurchasingOrder): self
-    {
-        $this->PurchasingOrder = $PurchasingOrder;
 
         return $this;
     }

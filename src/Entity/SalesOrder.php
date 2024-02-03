@@ -170,7 +170,7 @@ use stdClass;
  * )
  */
 
-class SalesOrder extends Order
+class SalesOrder 
 {
     /**
      * @var integer

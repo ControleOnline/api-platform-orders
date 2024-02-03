@@ -13,6 +13,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
 use Symfony\Component\Serializer\Annotation\Groups;
 use ControleOnline\Entity\Order;
+
 /**
  * ComissionOrder
  *
@@ -23,7 +24,7 @@ use ControleOnline\Entity\Order;
 #[ApiResource(operations: [new Get(uriTemplate: '/comission/orders/{id}', security: 'is_granted(\'ROLE_CLIENT\')'), new GetCollection(security: 'is_granted(\'ROLE_CLIENT\')', uriTemplate: '/comission/orders')], formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']], normalizationContext: ['groups' => ['order_read']], denormalizationContext: ['groups' => ['order_write']])]
 #[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]
 #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice.invoice' => 'exact'])]
-class ComissionOrder extends Order
+class ComissionOrder
 {
     /**
      * @var integer
@@ -502,7 +503,7 @@ class ComissionOrder extends Order
      * @param \ControleOnline\Entity\People $retrieve_people
      * @return Order
      */
-    public function setRetrievePeople(\ControleOnline\Entity\People $retrieve_people = null) : self
+    public function setRetrievePeople(\ControleOnline\Entity\People $retrieve_people = null): self
     {
         $this->retrievePeople = $retrieve_people;
         return $this;
@@ -512,7 +513,7 @@ class ComissionOrder extends Order
      *
      * @return \ControleOnline\Entity\People
      */
-    public function getRetrievePeople() : ?People
+    public function getRetrievePeople(): ?People
     {
         return $this->retrievePeople;
     }
@@ -550,7 +551,7 @@ class ComissionOrder extends Order
      *
      * @param \DateTimeInterface $alter_date
      */
-    public function setAlterDate(\DateTimeInterface $alter_date) : self
+    public function setAlterDate(\DateTimeInterface $alter_date): self
     {
         $this->alterDate = $alter_date;
         return $this;
@@ -559,7 +560,7 @@ class ComissionOrder extends Order
      * Get alter_date
      *
      */
-    public function getAlterDate() : ?\DateTimeInterface
+    public function getAlterDate(): ?\DateTimeInterface
     {
         return $this->alterDate;
     }
@@ -779,17 +780,62 @@ class ComissionOrder extends Order
     {
         return $this->orderType;
     }
-    public function canAccess(User $currentUser) : bool
+    public function canAccess(User $currentUser): bool
     {
         if (($provider = $this->getProvider()) === null) {
             return false;
         }
-        return $currentUser->getPeople()->getPeopleCompany()->exists(function ($key, $element) use($provider) {
+        return $currentUser->getPeople()->getPeopleCompany()->exists(function ($key, $element) use ($provider) {
             return $element->getCompany() === $provider;
         });
     }
-    public function justOpened() : bool
+    public function justOpened(): bool
     {
         return $this->getStatus()->getStatus() == 'quote';
+    }
+
+
+    public function isOriginAndDestinationTheSame(): ?bool
+    {
+        if (($origin = $this->getAddressOrigin()) === null) {
+            return null;
+        }
+
+        if (($destination = $this->getAddressDestination()) === null) {
+            return null;
+        }
+
+        $origCity = $origin->getStreet()->getDistrict()->getCity();
+        $destCity = $destination->getStreet()->getDistrict()->getCity();
+
+        // both objects are the same entity ( = same name and same state)
+
+        if ($origCity === $destCity) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public function isOriginAndDestinationTheSameState(): ?bool
+    {
+        if (($origin = $this->getAddressOrigin()) === null) {
+            return null;
+        }
+
+        if (($destination = $this->getAddressDestination()) === null) {
+            return null;
+        }
+
+        $origState = $origin->getStreet()->getDistrict()->getCity()->getState();
+        $destState = $destination->getStreet()->getDistrict()->getCity()->getState();
+
+        // both objects are the same entity ( = same name and same country)
+
+        if ($origState === $destState) {
+            return true;
+        }
+
+        return false;
     }
 }

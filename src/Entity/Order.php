@@ -47,15 +47,14 @@ use stdClass;
  * )
  * @ApiFilter(
  *   SearchFilter::class, properties={
- *     "status"                                 : "exact",
- *     "status.realStatus"                      : "exact",
- *     "orderQueue.status.realStatus"           : "exact", 
- *     "orderQueue.queue.hardwareQueue.hardware"  : "exact",  
- *     "status.status"                          : "exact",
- *     "invoice.invoice"                        : "exact",
- *     "client"                                 : "exact",
- *     "provider"                               : "exact",
- *     "quote.carrier"                          : "exact", 
+ *     "status"                                     : "exact",
+ *     "status.realStatus"                          : "exact",
+ *     "orderQueue.status.realStatus"               : "exact", 
+ *     "orderQueue.queue.hardwareQueue.hardware"    : "exact",  
+ *     "status.status"                              : "exact",
+ *     "invoice.invoice"                            : "exact",
+ *     "client"                                     : "exact",
+ *     "provider"                                   : "exact",
  *   }
  * )
  * @ApiFilter(
@@ -98,7 +97,6 @@ class Order
      * @var \Doctrine\Common\Collections\Collection
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\SalesOrderInvoice", mappedBy="order")
-     * @Groups({"order_read","order_write"}) 
      */
     private $invoice;
 
@@ -106,7 +104,6 @@ class Order
      * @var \Doctrine\Common\Collections\Collection
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Task", mappedBy="order")
-     * @Groups({"order_read","order_write"})
      */
     private $task;
 
@@ -114,7 +111,6 @@ class Order
      * @var \Doctrine\Common\Collections\Collection
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\SalesOrderInvoiceTax", mappedBy="order")
-     * @Groups({"order_read","order_write"})
      */
     private $invoiceTax;
 
@@ -124,19 +120,6 @@ class Order
      */
     private $alterDate;
 
-    /**
-     * @var \DateTime|null
-     * @ORM\Column(name="estimated_parking_date", type="datetime",  nullable=false, columnDefinition="DATETIME")
-     * @Groups({"order_read","order_write"})
-     */
-    private $estimatedParkingDate;
-
-    /**
-     * @var \DateTime|null
-     * @ORM\Column(name="parking_date", type="datetime",  nullable=false, columnDefinition="DATETIME")
-     * @Groups({"order_read","order_write"})
-     */
-    private $parkingDate;
 
     /**
      * @var \ControleOnline\Entity\Status
@@ -148,28 +131,6 @@ class Order
      * @Groups({"hardware_read","order_read","order_write"})
      */
     private $status;
-
-    /**
-     * @var \ControleOnline\Entity\People
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="delivery_people_id", referencedColumnName="id")
-     * })
-     * @Groups({"hardware_read","order_read","order_write"})
-     */
-    private $deliveryPeople;
-
-    /**
-     * @var \ControleOnline\Entity\People
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="retrieve_people_id", referencedColumnName="id")
-     * })
-     * @Groups({"hardware_read","order_read","order_write"})
-     */
-    private $retrievePeople;
 
     /**
      * @var string
@@ -202,20 +163,8 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="main_order_id", referencedColumnName="id")
      * })
-     * @Groups({"order_read","order_write"})
      */
     private $mainOrder;
-
-    /**
-     * @var \ControleOnline\Entity\DiscountCoupon
-     *
-     * @ORM\ManyToOne(targetEntity="DiscountCoupon")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="discount_coupon_id", referencedColumnName="id")
-     * })
-     * @Groups({"order_read","order_write"})
-     */
-    private $discountCoupon;
 
 
     /**
@@ -342,29 +291,7 @@ class Order
      */
     private $price = 0;
 
-    /**
-     * @var float
-     *
-     * @ORM\Column(name="invoice_total", type="float",  nullable=false)
-     * @Groups({"order_read","order_write"})
-     */
-    private $invoiceTotal = 0;
 
-    /**
-     * @var float
-     *
-     * @ORM\Column(name="cubage", type="float",  nullable=false)
-     * @Groups({"order_read","order_write"})
-     */
-    private $cubage = 0;
-
-    /**
-     * @var string
-     *
-     * @ORM\Column(name="product_type", type="string",  nullable=false)
-     * @Groups({"order_read","order_write"})
-     */
-    private $productType = '';
 
     /**
      * @var string
@@ -665,74 +592,6 @@ class Order
         return $this->payer;
     }
 
-    /**
-     * Set discountCoupon
-     *
-     * @param \ControleOnline\Entity\DiscountCoupon $discount_coupon
-     * @return Order
-     */
-    public function setDiscountCoupon(\ControleOnline\Entity\DiscountCoupon $discount_coupon = null)
-    {
-        $this->discountCoupon = $discount_coupon;
-
-        return $this;
-    }
-
-    /**
-     * Get discountCoupon
-     *
-     * @return \ControleOnline\Entity\DiscountCoupon
-     */
-    public function getDiscountCoupon()
-    {
-        return $this->discountCoupon;
-    }
-
-    /**
-     * Set deliveryPeople
-     *
-     * @param \ControleOnline\Entity\People $delivery_people
-     * @return Order
-     */
-    public function setDeliveryPeople(\ControleOnline\Entity\People $delivery_people = null)
-    {
-        $this->deliveryPeople = $delivery_people;
-
-        return $this;
-    }
-
-    /**
-     * Get deliveryPeople
-     *
-     * @return \ControleOnline\Entity\People
-     */
-    public function getDeliveryPeople()
-    {
-        return $this->deliveryPeople;
-    }
-
-    /**
-     * Set retrievePeople
-     *
-     * @param \ControleOnline\Entity\People $retrieve_people
-     * @return Order
-     */
-    public function setRetrievePeople(\ControleOnline\Entity\People $retrieve_people = null): self
-    {
-        $this->retrievePeople = $retrieve_people;
-
-        return $this;
-    }
-
-    /**
-     * Get retrievePeople
-     *
-     * @return \ControleOnline\Entity\People
-     */
-    public function getRetrievePeople(): ?People
-    {
-        return $this->retrievePeople;
-    }
 
     /**
      * Set comments
@@ -965,75 +824,6 @@ class Order
     public function getInvoice()
     {
         return $this->invoice;
-    }
-
-    /**
-     * Set invoiceTotal
-     *
-     * @param float $invoice_total
-     * @return Order
-     */
-    public function setInvoiceTotal($invoice_total)
-    {
-        $this->invoiceTotal = $invoice_total;
-
-        return $this;
-    }
-
-    /**
-     * Get invoiceTotal
-     *
-     * @return float
-     */
-    public function getInvoiceTotal()
-    {
-        return $this->invoiceTotal;
-    }
-
-    /**
-     * Set cubage
-     *
-     * @param float $cubage
-     * @return Order
-     */
-    public function setCubage($cubage)
-    {
-        $this->cubage = $cubage;
-
-        return $this;
-    }
-
-    /**
-     * Get cubage
-     *
-     * @return float
-     */
-    public function getCubage()
-    {
-        return $this->cubage;
-    }
-
-    /**
-     * Set product_type
-     *
-     * @param string $product_type
-     * @return Order
-     */
-    public function setProductType($product_type)
-    {
-        $this->productType = $product_type;
-
-        return $this;
-    }
-
-    /**
-     * Get product_type
-     *
-     * @return string
-     */
-    public function getProductType()
-    {
-        return $this->productType;
     }
 
     /**
@@ -1316,49 +1106,6 @@ class Order
     {
         return $this->task;
     }
-
-    /**
-     * Get the value of estimatedParkingDate
-     */
-    public function getEstimatedParkingDate(): ?\DateTime
-    {
-        return $this->estimatedParkingDate;
-    }
-
-    /**
-     * Set the value of estimatedParkingDate
-     */
-    public function setEstimatedParkingDate(?\DateTime $estimatedParkingDate): self
-    {
-        $this->estimatedParkingDate = $estimatedParkingDate;
-
-        return $this;
-    }
-
-    /**
-     * Get the value of parkingDate
-     *
-     * @return  \DateTime|null
-     */
-    public function getParkingDate()
-    {
-        return $this->parkingDate;
-    }
-
-    /**
-     * Set the value of parkingDate
-     *
-     * @param  \DateTime|null  $parkingDate
-     *
-     * @return  self
-     */
-    public function setParkingDate($parkingDate)
-    {
-        $this->parkingDate = $parkingDate;
-
-        return $this;
-    }
-
 
     /**
      * Add OrderQueue

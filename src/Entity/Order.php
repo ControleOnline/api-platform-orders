@@ -55,6 +55,7 @@ use stdClass;
  *     "invoice.invoice"                            : "exact",
  *     "client"                                     : "exact",
  *     "provider"                                   : "exact",
+ *     "orderType"                                   : "exact",
  *   }
  * )
  * @ApiFilter(
@@ -136,6 +137,8 @@ class Order
      * @var string
      *
      * @ORM\Column(name="order_type", type="string",  nullable=true)
+     * @Groups({"hardware_read","order_read","order_write"})
+
      */
     private $orderType;
 
@@ -340,7 +343,6 @@ class Order
         $this->task         = new ArrayCollection();
         $this->orderQueue   = new ArrayCollection();
         // $this->parkingDate  = new \DateTime('now');
-        $this->orderType    = 'sale';
         $this->otherInformations = json_encode(new stdClass());
     }
 

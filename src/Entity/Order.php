@@ -717,7 +717,7 @@ class Order
      *
      * @param \DateTimeInterface $alter_date
      */
-    public function setAlterDate(\DateTimeInterface $alter_date): self
+    public function setAlterDate(\DateTimeInterface $alter_date = null): self
     {
         $this->alterDate = $alter_date;
 

@@ -148,7 +148,7 @@ class Order
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
 
-    private $orderType;
+    private $orderType = 'Online';
 
 
     /**

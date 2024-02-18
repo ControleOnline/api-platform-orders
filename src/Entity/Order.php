@@ -50,8 +50,8 @@ use ApiPlatform\Metadata\ApiProperty;
         ),
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
-    normalizationContext: ['groups' => ['invoice_read']],
-    denormalizationContext: ['groups' => ['invoice_write']]
+    normalizationContext: ['groups' => ['order_read']],
+    denormalizationContext: ['groups' => ['order_write']]
 )]
 
 

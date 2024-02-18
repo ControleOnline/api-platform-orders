@@ -4,7 +4,6 @@ namespace ControleOnline\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
-use ApiPlatform\Core\Annotation\ApiResource;
 use ApiPlatform\Core\Annotation\ApiSubresource;
 use Symfony\Component\Serializer\Annotation\Groups;
 use ApiPlatform\Core\Annotation\ApiFilter;
@@ -15,56 +14,49 @@ use ControleOnline\Entity\SalesOrderInvoice;
 use \DateTime;
 use stdClass;
 
+
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Put;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\ApiProperty;
+
 /**
  * SalesOrder
  *
  * @ORM\EntityListeners({App\Listener\LogListener::class})
- * @ApiResource(
- *     attributes={
- *          "formats"={"jsonld", "json", "html", "jsonhal", "csv"={"text/csv"}},
- *     },  
- *     normalizationContext  ={"groups"={"order_read","order_write"}},
- *     denormalizationContext={"groups"={"order_write"}},
- *     collectionOperations  ={
- *         "get" ={ 
- *             "access_control"="is_granted('ROLE_CLIENT')",
- *          },
- *          "post"           ={
- *              "access_control"="is_granted('ROLE_CLIENT')",  
- *          },
- *     },
- *     itemOperations        ={
- *         "get"         ={
- *              "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_CLIENT') and previous_object.canAccess(user))",
- *         },
- *          "put"           ={
- *              "access_control"="is_granted('ROLE_CLIENT')",  
- *              "denormalization_context"={"groups"={"order_write"}},
- *          },
- *     }
- * )
  * @ORM\Table(name="orders", uniqueConstraints={@ORM\UniqueConstraint(name="discount_id", columns={"discount_coupon_id"})}, indexes={@ORM\Index(name="adress_destination_id", columns={"address_destination_id"}), @ORM\Index(name="notified", columns={"notified"}), @ORM\Index(name="delivery_contact_id", columns={"delivery_contact_id"}), @ORM\Index(name="contract_id", columns={"contract_id"}), @ORM\Index(name="delivery_people_id", columns={"delivery_people_id"}), @ORM\Index(name="status_id", columns={"status_id"}), @ORM\Index(name="order_date", columns={"order_date"}), @ORM\Index(name="provider_id", columns={"provider_id"}), @ORM\Index(name="quote_id", columns={"quote_id", "provider_id"}), @ORM\Index(name="adress_origin_id", columns={"address_origin_id"}), @ORM\Index(name="retrieve_contact_id", columns={"retrieve_contact_id"}), @ORM\Index(name="main_order_id", columns={"main_order_id"}), @ORM\Index(name="retrieve_people_id", columns={"retrieve_people_id"}), @ORM\Index(name="payer_people_id", columns={"payer_people_id"}), @ORM\Index(name="client_id", columns={"client_id"}), @ORM\Index(name="alter_date", columns={"alter_date"}), @ORM\Index(name="IDX_E52FFDEEDB805178", columns={"quote_id"})})
- * @ORM\Entity(repositoryClass="ControleOnline\Repository\SalesOrderRepository")
- * @ApiFilter(
- *   OrderFilter::class , properties={"alterDate": "DESC"},
- * )
- * @ApiFilter(
- *   SearchFilter::class, properties={
- *     "status"                                     : "exact",
- *     "status.realStatus"                          : "exact",
- *     "orderQueue.status.realStatus"               : "exact", 
- *     "orderQueue.queue.hardwareQueue.hardware"    : "exact",  
- *     "status.status"                              : "exact",
- *     "invoice.invoice"                            : "exact",
- *     "client"                                     : "exact",
- *     "provider"                                   : "exact",
- *     "orderType"                                   : "exact",
- *   }
- * )
- * @ApiFilter(
- *   App\Filter\SalesOrderEntityFilter::class
- * )
+ * @ORM\Entity(repositoryClass="ControleOnline\Repository\OrderRepository")
  */
+
+#[ApiResource(
+    operations: [
+        new Get(
+            security: 'is_granted(\'ROLE_CLIENT\')',
+        ),
+        new GetCollection(
+            security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
+        ),
+        new Post(
+            security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
+            validationContext: ['groups' => ['order_write']],
+            denormalizationContext: ['groups' => ['order_write']]
+        ),
+        new Put(
+            security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
+            validationContext: ['groups' => ['order_write']],
+            denormalizationContext: ['groups' => ['order_write']]
+        ),
+    ],
+    normalizationContext: ['groups' => ['order_read', 'order_write']],
+    denormalizationContext: ['groups' => ['order_write']],
+    attributes: [
+        'formats' => ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
+    ],
+)]
+
+
 
 class Order
 {
@@ -75,8 +67,9 @@ class Order
      * @ORM\Id
      * @ORM\GeneratedValue(strategy="IDENTITY")
      * @Groups({"order_read","company_expense_read","task_read","coupon_read","logistic_read","order_invoice_read"})
-     * @ApiFilter(SearchFilter::class, properties={"id"="exact"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
+
     private $id;
 
     /**
@@ -88,6 +81,8 @@ class Order
      * })
      * @Groups({"order_read","order_write", "invoice_read", "task_read"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['client' => 'exact'])]
+
     private $client;
 
     /**
@@ -95,6 +90,8 @@ class Order
      * @ORM\Column(name="order_date", type="datetime",  nullable=false, columnDefinition="DATETIME")
      * @Groups({"order_read","order_write"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderDate' => 'exact'])]
+
     private $orderDate;
 
     /**
@@ -102,6 +99,8 @@ class Order
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\SalesOrderInvoice", mappedBy="order")
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
+
     private $invoice;
 
     /**
@@ -109,6 +108,8 @@ class Order
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Task", mappedBy="order")
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['task' => 'exact'])]
+
     private $task;
 
     /**
@@ -116,12 +117,16 @@ class Order
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\SalesOrderInvoiceTax", mappedBy="order")
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoiceTax' => 'exact'])]
+
     private $invoiceTax;
 
     /**
      * @ORM\Column(name="alter_date", type="datetime",  nullable=false)
      * @Groups({"hardware_read","order_read","order_write"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['alterDate' => 'exact'])]
+
     private $alterDate;
 
 
@@ -134,6 +139,8 @@ class Order
      * })
      * @Groups({"hardware_read","order_read","order_write"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
+
     private $status;
 
     /**
@@ -142,6 +149,8 @@ class Order
      * @ORM\Column(name="order_type", type="string",  nullable=true)
      * @Groups({"hardware_read","order_read","order_write"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
+
     private $orderType;
 
 
@@ -151,6 +160,8 @@ class Order
      * @ORM\Column(name="app", type="string",  nullable=true)
      * @Groups({"hardware_read","order_read","order_write"}) 
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
+
     private $app;
 
     /**
@@ -159,6 +170,8 @@ class Order
      * @ORM\Column(name="other_informations", type="json",  nullable=true)
      * @Groups({"order_read","order_write"}) 
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['otherInformations' => 'exact'])]
+
     private $otherInformations;
 
     /**
@@ -169,6 +182,8 @@ class Order
      *   @ORM\JoinColumn(name="main_order_id", referencedColumnName="id")
      * })
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrder' => 'exact'])]
+
     private $mainOrder;
 
 
@@ -178,6 +193,8 @@ class Order
      * @ORM\Column(name="main_order_id", type="integer",  nullable=true)
      * @Groups({"order_read","order_write"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrderId' => 'exact'])]
+
     private $mainOrderId;
 
     /**
@@ -190,6 +207,8 @@ class Order
      * @Groups({"order_read","order_write","task_read","logistic_read"}) 
      * @ApiFilter(SearchFilter::class, properties={"contract"="exact"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['contract' => 'exact'])]
+
     private $contract;
 
     /**
@@ -201,6 +220,8 @@ class Order
      * })
      * @Groups({"order_read","order_write","task_read","invoice_read"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['payer' => 'exact'])]
+
     private $payer;
 
     /**
@@ -212,6 +233,8 @@ class Order
      * })
      * @Groups({"order_read","order_write","invoice_read", "task_read"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['provider' => 'exact'])]
+
     private $provider;
 
     /**
@@ -223,6 +246,8 @@ class Order
      * })
      * @Groups({"order_read","order_write"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['quote' => 'exact'])]
+
     private $quote;
 
     /**
@@ -230,6 +255,7 @@ class Order
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Quotation", mappedBy="order")
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['quotes' => 'exact'])]
 
     private $quotes;
 
@@ -238,6 +264,7 @@ class Order
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Retrieve", mappedBy="order")
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['retrieves' => 'exact'])]
 
     private $retrieves;
 
@@ -249,6 +276,8 @@ class Order
      *   @ORM\JoinColumn(name="address_origin_id", referencedColumnName="id")
      * })
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['addressOrigin' => 'exact'])]
+
     private $addressOrigin;
 
     /**
@@ -259,6 +288,8 @@ class Order
      *   @ORM\JoinColumn(name="address_destination_id", referencedColumnName="id")
      * })
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['addressDestination' => 'exact'])]
+
     private $addressDestination;
 
     /**
@@ -269,6 +300,8 @@ class Order
      *   @ORM\JoinColumn(name="retrieve_contact_id", referencedColumnName="id")
      * })
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['retrieveContact' => 'exact'])]
+
     private $retrieveContact;
 
     /**
@@ -279,6 +312,8 @@ class Order
      *   @ORM\JoinColumn(name="delivery_contact_id", referencedColumnName="id")
      * })
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['deliveryContact' => 'exact'])]
+
     private $deliveryContact;
 
     /**
@@ -286,6 +321,8 @@ class Order
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderPackage", mappedBy="order")
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderPackage' => 'exact'])]
+
     private $orderPackage;
 
     /**
@@ -294,6 +331,8 @@ class Order
      * @ORM\Column(name="price", type="float",  nullable=false)
      * @Groups({"order_read","order_write"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['price' => 'exact'])]
+
     private $price = 0;
 
 
@@ -304,6 +343,8 @@ class Order
      * @ORM\Column(name="comments", type="string",  nullable=true)
      * @Groups({"order_read","order_write"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['comments' => 'exact'])]
+
     private $comments;
 
     /**
@@ -311,6 +352,8 @@ class Order
      *
      * @ORM\Column(name="notified", type="boolean")
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['notified' => 'exact'])]
+
     private $notified = false;
 
     /**
@@ -318,6 +361,8 @@ class Order
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderTracking", mappedBy="order")
      * @ApiSubresource()
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['tracking' => 'exact'])]
+
     private $tracking;
 
 
@@ -328,6 +373,8 @@ class Order
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderQueue", mappedBy="order")
      * @Groups({"order_read","order_write"}) 
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderQueue' => 'exact'])]
+
     private $orderQueue;
 
 

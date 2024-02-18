@@ -11,8 +11,7 @@ use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ControleOnline\Entity\SalesOrderInvoice;
 use stdClass;
-#use ApiPlatform\Doctrine\Orm\Filter\RangeFilter;
-use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\RangeFilter;
+use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Put;
 use ApiPlatform\Metadata\Post;
@@ -86,7 +85,7 @@ class Order
      * @ORM\Column(name="order_date", type="datetime",  nullable=false, columnDefinition="DATETIME")
      * @Groups({"order_read","order_write"})
      */
-    #[ApiFilter(filterClass: RangeFilter::class, properties: ['orderDate'])]
+    #[ApiFilter(DateFilter::class, properties: ['orderDate'])]
 
     private $orderDate;
 
@@ -122,7 +121,7 @@ class Order
      * @Groups({"hardware_read","order_read","order_write"})
      */
 
-    #[ApiFilter(filterClass: RangeFilter::class, properties: ['alterDate'])]
+     #[ApiFilter(DateFilter::class, properties: ['alterDate'])]
 
     private $alterDate;
 

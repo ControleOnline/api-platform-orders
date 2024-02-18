@@ -50,7 +50,7 @@ use ApiPlatform\Metadata\ApiProperty;
     normalizationContext: ['groups' => ['order_read']],
     denormalizationContext: ['groups' => ['order_write']]
 )]
-
+#[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]
 
 
 class Order
@@ -85,8 +85,7 @@ class Order
      * @ORM\Column(name="order_date", type="datetime",  nullable=false, columnDefinition="DATETIME")
      * @Groups({"order_read","order_write"})
      */
-    #[ApiFilter(filterClass: OrderFilter::class, properties: ['dueDate' => 'DESC'])]
-    #[ApiFilter(filterClass: RangeFilter::class, properties: ['dueDate'])]
+    #[ApiFilter(filterClass: RangeFilter::class, properties: ['orderDate'])]
 
     private $orderDate;
 
@@ -121,8 +120,8 @@ class Order
      * @ORM\Column(name="alter_date", type="datetime",  nullable=false)
      * @Groups({"hardware_read","order_read","order_write"})
      */
-    #[ApiFilter(filterClass: OrderFilter::class, properties: ['dueDate' => 'DESC'])]
-    #[ApiFilter(filterClass: RangeFilter::class, properties: ['dueDate'])]
+
+    #[ApiFilter(filterClass: RangeFilter::class, properties: ['alterDate'])]
 
     private $alterDate;
 

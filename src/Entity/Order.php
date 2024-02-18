@@ -201,7 +201,6 @@ class Order
      *   @ORM\JoinColumn(name="contract_id", referencedColumnName="id")
      * })
      * @Groups({"order_read","order_write","task_read","logistic_read"}) 
-     * @ApiFilter(SearchFilter::class, properties={"contract"="exact"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['contract' => 'exact'])]
 

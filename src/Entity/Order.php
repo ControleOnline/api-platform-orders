@@ -35,7 +35,7 @@ use stdClass;
  *     },
  *     itemOperations        ={
  *         "get"         ={
- *           "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_CLIENT') and previous_object.canAccess(user))",
+ *              "access_control"="is_granted('ROLE_ADMIN') or (is_granted('ROLE_CLIENT') and previous_object.canAccess(user))",
  *         },
  *          "put"           ={
  *              "access_control"="is_granted('ROLE_CLIENT')",  

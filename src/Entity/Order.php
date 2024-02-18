@@ -6,15 +6,12 @@ use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
 use ApiPlatform\Core\Annotation\ApiSubresource;
 use Symfony\Component\Serializer\Annotation\Groups;
-use ApiPlatform\Core\Annotation\ApiFilter;
-use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\OrderFilter;
-use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
-use App\Filter\SalesOrderEntityFilter;
+use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ControleOnline\Entity\SalesOrderInvoice;
-use \DateTime;
 use stdClass;
-
-
+use ApiPlatform\Doctrine\Orm\Filter\RangeFilter;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Put;
 use ApiPlatform\Metadata\Post;
@@ -88,7 +85,8 @@ class Order
      * @ORM\Column(name="order_date", type="datetime",  nullable=false, columnDefinition="DATETIME")
      * @Groups({"order_read","order_write"})
      */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderDate' => 'exact'])]
+    #[ApiFilter(filterClass: OrderFilter::class, properties: ['dueDate' => 'DESC'])]
+    #[ApiFilter(filterClass: RangeFilter::class, properties: ['dueDate'])]
 
     private $orderDate;
 
@@ -123,7 +121,8 @@ class Order
      * @ORM\Column(name="alter_date", type="datetime",  nullable=false)
      * @Groups({"hardware_read","order_read","order_write"})
      */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['alterDate' => 'exact'])]
+    #[ApiFilter(filterClass: OrderFilter::class, properties: ['dueDate' => 'DESC'])]
+    #[ApiFilter(filterClass: RangeFilter::class, properties: ['dueDate'])]
 
     private $alterDate;
 
@@ -160,7 +159,7 @@ class Order
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
 
-    private $app;
+    private $app = 'Manual';
 
     /**
      * @var string

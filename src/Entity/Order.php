@@ -39,6 +39,7 @@ use stdClass;
  *         },
  *          "put"           ={
  *              "access_control"="is_granted('ROLE_CLIENT')",  
+ *              "denormalization_context"={"groups"={"order_write"}},
  *          },
  *     }
  * )
@@ -73,7 +74,7 @@ class Order
      * @ORM\Column(name="id", type="integer", nullable=false)
      * @ORM\Id
      * @ORM\GeneratedValue(strategy="IDENTITY")
-     * @Groups({"order_read","order_write","company_expense_read","task_read","coupon_read","logistic_read","order_invoice_read"})
+     * @Groups({"order_read","company_expense_read","task_read","coupon_read","logistic_read","order_invoice_read"})
      * @ApiFilter(SearchFilter::class, properties={"id"="exact"})
      */
     private $id;

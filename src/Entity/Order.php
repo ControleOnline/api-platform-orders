@@ -49,11 +49,9 @@ use ApiPlatform\Metadata\ApiProperty;
             denormalizationContext: ['groups' => ['order_write']]
         ),
     ],
-    normalizationContext: ['groups' => ['order_read', 'order_write']],
-    denormalizationContext: ['groups' => ['order_write']],
-    attributes: [
-        'formats' => ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
-    ],
+    formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
+    normalizationContext: ['groups' => ['invoice_read']],
+    denormalizationContext: ['groups' => ['invoice_write']]
 )]
 
 

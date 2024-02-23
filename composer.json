@@ -15,5 +15,7 @@
             "email": "luiz.kim@controleonline.com"
         }
     ],
-    "require": {}
+    "require": {
+        "controleonline/common": "*"
+    }
 }

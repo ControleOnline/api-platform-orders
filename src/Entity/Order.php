@@ -118,7 +118,7 @@ class Order
 
     /**
      * @ORM\Column(name="alter_date", type="datetime",  nullable=false)
-     * @Groups({"hardware_read","order_read","order_write"})
+     * @Groups({"display_read","order_read","order_write"})
      */
 
      #[ApiFilter(DateFilter::class, properties: ['alterDate'])]
@@ -133,7 +133,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="status_id", referencedColumnName="id")
      * })
-     * @Groups({"hardware_read","order_read","order_write"})
+     * @Groups({"display_read","order_read","order_write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
 
@@ -143,7 +143,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="order_type", type="string",  nullable=true)
-     * @Groups({"hardware_read","order_read","order_write"})
+     * @Groups({"display_read","order_read","order_write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
 
@@ -154,7 +154,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="app", type="string",  nullable=true)
-     * @Groups({"hardware_read","order_read","order_write"}) 
+     * @Groups({"display_read","order_read","order_write"}) 
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
 

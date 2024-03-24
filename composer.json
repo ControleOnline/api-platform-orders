@@ -16,6 +16,6 @@
         }
     ],
     "require": {
-        "controleonline/common": "^1.0.0"
+        "controleonline/common": "*"
     }
 }

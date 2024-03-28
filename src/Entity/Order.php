@@ -18,6 +18,7 @@ use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiProperty;
+use App\Entity\OrderProduct;
 
 /**
  * SalesOrder
@@ -90,6 +91,12 @@ class Order
     private $orderDate;
 
     /**
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProduct", mappedBy="order", cascade={"persist"})
+     * @Groups({"order_read","order_write"})
+     */
+    private $orderProducts;
+
+    /**
      * @var \Doctrine\Common\Collections\Collection
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\SalesOrderInvoice", mappedBy="order")
@@ -121,7 +128,7 @@ class Order
      * @Groups({"display_read","order_read","order_write"})
      */
 
-     #[ApiFilter(DateFilter::class, properties: ['alterDate'])]
+    #[ApiFilter(DateFilter::class, properties: ['alterDate'])]
 
     private $alterDate;
 
@@ -386,6 +393,7 @@ class Order
         $this->tracking     = new ArrayCollection();
         $this->task         = new ArrayCollection();
         $this->orderQueue   = new ArrayCollection();
+        $this->orderProducts = new ArrayCollection();
         // $this->parkingDate  = new \DateTime('now');
         $this->otherInformations = json_encode(new stdClass());
     }
@@ -1228,5 +1236,23 @@ class Order
         }
 
         return false;
+    }
+
+
+    public function getOrderProducts()
+    {
+        return $this->orderProducts;
+    }
+
+    public function addOrderProduct(OrderProduct $orderProduct): self
+    {
+        $this->orderProducts[] = $orderProduct;
+        return $this;
+    }
+
+    public function removeOrderProduct(OrderProduct $orderProduct): self
+    {
+        $this->orderProducts->removeElement($orderProduct);
+        return $this;
     }
 }

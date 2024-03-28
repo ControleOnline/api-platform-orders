@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Entity;
+namespace ControleOnline\Entity;
 
 
 use Doctrine\ORM\Mapping as ORM;
@@ -10,7 +10,6 @@ use Symfony\Component\Serializer\Annotation\Groups;
 use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
-use ControleOnline\Entity\SalesOrderInvoice;
 use stdClass;
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Metadata\GetCollection;
@@ -19,6 +18,14 @@ use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiProperty;
+
+/**
+ *  OrderProduct
+ *
+ * @ORM\EntityListeners({App\Listener\LogListener::class})
+ * @ORM\Table(name="order_product")
+ * @ORM\Entity(repositoryClass="ControleOnline\Repository\OrderProductRepository")
+ */
 
 #[ApiResource(
     operations: [
@@ -57,15 +64,15 @@ class OrderProduct
     private $id;
 
     /**
-     * @ORM\ManyToOne(targetEntity="App\Entity\Order")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order")
      * @ORM\JoinColumn(nullable=false)
-     * @Groups({"order_read","order_product_write","order_product_read"})
+     * @Groups({"order_product_write","order_product_read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
     private $order;
 
     /**
-     * @ORM\ManyToOne(targetEntity="App\Entity\Product")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
      * @ORM\JoinColumn(nullable=false)
      * @Groups({"order_read","order_product_write","order_product_read"})
      */

@@ -18,7 +18,7 @@ use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiProperty;
-use App\Entity\OrderProduct;
+use ControleOnline\Entity\OrderProduct;
 
 /**
  * SalesOrder

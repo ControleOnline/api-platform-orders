@@ -83,7 +83,7 @@ class OrderProduct
      * @ORM\Column(type="float")
      * @Groups({"order_read","order_product_write","order_product_read"})
      */
-    private $quantity;
+    private $quantity = 1;
 
     /**
      * @ORM\Column(type="float")

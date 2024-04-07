@@ -22,7 +22,7 @@ use ApiPlatform\Metadata\ApiProperty;
 /**
  *  OrderProduct
  *
- * @ORM\EntityListeners({App\Listener\LogListener::class})
+ * @ORM\EntityListeners({ControleOnline\Listener\LogListener::class})
  * @ORM\Table(name="order_product")
  * @ORM\Entity(repositoryClass="ControleOnline\Repository\OrderProductRepository")
  */

@@ -68,7 +68,7 @@ class OrderProduct
      * @ORM\JoinColumn(nullable=false)
      * @Groups({"order_product_write","order_product_read"})
      */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['order' => 'exact'])]
     private $order;
 
     /**
@@ -76,7 +76,7 @@ class OrderProduct
      * @ORM\JoinColumn(nullable=false)
      * @Groups({"order_read","order_product_write","order_product_read"})
      */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['product' => 'exact'])]
     private $product;
 
     /**

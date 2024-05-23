@@ -24,7 +24,7 @@ class OrderProductService
         $statement->execute(['order_id' =>  $order->getId()]);
 
         $result = $statement->fetchOne();
-        $order->setPrice($result['total']);
+        $order->setPrice($result);
         $this->manager->persist($order);
         $this->manager->flush();
     }

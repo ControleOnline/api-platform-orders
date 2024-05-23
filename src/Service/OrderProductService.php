@@ -18,7 +18,7 @@ class OrderProductService
     {
         $order = $OrderProduct->getOrder();
 
-        $sql = 'SELECT SUM(price * quantity) as total FROM order_product WHERE order_id = :order_id';
+        $sql = 'SELECT SUM(total) as total FROM order_product WHERE order_id = :order_id';
         $connection = $this->manager->getConnection();
         $statement = $connection->prepare($sql);
         $statement->execute(['order_id' =>  $order->getId()]);

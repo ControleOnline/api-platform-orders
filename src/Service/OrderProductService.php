@@ -27,5 +27,6 @@ class OrderProductService
         $order->setPrice($result);
         $this->manager->persist($order);
         $this->manager->flush();
+        return $order;
     }
 }

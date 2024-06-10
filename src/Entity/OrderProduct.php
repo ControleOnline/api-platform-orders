@@ -16,6 +16,7 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Put;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiProperty;
 
@@ -41,6 +42,11 @@ use ApiPlatform\Metadata\ApiProperty;
             denormalizationContext: ['groups' => ['order_product_write']]
         ),
         new Put(
+            security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
+            validationContext: ['groups' => ['order_product_write']],
+            denormalizationContext: ['groups' => ['order_product_write']]
+        ),
+        new Delete(
             security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
             validationContext: ['groups' => ['order_product_write']],
             denormalizationContext: ['groups' => ['order_product_write']]

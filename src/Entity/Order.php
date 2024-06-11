@@ -9,7 +9,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
 use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
-use ControleOnline\Entity\SalesOrderInvoice;
+use ControleOnline\Entity\OrderInvoice;
 use stdClass;
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Metadata\GetCollection;
@@ -21,7 +21,7 @@ use ApiPlatform\Metadata\ApiProperty;
 use ControleOnline\Entity\OrderProduct;
 
 /**
- * SalesOrder
+ * Order
  *
  * @ORM\EntityListeners({ControleOnline\Listener\LogListener::class})
  * @ORM\Table(name="orders", uniqueConstraints={@ORM\UniqueConstraint(name="discount_id", columns={"discount_coupon_id"})}, indexes={@ORM\Index(name="adress_destination_id", columns={"address_destination_id"}), @ORM\Index(name="notified", columns={"notified"}), @ORM\Index(name="delivery_contact_id", columns={"delivery_contact_id"}), @ORM\Index(name="contract_id", columns={"contract_id"}), @ORM\Index(name="delivery_people_id", columns={"delivery_people_id"}), @ORM\Index(name="status_id", columns={"status_id"}), @ORM\Index(name="order_date", columns={"order_date"}), @ORM\Index(name="provider_id", columns={"provider_id"}), @ORM\Index(name="quote_id", columns={"quote_id", "provider_id"}), @ORM\Index(name="adress_origin_id", columns={"address_origin_id"}), @ORM\Index(name="retrieve_contact_id", columns={"retrieve_contact_id"}), @ORM\Index(name="main_order_id", columns={"main_order_id"}), @ORM\Index(name="retrieve_people_id", columns={"retrieve_people_id"}), @ORM\Index(name="payer_people_id", columns={"payer_people_id"}), @ORM\Index(name="client_id", columns={"client_id"}), @ORM\Index(name="alter_date", columns={"alter_date"}), @ORM\Index(name="IDX_E52FFDEEDB805178", columns={"quote_id"})})
@@ -99,7 +99,7 @@ class Order
     /**
      * @var \Doctrine\Common\Collections\Collection
      *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\SalesOrderInvoice", mappedBy="order")
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderInvoice", mappedBy="order")
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
 
@@ -117,7 +117,7 @@ class Order
     /**
      * @var \Doctrine\Common\Collections\Collection
      *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\SalesOrderInvoiceTax", mappedBy="order")
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderInvoiceTax", mappedBy="order")
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoiceTax' => 'exact'])]
 
@@ -178,9 +178,9 @@ class Order
     private $otherInformations;
 
     /**
-     * @var \ControleOnline\Entity\SalesOrder
+     * @var \ControleOnline\Entity\Order
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\SalesOrder")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order")
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="main_order_id", referencedColumnName="id")
      * })
@@ -774,10 +774,10 @@ class Order
     /**
      * Add invoiceTax
      *
-     * @param \ControleOnline\Entity\SalesOrderInvoiceTax $invoice_tax
+     * @param \ControleOnline\Entity\OrderInvoiceTax $invoice_tax
      * @return Order
      */
-    public function addAInvoiceTax(SalesOrderInvoiceTax $invoice_tax)
+    public function addAInvoiceTax(OrderInvoiceTax $invoice_tax)
     {
         $this->invoiceTax[] = $invoice_tax;
 
@@ -787,9 +787,9 @@ class Order
     /**
      * Remove invoiceTax
      *
-     * @param \ControleOnline\Entity\SalesOrderInvoiceTax $invoice_tax
+     * @param \ControleOnline\Entity\OrderInvoiceTax $invoice_tax
      */
-    public function removeInvoiceTax(SalesOrderInvoiceTax $invoice_tax)
+    public function removeInvoiceTax(OrderInvoiceTax $invoice_tax)
     {
         $this->invoiceTax->removeElement($invoice_tax);
     }
@@ -809,9 +809,9 @@ class Order
     /**
      * Get invoiceTax
      *
-     * @return \ControleOnline\Entity\SalesInvoiceTax
+     * @return \ControleOnline\Entity\InvoiceTax
      */
-    public function getClientSalesInvoiceTax()
+    public function getClientInvoiceTax()
     {
         foreach ($this->getInvoiceTax() as $invoice) {
             if ($invoice->getInvoiceType() == 55) {
@@ -820,23 +820,11 @@ class Order
         }
     }
 
+
     /**
      * Get invoiceTax
      *
-     * @return \ControleOnline\Entity\SalesInvoiceTax
-     */
-    public function getClientInvoiceTax()
-    {
-        foreach ($this->getInvoiceTax() as $invoice) {
-            if ($invoice->getInvoiceType() == 55) {
-                return $invoice->getInvoiceTax();
-            }
-        }
-    }
-    /**
-     * Get invoiceTax
-     *
-     * @return \ControleOnline\Entity\SalesInvoiceTax
+     * @return \ControleOnline\Entity\InvoiceTax
      */
     public function getCarrierInvoiceTax()
     {
@@ -848,12 +836,12 @@ class Order
     }
 
     /**
-     * Add SalesOrderInvoice
+     * Add OrderInvoice
      *
-     * @param \ControleOnline\Entity\SalesOrderInvoice $invoice
+     * @param \ControleOnline\Entity\OrderInvoice $invoice
      * @return People
      */
-    public function addInvoice(SalesOrderInvoice $invoice)
+    public function addInvoice(OrderInvoice $invoice)
     {
         $this->invoice[] = $invoice;
 
@@ -861,17 +849,17 @@ class Order
     }
 
     /**
-     * Remove SalesOrderInvoice
+     * Remove OrderInvoice
      *
-     * @param \ControleOnline\Entity\SalesOrderInvoice $invoice
+     * @param \ControleOnline\Entity\OrderInvoice $invoice
      */
-    public function removeInvoice(SalesOrderInvoice $invoice)
+    public function removeInvoice(OrderInvoice $invoice)
     {
         $this->invoice->removeElement($invoice);
     }
 
     /**
-     * Get SalesOrderInvoice
+     * Get OrderInvoice
      *
      * @return \Doctrine\Common\Collections\Collection
      */
@@ -1020,10 +1008,10 @@ class Order
     /**
      * Set mainOrder
      *
-     * @param \ControleOnline\Entity\SalesOrder $mainOrder
+     * @param \ControleOnline\Entity\Order $mainOrder
      * @return Order
      */
-    public function setMainOrder(\ControleOnline\Entity\SalesOrder $main_order = null)
+    public function setMainOrder(\ControleOnline\Entity\Order $main_order = null)
     {
         $this->mainOrder = $main_order;
 
@@ -1033,7 +1021,7 @@ class Order
     /**
      * Get mainOrder
      *
-     * @return \ControleOnline\Entity\SalesOrder
+     * @return \ControleOnline\Entity\Order
      */
     public function getMainOrder()
     {
@@ -1067,7 +1055,7 @@ class Order
      * Set contract
      *
      * @param \ControleOnline\Entity\Contract $contract
-     * @return SalesOrder
+     * @return Order
      */
     public function setContract($contract)
     {
@@ -1132,7 +1120,7 @@ class Order
      * Add Task
      *
      * @param \ControleOnline\Entity\Task $task
-     * @return SalesOrder
+     * @return Order
      */
     public function addTask(\ControleOnline\Entity\Task $task)
     {

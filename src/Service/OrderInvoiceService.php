@@ -22,7 +22,7 @@ class OrderInvoiceService
         $order = $OrderInvoice->getOrder();
         if ($invoice->getStatus()->getStatus() == 'Pago') {
             $orderStatus = $this->manager->getRepository(Status::class)->findOneBy([
-                'status' => 'Aguardando Pagamento',
+                'status' => 'Pago',
                 'context' => 'order'
             ]);
             $order->setStatus($orderStatus);

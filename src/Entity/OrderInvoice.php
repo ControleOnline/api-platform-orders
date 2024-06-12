@@ -4,6 +4,7 @@ namespace ControleOnline\Entity;
 
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
@@ -11,6 +12,7 @@ use ApiPlatform\Metadata\ApiFilter;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 use Doctrine\Common\Collections\ArrayCollection;
+
 /**
  * OrderInvoice
  *
@@ -18,7 +20,21 @@ use Doctrine\Common\Collections\ArrayCollection;
  * @ORM\Table (name="order_invoice", uniqueConstraints={@ORM\UniqueConstraint (name="order_id", columns={"order_id", "invoice_id"})}, indexes={@ORM\Index (name="invoice_id", columns={"invoice_id"})})
  * @ORM\Entity
  */
-#[ApiResource(operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')'), new GetCollection(security: 'is_granted(\'ROLE_CLIENT\')')], formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']], normalizationContext: ['groups' => ['order_invoice_read']], denormalizationContext: ['groups' => ['order_invoice_write']])]
+#[ApiResource(
+    operations: [
+        new Post(
+            security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
+            validationContext: ['groups' => ['order_invoice_write']],
+            denormalizationContext: ['groups' => ['order_invoice_write']],
+
+        ),
+        new Get(security: 'is_granted(\'ROLE_CLIENT\')'),
+        new GetCollection(security: 'is_granted(\'ROLE_CLIENT\')')
+    ],
+    formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
+    normalizationContext: ['groups' => ['order_invoice_read']],
+    denormalizationContext: ['groups' => ['order_invoice_write']]
+)]
 #[ApiFilter(filterClass: SearchFilter::class, properties: ['order.id' => 'exact'])]
 class OrderInvoice
 {
@@ -38,7 +54,7 @@ class OrderInvoice
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="invoice_id", referencedColumnName="id")
      * })
-     * @Groups({"order_invoice_read","order_read"}) 
+     * @Groups({"order_invoice_read","order_read","order_invoice_write"}) 
      */
     private $invoice;
     /**
@@ -48,14 +64,14 @@ class OrderInvoice
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="order_id", referencedColumnName="id")
      * })
-     * @Groups({"invoice_read","order_invoice_read"})
+     * @Groups({"invoice_read","order_invoice_read","order_invoice_write"})
      */
     private $order;
     /**
      * @var float
      *
      * @ORM\Column(name="real_price", type="float",  nullable=false)
-     * @Groups({"order_invoice_read","order_read"})
+     * @Groups({"order_invoice_read","order_read","order_invoice_write"})
      * 
      */
     private $realPrice = 0;

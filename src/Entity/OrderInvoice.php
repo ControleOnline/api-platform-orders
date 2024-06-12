@@ -50,7 +50,7 @@ class OrderInvoice
     /**
      * @var \ControleOnline\Entity\Invoice
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Invoice", inversedBy="order")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Invoice", inversedBy="order", cascade={"persist"})
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="invoice_id", referencedColumnName="id")
      * })
@@ -60,7 +60,7 @@ class OrderInvoice
     /**
      * @var \ControleOnline\Entity\Order
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order", inversedBy="invoice")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order", inversedBy="invoice", cascade={"persist"})
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="order_id", referencedColumnName="id")
      * })

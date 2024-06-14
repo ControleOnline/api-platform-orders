@@ -20,7 +20,7 @@ class OrderInvoiceService
     {
         $invoice = $OrderInvoice->getInvoice();
         $order = $OrderInvoice->getOrder();
-        if ($invoice->getStatus()->getStatus() == 'Pago') {
+        //if ($invoice->getStatus()->getStatus() == 'Pago') {
             $orderStatus = $this->manager->getRepository(Status::class)->findOneBy([
                 'status' => 'Pago',
                 'context' => 'order'
@@ -28,7 +28,7 @@ class OrderInvoiceService
             $order->setStatus($orderStatus);
             $this->manager->persist($order);
             $this->manager->flush();
-        }
+        //}
         return $order;
     }
 }

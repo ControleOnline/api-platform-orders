@@ -56,7 +56,7 @@ class OrderInvoice
      * })
      * @Groups({"order_invoice_read","order_read","order_invoice_write"}) 
      */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice.id' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
     private $invoice;
     /**
      * @var \ControleOnline\Entity\Order
@@ -67,7 +67,7 @@ class OrderInvoice
      * })
      * @Groups({"invoice_read","order_invoice_read","order_invoice_write"})
      */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['order.id' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['order' => 'exact'])]
     private $order;
     /**
      * @var float

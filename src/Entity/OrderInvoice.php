@@ -35,7 +35,7 @@ use Doctrine\Common\Collections\ArrayCollection;
     normalizationContext: ['groups' => ['order_invoice_read']],
     denormalizationContext: ['groups' => ['order_invoice_write']]
 )]
-#[ApiFilter(filterClass: SearchFilter::class, properties: ['order.id' => 'exact'])]
+
 class OrderInvoice
 {
     /**
@@ -56,6 +56,7 @@ class OrderInvoice
      * })
      * @Groups({"order_invoice_read","order_read","order_invoice_write"}) 
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice.id' => 'exact'])]
     private $invoice;
     /**
      * @var \ControleOnline\Entity\Order
@@ -66,6 +67,7 @@ class OrderInvoice
      * })
      * @Groups({"invoice_read","order_invoice_read","order_invoice_write"})
      */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['order.id' => 'exact'])]
     private $order;
     /**
      * @var float

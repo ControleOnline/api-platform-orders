@@ -101,6 +101,8 @@ class Order
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderInvoice", mappedBy="order")
      */
+    
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice.invoice.id' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
     private $invoice;
 

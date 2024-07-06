@@ -227,27 +227,7 @@ class Order
 
     private $provider;
 
-    /**
-     * @var \ControleOnline\Entity\Quotation
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Quotation")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="quote_id", referencedColumnName="id")
-     * })
-     * @Groups({"order_read","order_write"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['quote' => 'exact'])]
-
-    private $quote;
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Quotation", mappedBy="order")
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['quotes' => 'exact'])]
-
-    private $quotes;
+    
 
     /**
      * @var \Doctrine\Common\Collections\Collection
@@ -376,7 +356,6 @@ class Order
         $this->orderPackage = new ArrayCollection();
         $this->invoiceTax   = new ArrayCollection();
         $this->invoice      = new ArrayCollection();
-        $this->quotes       = new ArrayCollection();
         $this->retrieves    = new ArrayCollection();
         $this->tracking     = new ArrayCollection();
         $this->task         = new ArrayCollection();
@@ -496,28 +475,6 @@ class Order
         return $this->price;
     }
 
-    /**
-     * Set quote
-     *
-     * @param \ControleOnline\Entity\Quotation $quote
-     * @return Order
-     */
-    public function setQuote(\ControleOnline\Entity\Quotation $quote = null)
-    {
-        $this->quote = $quote;
-
-        return $this;
-    }
-
-    /**
-     * Get quote
-     *
-     * @return \ControleOnline\Entity\Quotation
-     */
-    public function getQuote()
-    {
-        return $this->quote;
-    }
 
     /**
      * Set addressOrigin
@@ -854,39 +811,6 @@ class Order
     public function getInvoice()
     {
         return $this->invoice;
-    }
-
-    /**
-     * Add quotes
-     *
-     * @param \ControleOnline\Entity\Quotation $quotes
-     * @return Order
-     */
-    public function addAQuotes(\ControleOnline\Entity\Quotation $quotes)
-    {
-        $this->quotes[] = $quotes;
-
-        return $this;
-    }
-
-    /**
-     * Remove quotes
-     *
-     * @param \ControleOnline\Entity\Quotation $quotes
-     */
-    public function removeQuotes(\ControleOnline\Entity\Quotation $quotes)
-    {
-        $this->quotes->removeElement($quotes);
-    }
-
-    /**
-     * Get quotes
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getQuotes()
-    {
-        return $this->quotes;
     }
 
     /**

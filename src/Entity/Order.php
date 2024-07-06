@@ -279,14 +279,6 @@ class Order
 
     private $deliveryContact;
 
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderPackage", mappedBy="order")
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderPackage' => 'exact'])]
-
-    private $orderPackage;
 
     /**
      * @var float
@@ -346,7 +338,6 @@ class Order
     {
         $this->orderDate    = new \DateTime('now');
         $this->alterDate    = new \DateTime('now');
-        $this->orderPackage = new ArrayCollection();
         $this->invoiceTax   = new ArrayCollection();
         $this->invoice      = new ArrayCollection();
         $this->tracking     = new ArrayCollection();
@@ -673,39 +664,6 @@ class Order
     public function getAlterDate(): ?\DateTimeInterface
     {
         return $this->alterDate;
-    }
-
-    /**
-     * Add orderPackage
-     *
-     * @param \ControleOnline\Entity\OrderPackage $order_package
-     * @return Order
-     */
-    public function addOrderPackage(\ControleOnline\Entity\OrderPackage $order_package)
-    {
-        $this->orderPackage[] = $order_package;
-
-        return $this;
-    }
-
-    /**
-     * Remove orderPackage
-     *
-     * @param \ControleOnline\Entity\OrderPackage $order_package
-     */
-    public function removeOrderPackage(\ControleOnline\Entity\OrderPackage $order_package)
-    {
-        $this->orderPackage->removeElement($order_package);
-    }
-
-    /**
-     * Get orderPackage
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getOrderPackage()
-    {
-        return $this->orderPackage;
     }
 
     /**

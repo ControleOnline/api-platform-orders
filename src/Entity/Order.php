@@ -229,14 +229,7 @@ class Order
 
     
 
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Retrieve", mappedBy="order")
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['retrieves' => 'exact'])]
 
-    private $retrieves;
 
     /**
      * @var \ControleOnline\Entity\Address
@@ -356,7 +349,6 @@ class Order
         $this->orderPackage = new ArrayCollection();
         $this->invoiceTax   = new ArrayCollection();
         $this->invoice      = new ArrayCollection();
-        $this->retrieves    = new ArrayCollection();
         $this->tracking     = new ArrayCollection();
         $this->task         = new ArrayCollection();
         $this->orderQueue   = new ArrayCollection();
@@ -813,38 +805,6 @@ class Order
         return $this->invoice;
     }
 
-    /**
-     * Add retrieves
-     *
-     * @param \ControleOnline\Entity\Retrieve $retrieves
-     * @return Order
-     */
-    public function addARetrieves(\ControleOnline\Entity\Retrieve $retrieves)
-    {
-        $this->retrieves[] = $retrieves;
-
-        return $this;
-    }
-
-    /**
-     * Remove retrieves
-     *
-     * @param \ControleOnline\Entity\Retrieve $retrieves
-     */
-    public function removeRetrieves(\ControleOnline\Entity\Retrieve $retrieves)
-    {
-        $this->retrieves->removeElement($retrieves);
-    }
-
-    /**
-     * Get retrieves
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getRetrieves()
-    {
-        return $this->retrieves;
-    }
 
     /**
      * Get Notified

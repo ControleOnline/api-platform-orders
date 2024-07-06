@@ -24,7 +24,7 @@ use ControleOnline\Entity\OrderProduct;
  * Order
  *
  * @ORM\EntityListeners({ControleOnline\Listener\LogListener::class})
- * @ORM\Table(name="orders", uniqueConstraints={@ORM\UniqueConstraint(name="discount_id", columns={"discount_coupon_id"})}, indexes={@ORM\Index(name="adress_destination_id", columns={"address_destination_id"}), @ORM\Index(name="notified", columns={"notified"}), @ORM\Index(name="delivery_contact_id", columns={"delivery_contact_id"}), @ORM\Index(name="contract_id", columns={"contract_id"}), @ORM\Index(name="delivery_people_id", columns={"delivery_people_id"}), @ORM\Index(name="status_id", columns={"status_id"}), @ORM\Index(name="order_date", columns={"order_date"}), @ORM\Index(name="provider_id", columns={"provider_id"}), @ORM\Index(name="quote_id", columns={"quote_id", "provider_id"}), @ORM\Index(name="adress_origin_id", columns={"address_origin_id"}), @ORM\Index(name="retrieve_contact_id", columns={"retrieve_contact_id"}), @ORM\Index(name="main_order_id", columns={"main_order_id"}), @ORM\Index(name="retrieve_people_id", columns={"retrieve_people_id"}), @ORM\Index(name="payer_people_id", columns={"payer_people_id"}), @ORM\Index(name="client_id", columns={"client_id"}), @ORM\Index(name="alter_date", columns={"alter_date"}), @ORM\Index(name="IDX_E52FFDEEDB805178", columns={"quote_id"})})
+ * @ORM\Table(name="orders", uniqueConstraints={@ORM\UniqueConstraint(name="discount_id", columns={"discount_coupon_id"})}, indexes={@ORM\Index(name="adress_destination_id", columns={"address_destination_id"}), @ORM\Index(name="notified", columns={"notified"}), @ORM\Index(name="delivery_contact_id", columns={"delivery_contact_id"}), @ORM\Index(name="delivery_people_id", columns={"delivery_people_id"}), @ORM\Index(name="status_id", columns={"status_id"}), @ORM\Index(name="order_date", columns={"order_date"}), @ORM\Index(name="provider_id", columns={"provider_id"}), @ORM\Index(name="quote_id", columns={"quote_id", "provider_id"}), @ORM\Index(name="adress_origin_id", columns={"address_origin_id"}), @ORM\Index(name="retrieve_contact_id", columns={"retrieve_contact_id"}), @ORM\Index(name="main_order_id", columns={"main_order_id"}), @ORM\Index(name="retrieve_people_id", columns={"retrieve_people_id"}), @ORM\Index(name="payer_people_id", columns={"payer_people_id"}), @ORM\Index(name="client_id", columns={"client_id"}), @ORM\Index(name="alter_date", columns={"alter_date"}), @ORM\Index(name="IDX_E52FFDEEDB805178", columns={"quote_id"})})
  * @ORM\Entity(repositoryClass="ControleOnline\Repository\OrderRepository")
  */
 
@@ -199,18 +199,7 @@ class Order
 
     private $mainOrderId;
 
-    /**
-     * @var \ControleOnline\Entity\Contract
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Contract")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="contract_id", referencedColumnName="id")
-     * })
-     * @Groups({"order_read","order_write","task_read","logistic_read"}) 
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['contract' => 'exact'])]
 
-    private $contract;
 
     /**
      * @var \ControleOnline\Entity\People
@@ -1050,18 +1039,7 @@ class Order
         return $this->mainOrderId;
     }
 
-    /**
-     * Set contract
-     *
-     * @param \ControleOnline\Entity\Contract $contract
-     * @return Order
-     */
-    public function setContract($contract)
-    {
-        $this->contract = $contract;
 
-        return $this;
-    }
 
     public function getInvoiceByStatus(array $status)
     {
@@ -1072,15 +1050,7 @@ class Order
             }
         }
     }
-    /**
-     * Get contract
-     *
-     * @return \ControleOnline\Entity\Contract
-     */
-    public function getContract()
-    {
-        return $this->contract;
-    }
+
 
     public function canAccess($currentUser): bool
     {

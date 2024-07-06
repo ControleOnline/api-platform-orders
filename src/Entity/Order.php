@@ -313,17 +313,6 @@ class Order
 
     /**
      * @var \Doctrine\Common\Collections\Collection
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderTracking", mappedBy="order")
-     * @ApiSubresource()
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['tracking' => 'exact'])]
-
-    private $tracking;
-
-
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderQueue", mappedBy="order")
      * @Groups({"order_read","order_write"}) 
@@ -340,7 +329,6 @@ class Order
         $this->alterDate    = new \DateTime('now');
         $this->invoiceTax   = new ArrayCollection();
         $this->invoice      = new ArrayCollection();
-        $this->tracking     = new ArrayCollection();
         $this->task         = new ArrayCollection();
         $this->orderQueue   = new ArrayCollection();
         $this->orderProducts = new ArrayCollection();
@@ -911,15 +899,6 @@ class Order
         return $this->getStatus()->getStatus() == 'quote';
     }
 
-    /**
-     * Get tracking
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getTracking()
-    {
-        return $this->tracking;
-    }
 
     public function getOneInvoice()
     {

@@ -62,7 +62,7 @@ class Order
      * @ORM\Column(name="id", type="integer", nullable=false)
      * @ORM\Id
      * @ORM\GeneratedValue(strategy="IDENTITY")
-     * @Groups({"order_read","company_expense_read","task_read","coupon_read","logistic_read","order_invoice_read"})
+     * @Groups({"order_read","company_expense_read","coupon_read","logistic_read","order_invoice_read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
 
@@ -75,7 +75,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="client_id", referencedColumnName="id")
      * })
-     * @Groups({"order_read","order_write", "invoice_read", "task_read"})
+     * @Groups({"order_read","order_write", "invoice_read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['client' => 'exact'])]
 
@@ -208,7 +208,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="payer_people_id", referencedColumnName="id")
      * })
-     * @Groups({"order_read","order_write","task_read","invoice_read"})
+     * @Groups({"order_read","order_write","invoice_read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['payer' => 'exact'])]
 
@@ -221,7 +221,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="provider_id", referencedColumnName="id")
      * })
-     * @Groups({"order_read","order_write","invoice_read", "task_read"})
+     * @Groups({"order_read","order_write","invoice_read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['provider' => 'exact'])]
 

@@ -18,6 +18,7 @@ use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiProperty;
+use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Entity\OrderProduct;
 
 /**
@@ -45,6 +46,12 @@ use ControleOnline\Entity\OrderProduct;
             security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
             validationContext: ['groups' => ['order_write']],
             denormalizationContext: ['groups' => ['order_write']]
+        ),
+        new Post(
+            security: 'is_granted(\'ROLE_CLIENT\')',
+            uriTemplate: '/orders/{id}/nfe',
+            #requirements: ['format' => '^(pdf|xml)+$'],
+            controller: CreateNFeAction::class
         ),
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],

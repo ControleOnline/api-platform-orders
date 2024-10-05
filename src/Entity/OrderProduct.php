@@ -38,23 +38,23 @@ use ApiPlatform\Metadata\ApiProperty;
         ),
         new Post(
             security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
-            validationContext: ['groups' => ['order_product_write']],
-            denormalizationContext: ['groups' => ['order_product_write']]
+            validationContext: ['groups' => ['order_product:write']],
+            denormalizationContext: ['groups' => ['order_product:write']]
         ),
         new Put(
             security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
-            validationContext: ['groups' => ['order_product_write']],
-            denormalizationContext: ['groups' => ['order_product_write']]
+            validationContext: ['groups' => ['order_product:write']],
+            denormalizationContext: ['groups' => ['order_product:write']]
         ),
         new Delete(
             security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
-            validationContext: ['groups' => ['order_product_write']],
-            denormalizationContext: ['groups' => ['order_product_write']]
+            validationContext: ['groups' => ['order_product:write']],
+            denormalizationContext: ['groups' => ['order_product:write']]
         ),
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
-    normalizationContext: ['groups' => ['order_product_read']],
-    denormalizationContext: ['groups' => ['order_product_write']]
+    normalizationContext: ['groups' => ['order_product:read']],
+    denormalizationContext: ['groups' => ['order_product:write']]
 )]
 #[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]
 
@@ -64,7 +64,7 @@ class OrderProduct
      * @ORM\Id
      * @ORM\GeneratedValue
      * @ORM\Column(type="integer")
-     * @Groups({"order_read","order_product_write","order_product_read"})
+     * @Groups({"order:read","order_product:write","order_product:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
     private $id;
@@ -72,7 +72,7 @@ class OrderProduct
     /**
      * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order")
      * @ORM\JoinColumn(nullable=false)
-     * @Groups({"order_product_write","order_product_read"})
+     * @Groups({"order_product:write","order_product:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['order' => 'exact'])]
     private $order;
@@ -80,26 +80,26 @@ class OrderProduct
     /**
      * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
      * @ORM\JoinColumn(nullable=false)
-     * @Groups({"order_read","order_product_write","order_product_read"})
+     * @Groups({"order:read","order_product:write","order_product:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['product' => 'exact'])]
     private $product;
 
     /**
      * @ORM\Column(type="float")
-     * @Groups({"order_read","order_product_write","order_product_read"})
+     * @Groups({"order:read","order_product:write","order_product:read"})
      */
     private $quantity = 1;
 
     /**
      * @ORM\Column(type="float")
-     * @Groups({"order_read","order_product_write","order_product_read"})
+     * @Groups({"order:read","order_product:write","order_product:read"})
      */
     private $price;
 
     /**
      * @ORM\Column(type="float")
-     * @Groups({"order_read","order_product_write","order_product_read"})
+     * @Groups({"order:read","order_product:write","order_product:read"})
      */
     private $total;
 

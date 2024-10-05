@@ -24,16 +24,16 @@ use Doctrine\Common\Collections\ArrayCollection;
     operations: [
         new Post(
             security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
-            validationContext: ['groups' => ['order_invoice_write']],
-            denormalizationContext: ['groups' => ['order_invoice_write']],
+            validationContext: ['groups' => ['order_invoice:write']],
+            denormalizationContext: ['groups' => ['order_invoice:write']],
 
         ),
         new Get(security: 'is_granted(\'ROLE_CLIENT\')'),
         new GetCollection(security: 'is_granted(\'ROLE_CLIENT\')')
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
-    normalizationContext: ['groups' => ['order_invoice_read']],
-    denormalizationContext: ['groups' => ['order_invoice_write']]
+    normalizationContext: ['groups' => ['order_invoice:read']],
+    denormalizationContext: ['groups' => ['order_invoice:write']]
 )]
 
 class OrderInvoice
@@ -44,7 +44,7 @@ class OrderInvoice
      * @ORM\Column(name="id", type="integer", nullable=false)
      * @ORM\Id
      * @ORM\GeneratedValue(strategy="IDENTITY")
-     * @Groups({"order_invoice_read","order_read"})
+     * @Groups({"order_invoice:read","order:read"})
      */
     private $id;
     /**
@@ -54,7 +54,7 @@ class OrderInvoice
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="invoice_id", referencedColumnName="id")
      * })
-     * @Groups({"order_invoice_read","order_read","order_invoice_write"}) 
+     * @Groups({"order_invoice:read","order:read","order_invoice:write"}) 
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
     private $invoice;
@@ -65,7 +65,7 @@ class OrderInvoice
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="order_id", referencedColumnName="id")
      * })
-     * @Groups({"invoice_read","order_invoice_read","order_invoice_write"})
+     * @Groups({"invoice:read","order_invoice:read","order_invoice:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['order' => 'exact'])]
     private $order;
@@ -73,7 +73,7 @@ class OrderInvoice
      * @var float
      *
      * @ORM\Column(name="real_price", type="float",  nullable=false)
-     * @Groups({"order_invoice_read","order_read","order_invoice_write"})
+     * @Groups({"order_invoice:read","order:read","order_invoice:write"})
      * 
      */
     private $realPrice = 0;

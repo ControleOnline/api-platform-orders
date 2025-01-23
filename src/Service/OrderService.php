@@ -33,7 +33,7 @@ class OrderService
         $order->setClient($payer);
         $order->setPayer($payer);
         $order->setOrderType('sales');
-        $order->setOrderStatus($this->manager->getRepository(Status::class)->findOneBy([
+        $order->setStatus($this->manager->getRepository(Status::class)->findOneBy([
             'status' => 'open',
             'context' => 'order',
             'people' => $receiver

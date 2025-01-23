@@ -27,16 +27,16 @@ class OrderService
 
     public function createOrder(People $receiver, People $payer)
     {
-
+        $status = $this->manager->getRepository(Status::class)->findOneBy([
+            'status' => 'waiting payment',
+            'context' => 'order'
+        ]);
         $order = new Order();
         $order->setProvider($receiver);
         $order->setClient($payer);
         $order->setPayer($payer);
-        $order->setOrderType('sales');
-        $order->setStatus($this->manager->getRepository(Status::class)->findOneBy([
-            'status' => 'open',
-            'context' => 'order'
-        ]));
+        $order->setOrderType('sale');
+        $order->setStatus($status);
         $order->setApp('Asaas');
 
         $this->manager->persist($order);

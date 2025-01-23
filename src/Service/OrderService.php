@@ -35,10 +35,10 @@ class OrderService
         $order->setOrderType('sales');
         $order->setStatus($this->manager->getRepository(Status::class)->findOneBy([
             'status' => 'open',
-            'context' => 'order',
-            'people' => $receiver
+            'context' => 'order'
         ]));
         $order->setApp('Asaas');
+
         $this->manager->persist($order);
         $this->manager->flush();
         return $order;

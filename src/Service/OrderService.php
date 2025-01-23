@@ -2,6 +2,9 @@
 
 namespace ControleOnline\Service;
 
+use ControleOnline\Entity\Order;
+use ControleOnline\Entity\People;
+use ControleOnline\Entity\Status;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Security;
 use Doctrine\ORM\QueryBuilder;
@@ -19,6 +22,26 @@ class OrderService
 
     ) {
         $this->request  = $requestStack->getCurrentRequest();
+    }
+
+
+    public function createOrder(People $receiver, People $payer)
+    {
+
+        $order = new Order();
+        $order->setProvider($receiver);
+        $order->setClient($payer);
+        $order->setPayer($payer);
+        $order->setOrderType('sales');
+        $order->setOrderStatus($this->manager->getRepository(Status::class)->findOneBy([
+            'status' => 'open',
+            'context' => 'order',
+            'people' => $receiver
+        ]));
+        $order->setApp('Asaas');
+        $this->manager->persist($order);
+        $this->manager->flush();
+        return $order;
     }
 
     public function secutiryFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void

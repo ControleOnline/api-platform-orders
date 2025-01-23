@@ -31,6 +31,7 @@ class OrderService
             'status' => 'waiting payment',
             'context' => 'order'
         ]);
+        
         $order = new Order();
         $order->setProvider($receiver);
         $order->setClient($payer);

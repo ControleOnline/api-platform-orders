@@ -13,8 +13,7 @@ class OrderProductService
         private EntityManagerInterface $manager,
         private Security $security,
         private PeopleService $PeopleService
-    ) {
-    }
+    ) {}
 
     public function afterPersist(OrderProduct $OrderProduct)
     {
@@ -32,11 +31,11 @@ class OrderProductService
         return $order;
     }
 
-    private function  secutiryFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
+    public function  secutiryFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
     {
-      //$queryBuilder->join(sprintf('%s.order', $rootAlias), 'o');
-      //$queryBuilder->andWhere('o.client IN(:companies) OR o.provider IN(:companies)');
-      //$companies   = $this->PeopleService->getMyCompanies();
-      //$queryBuilder->setParameter('companies', $companies);
+        //$queryBuilder->join(sprintf('%s.order', $rootAlias), 'o');
+        //$queryBuilder->andWhere('o.client IN(:companies) OR o.provider IN(:companies)');
+        //$companies   = $this->PeopleService->getMyCompanies();
+        //$queryBuilder->setParameter('companies', $companies);
     }
 }

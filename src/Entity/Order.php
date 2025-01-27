@@ -41,12 +41,12 @@ use ControleOnline\Entity\OrderProduct;
         new Post(
             security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
             validationContext: ['groups' => ['order:write']],
-            denormalizationContext: ['groups' => ['order:write']]
+            denormalizationContext: ['groups' => ['order_details:read']]
         ),
         new Put(
             security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
             validationContext: ['groups' => ['order:write']],
-            denormalizationContext: ['groups' => ['order:write']]
+            denormalizationContext: ['groups' => ['order_details:read']]
         ),
         new Post(
             security: 'is_granted(\'ROLE_CLIENT\')',

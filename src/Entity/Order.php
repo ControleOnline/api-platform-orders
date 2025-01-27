@@ -33,7 +33,7 @@ use ControleOnline\Entity\OrderProduct;
     operations: [
         new Get(
             security: 'is_granted(\'ROLE_CLIENT\')',
-            denormalizationContext: ['groups' => ['order_details:read']]
+            normalizationContext: ['groups' => ['order_details:read']]
         ),
         new GetCollection(
             security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',

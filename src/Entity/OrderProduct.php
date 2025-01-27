@@ -64,7 +64,7 @@ class OrderProduct
      * @ORM\Id
      * @ORM\GeneratedValue
      * @ORM\Column(type="integer")
-     * @Groups({"order:read","order_product:write","order_product:read"})
+     * @Groups({"order:read","order_details:read","order_product:write","order_product:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
     private $id;
@@ -80,26 +80,26 @@ class OrderProduct
     /**
      * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
      * @ORM\JoinColumn(nullable=false)
-     * @Groups({"order:read","order_product:write","order_product:read"})
+     * @Groups({"order:read","order_details:read","order_product:write","order_product:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['product' => 'exact'])]
     private $product;
 
     /**
      * @ORM\Column(type="float")
-     * @Groups({"order:read","order_product:write","order_product:read"})
+     * @Groups({"order:read","order_details:read","order_product:write","order_product:read"})
      */
     private $quantity = 1;
 
     /**
      * @ORM\Column(type="float")
-     * @Groups({"order:read","order_product:write","order_product:read"})
+     * @Groups({"order:read","order_details:read","order_product:write","order_product:read"})
      */
     private $price;
 
     /**
      * @ORM\Column(type="float")
-     * @Groups({"order:read","order_product:write","order_product:read"})
+     * @Groups({"order:read","order_details:read","order_product:write","order_product:read"})
      */
     private $total;
 

@@ -33,6 +33,7 @@ use ControleOnline\Entity\OrderProduct;
     operations: [
         new Get(
             security: 'is_granted(\'ROLE_CLIENT\')',
+            denormalizationContext: ['groups' => ['order_details:read']]
         ),
         new GetCollection(
             security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
@@ -69,7 +70,7 @@ class Order
      * @ORM\Column(name="id", type="integer", nullable=false)
      * @ORM\Id
      * @ORM\GeneratedValue(strategy="IDENTITY")
-     * @Groups({"order:read","company_expense:read","coupon:read","logistic:read","order_invoice:read"})
+     * @Groups({"order:read","order_details:read","company_expense:read","coupon:read","logistic:read","order_invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
 
@@ -82,7 +83,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="client_id", referencedColumnName="id")
      * })
-     * @Groups({"order:read","order:write", "invoice:read"})
+     * @Groups({"order:read","order_details:read","order:write", "invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['client' => 'exact'])]
 
@@ -91,7 +92,7 @@ class Order
     /**
      * @var \DateTimeInterface
      * @ORM\Column(name="order_date", type="datetime",  nullable=false, columnDefinition="DATETIME")
-     * @Groups({"order:read","order:write"})
+     * @Groups({"order:read","order_details:read","order:write"})
      */
     #[ApiFilter(DateFilter::class, properties: ['orderDate'])]
 
@@ -99,7 +100,7 @@ class Order
 
     /**
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProduct", mappedBy="order", cascade={"persist"})
-     * @Groups({"order:read","order:write"})
+     * @Groups({"order:read","order_details:read","order:write"})
      */
     private $orderProducts;
 
@@ -131,7 +132,7 @@ class Order
 
     /**
      * @ORM\Column(name="alter_date", type="datetime",  nullable=false)
-     * @Groups({"display:read","order:read","order:write"})
+     * @Groups({"display:read","order:read","order_details:read","order:write"})
      */
 
     #[ApiFilter(DateFilter::class, properties: ['alterDate'])]
@@ -146,7 +147,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="status_id", referencedColumnName="id")
      * })
-     * @Groups({"display:read","order:read","order:write"})
+     * @Groups({"display:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
 
@@ -156,7 +157,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="order_type", type="string",  nullable=true)
-     * @Groups({"display:read","order:read","order:write"})
+     * @Groups({"display:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
 
@@ -167,7 +168,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="app", type="string",  nullable=true)
-     * @Groups({"display:read","order:read","order:write"}) 
+     * @Groups({"display:read","order:read","order_details:read","order:write"}) 
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
 
@@ -177,7 +178,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="other_informations", type="json",  nullable=true)
-     * @Groups({"order:read","order:write"}) 
+     * @Groups({"order:read","order_details:read","order:write"}) 
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['otherInformations' => 'exact'])]
 
@@ -200,7 +201,7 @@ class Order
      * @var integer
      *
      * @ORM\Column(name="main_order_id", type="integer",  nullable=true)
-     * @Groups({"order:read","order:write"})
+     * @Groups({"order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrderId' => 'exact'])]
 
@@ -215,7 +216,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="payer_people_id", referencedColumnName="id")
      * })
-     * @Groups({"order:read","order:write","invoice:read"})
+     * @Groups({"order:read","order_details:read","order:write","invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['payer' => 'exact'])]
 
@@ -228,13 +229,13 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="provider_id", referencedColumnName="id")
      * })
-     * @Groups({"order:read","order:write","invoice:read"})
+     * @Groups({"order:read","order_details:read","order:write","invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['provider' => 'exact'])]
 
     private $provider;
 
-    
+
 
 
 
@@ -245,6 +246,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="address_origin_id", referencedColumnName="id")
      * })
+     * @Groups({"order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['addressOrigin' => 'exact'])]
 
@@ -257,6 +259,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="address_destination_id", referencedColumnName="id")
      * })
+     * @Groups({"order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['addressDestination' => 'exact'])]
 
@@ -291,7 +294,7 @@ class Order
      * @var float
      *
      * @ORM\Column(name="price", type="float",  nullable=false)
-     * @Groups({"order:read","order:write"})
+     * @Groups({"order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['price' => 'exact'])]
 
@@ -303,7 +306,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="comments", type="string",  nullable=true)
-     * @Groups({"order:read","order:write"})
+     * @Groups({"order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['comments' => 'exact'])]
 
@@ -322,7 +325,7 @@ class Order
      * @var \Doctrine\Common\Collections\Collection
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderQueue", mappedBy="order")
-     * @Groups({"order:read","order:write"}) 
+     * @Groups({"order:read","order_details:read","order:write"}) 
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderQueue' => 'exact'])]
 

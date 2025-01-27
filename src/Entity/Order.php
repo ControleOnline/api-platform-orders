@@ -33,20 +33,20 @@ use ControleOnline\Entity\OrderProduct;
     operations: [
         new Get(
             security: 'is_granted(\'ROLE_CLIENT\')',
-            normalizationContext: ['groups' => ['order_details:read']]
         ),
         new GetCollection(
             security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
+            normalizationContext: ['groups' => ['order:read']],
         ),
         new Post(
             security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
             validationContext: ['groups' => ['order:write']],
-            denormalizationContext: ['groups' => ['order_details:read']]
+            denormalizationContext: ['groups' => ['order:write']]
         ),
         new Put(
             security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
             validationContext: ['groups' => ['order:write']],
-            denormalizationContext: ['groups' => ['order_details:read']]
+            denormalizationContext: ['groups' => ['order:write']]
         ),
         new Post(
             security: 'is_granted(\'ROLE_CLIENT\')',
@@ -56,7 +56,7 @@ use ControleOnline\Entity\OrderProduct;
         ),
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
-    normalizationContext: ['groups' => ['order:read']],
+    normalizationContext: ['groups' => ['order_details:read']],
     denormalizationContext: ['groups' => ['order:write']]
 )]
 #[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]

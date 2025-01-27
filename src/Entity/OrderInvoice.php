@@ -54,7 +54,7 @@ class OrderInvoice
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="invoice_id", referencedColumnName="id")
      * })
-     * @Groups({"order_invoice:read","order:read","order_details:read","order_invoice:write"}) 
+     * @Groups({"order_invoice:read","order:read","order_details:read","order:write","order_invoice:write"}) 
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
     private $invoice;
@@ -73,7 +73,7 @@ class OrderInvoice
      * @var float
      *
      * @ORM\Column(name="real_price", type="float",  nullable=false)
-     * @Groups({"order_invoice:read","order:read","order_details:read","order_invoice:write"})
+     * @Groups({"order_invoice:read","order:read","order_details:read","order:write","order_invoice:write"})
      * 
      */
     private $realPrice = 0;

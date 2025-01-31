@@ -17,6 +17,24 @@ class OrderProductService
 
     public function afterPersist(OrderProduct $OrderProduct)
     {
+        $this->calculateProductPrice($OrderProduct);
+        return $OrderProduct;
+    }
+
+    private function calculateProductPrice(OrderProduct $OrderProduct)
+    {
+
+        $OrderProduct->setPrice($OrderProduct->getProduct()->getPrice());
+        $OrderProduct->setTotal($OrderProduct->getPrice() * $OrderProduct->getQuantity());
+        $this->manager->persist($OrderProduct);
+        $this->manager->flush();
+
+        $this->calculateOrderPrice($OrderProduct);
+        return $OrderProduct;
+    }
+
+    private function calculateOrderPrice(OrderProduct $OrderProduct)
+    {
         $order = $OrderProduct->getOrder();
 
         $sql = 'SELECT SUM(total) as total FROM order_product WHERE order_id = :order_id';

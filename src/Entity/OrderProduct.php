@@ -95,7 +95,7 @@ class OrderProduct
      * @ORM\Column(type="float")
      * @Groups({"order:read","order_details:read","order:write","order_product:write","order_product:read"})
      */
-    private $price;
+    private $price = 0;
 
     /**
      * @ORM\Column(type="float")

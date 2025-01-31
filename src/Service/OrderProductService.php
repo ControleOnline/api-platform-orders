@@ -9,10 +9,13 @@ use Doctrine\ORM\QueryBuilder;
 
 class OrderProductService
 {
+    private $order;
+
     public function __construct(
         private EntityManagerInterface $manager,
         private Security $security,
-        private PeopleService $PeopleService
+        private PeopleService $peopleService,
+        private OrderService $orderService
     ) {}
 
     public function afterPersist(OrderProduct $OrderProduct)
@@ -21,39 +24,34 @@ class OrderProductService
         return $OrderProduct;
     }
 
+    public function beforeDelete(OrderProduct $OrderProduct)
+    {
+        $this->order = $OrderProduct->getOrder();
+    }
+
     private function calculateProductPrice(OrderProduct $OrderProduct)
     {
-
+        $this->order = $OrderProduct->getOrder();
         $OrderProduct->setPrice($OrderProduct->getProduct()->getPrice());
         $OrderProduct->setTotal($OrderProduct->getPrice() * $OrderProduct->getQuantity());
         $this->manager->persist($OrderProduct);
         $this->manager->flush();
 
-        $this->calculateOrderPrice($OrderProduct);
         return $OrderProduct;
-    }
-
-    private function calculateOrderPrice(OrderProduct $OrderProduct)
-    {
-        $order = $OrderProduct->getOrder();
-
-        $sql = 'SELECT SUM(total) as total FROM order_product WHERE order_id = :order_id';
-        $connection = $this->manager->getConnection();
-        $statement = $connection->prepare($sql);
-        $statement->execute(['order_id' =>  $order->getId()]);
-
-        $result = $statement->fetchOne();
-        $order->setPrice($result);
-        $this->manager->persist($order);
-        $this->manager->flush();
-        return $order;
     }
 
     public function  secutiryFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
     {
         //$queryBuilder->join(sprintf('%s.order', $rootAlias), 'o');
         //$queryBuilder->andWhere('o.client IN(:companies) OR o.provider IN(:companies)');
-        //$companies   = $this->PeopleService->getMyCompanies();
+        //$companies   = $this->peopleService->getMyCompanies();
         //$queryBuilder->setParameter('companies', $companies);
+    }
+
+
+    public function __destruct()
+    {
+        if ($this->order)
+            $this->orderService->calculateOrderPrice($this->order);
     }
 }

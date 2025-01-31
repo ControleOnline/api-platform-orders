@@ -24,7 +24,19 @@ class OrderService
         $this->request  = $requestStack->getCurrentRequest();
     }
 
+    public function calculateOrderPrice(Order $order)
+    {
+        $sql = 'SELECT SUM(total) as total FROM order_product WHERE order_id = :order_id';
+        $connection = $this->manager->getConnection();
+        $statement = $connection->prepare($sql);
+        $statement->execute(['order_id' =>  $order->getId()]);
 
+        $result = $statement->fetchOne();
+        $order->setPrice($result);
+        $this->manager->persist($order);
+        $this->manager->flush();
+        return $order;
+    }
     public function createOrder(People $receiver, People $payer)
     {
         $status = $this->manager->getRepository(Status::class)->findOneBy([

@@ -12,6 +12,7 @@ use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use stdClass;
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
+use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Put;
 use ApiPlatform\Metadata\Post;
@@ -92,6 +93,7 @@ class OrderProduct
      * @ORM\JoinColumn(nullable=true)
      * @Groups({"order_product:write","order_product:read"})
      */
+    #[ApiFilter(ExistsFilter::class, properties: ['parent_product'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['parent_product' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['parent_product.type' => 'exact'])]
     private $parent_product;

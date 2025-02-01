@@ -90,7 +90,7 @@ class OrderProduct
     /**
      * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
      * @ORM\JoinColumn(nullable=true)
-     * @Groups({"order:read","order_details:read","order:write","order_product:write","order_product:read"})
+     * @Groups({"order_product:write","order_product:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['parent_product' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['parent_product.type' => 'exact'])]

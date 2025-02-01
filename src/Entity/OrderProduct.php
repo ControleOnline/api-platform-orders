@@ -39,18 +39,12 @@ use ApiPlatform\Metadata\ApiProperty;
         ),
         new Post(
             security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
-            validationContext: ['groups' => ['order_product:write']],
-            denormalizationContext: ['groups' => ['order_product:write']]
         ),
         new Put(
             security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
-            validationContext: ['groups' => ['order_product:write']],
-            denormalizationContext: ['groups' => ['order_product:write']]
         ),
         new Delete(
             security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
-            validationContext: ['groups' => ['order_product:write']],
-            denormalizationContext: ['groups' => ['order_product:write']]
         ),
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],

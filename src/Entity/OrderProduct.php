@@ -83,7 +83,26 @@ class OrderProduct
      * @Groups({"order:read","order_details:read","order:write","order_product:write","order_product:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['product' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['product.type' => 'exact'])]
     private $product;
+
+
+    /**
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
+     * @ORM\JoinColumn(nullable=false)
+     * @Groups({"order:read","order_details:read","order:write","order_product:write","order_product:read"})
+     */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parent_product' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parent_product.type' => 'exact'])]
+    private $parent_product;
+
+    /**
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\ProductGroup")
+     * @ORM\JoinColumn(nullable=false)
+     * @Groups({"order:read","order_details:read","order:write","order_product:write","order_product:read"})
+     */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['product_group' => 'exact'])]
+    private $product_group;
 
     /**
      * @ORM\Column(type="float")
@@ -209,6 +228,42 @@ class OrderProduct
     public function setTotal($total): self
     {
         $this->total = $total;
+
+        return $this;
+    }
+
+    /**
+     * Get the value of parent_product
+     */
+    public function getParentProduct()
+    {
+        return $this->parent_product;
+    }
+
+    /**
+     * Set the value of parent_product
+     */
+    public function setParentProduct($parent_product): self
+    {
+        $this->parent_product = $parent_product;
+
+        return $this;
+    }
+
+    /**
+     * Get the value of product_group
+     */
+    public function getProductGroup()
+    {
+        return $this->product_group;
+    }
+
+    /**
+     * Set the value of product_group
+     */
+    public function setProductGroup($product_group): self
+    {
+        $this->product_group = $product_group;
 
         return $this;
     }

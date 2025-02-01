@@ -87,10 +87,10 @@ class OrderProduct
      * @ORM\JoinColumn(nullable=true)
      * @Groups({"order_product:write","order_product:read"})
      */
-    #[ApiFilter(ExistsFilter::class, properties: ['parent_product'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parent_product' => 'exact'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parent_product.type' => 'exact'])]
-    private $parent_product;
+    #[ApiFilter(ExistsFilter::class, properties: ['parentProduct'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentProduct' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentProduct.type' => 'exact'])]
+    private $parentProduct;
 
     /**
      * @ORM\Column(type="float")
@@ -221,19 +221,19 @@ class OrderProduct
     }
 
     /**
-     * Get the value of parent_product
+     * Get the value of parentProduct
      */
     public function getParentProduct()
     {
-        return $this->parent_product;
+        return $this->parentProduct;
     }
 
     /**
-     * Set the value of parent_product
+     * Set the value of parentProduct
      */
-    public function setParentProduct($parent_product): self
+    public function setParentProduct($parentProduct): self
     {
-        $this->parent_product = $parent_product;
+        $this->parentProduct = $parentProduct;
 
         return $this;
     }

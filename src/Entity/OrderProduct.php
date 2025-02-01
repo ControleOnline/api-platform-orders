@@ -97,14 +97,6 @@ class OrderProduct
     private $parent_product;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\ProductGroup")
-     * @ORM\JoinColumn(nullable=true)
-     * @Groups({"order:read","order_details:read","order:write","order_product:write","order_product:read"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['product_group' => 'exact'])]
-    private $product_group;
-
-    /**
      * @ORM\Column(type="float")
      * @Groups({"order:read","order_details:read","order:write","order_product:write","order_product:read"})
      */
@@ -246,24 +238,6 @@ class OrderProduct
     public function setParentProduct($parent_product): self
     {
         $this->parent_product = $parent_product;
-
-        return $this;
-    }
-
-    /**
-     * Get the value of product_group
-     */
-    public function getProductGroup()
-    {
-        return $this->product_group;
-    }
-
-    /**
-     * Set the value of product_group
-     */
-    public function setProductGroup($product_group): self
-    {
-        $this->product_group = $product_group;
 
         return $this;
     }

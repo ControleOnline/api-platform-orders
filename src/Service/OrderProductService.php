@@ -55,7 +55,8 @@ class OrderProductService
     {
         if (!$this->order)
             return;
-        $this->orderService->calculateOrderPrice($this->order);
+
         $this->orderService->calculateGroupProductPrice($this->order);
+        $this->orderService->calculateOrderPrice($this->order);
     }
 }

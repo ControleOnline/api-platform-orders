@@ -65,7 +65,7 @@ class OrderService
                         ) AS SBG GROUP BY SBG.order_product_id
                         
                 ) AS subquery ON OPO.id = subquery.order_product_id
-                SET OPO.price = subquery.calculated_price
+                SET OPO.price = subquery.calculated_price,OPO.total = (subquery.calculated_price * OPO.quantity)
                 ';
 
 

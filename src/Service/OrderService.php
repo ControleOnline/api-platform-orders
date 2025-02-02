@@ -26,15 +26,19 @@ class OrderService
 
     public function calculateOrderPrice(Order $order)
     {
-        $sql = 'SELECT SUM(total) as total FROM order_product WHERE order_id = :order_id AND order_product_id IS NULL';
+        $sql = 'UPDATE orders O
+                JOIN (
+                    SELECT order_id, SUM(total) AS new_total
+                    FROM order_product
+                    WHERE order_product_id IS NULL
+                    GROUP BY order_id
+                ) AS subquery ON O.id = subquery.order_id
+                SET O.total = subquery.new_total
+                WHERE O.id = :order_id';
         $connection = $this->manager->getConnection();
         $statement = $connection->prepare($sql);
         $statement->execute(['order_id' =>  $order->getId()]);
 
-        $result = $statement->fetchOne();
-        $order->setPrice($result);
-        $this->manager->persist($order);
-        $this->manager->flush();
         return $order;
     }
 
@@ -72,11 +76,6 @@ class OrderService
         $connection = $this->manager->getConnection();
         $statement = $connection->prepare($sql);
         $statement->execute(['order_id' =>  $order->getId()]);
-
-        $result = $statement->fetchOne();
-        $order->setPrice($result);
-        $this->manager->persist($order);
-        $this->manager->flush();
         return $order;
     }
 

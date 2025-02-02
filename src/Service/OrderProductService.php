@@ -40,6 +40,8 @@ class OrderProductService
         return $OrderProduct;
     }
 
+
+
     public function  secutiryFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
     {
         //$queryBuilder->join(sprintf('%s.order', $rootAlias), 'o');
@@ -51,7 +53,9 @@ class OrderProductService
 
     public function __destruct()
     {
-        if ($this->order)
-            $this->orderService->calculateOrderPrice($this->order);
+        if (!$this->order)
+            return;
+        $this->orderService->calculateOrderPrice($this->order);
+        $this->orderService->calculateGroupProductPrice($this->order);
     }
 }

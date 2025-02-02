@@ -37,13 +37,57 @@ class OrderService
         $this->manager->flush();
         return $order;
     }
+
+
+    public function calculateGroupProductPrice(Order $order)
+    {
+        $sql = 'UPDATE order_product OPO
+                JOIN (
+                        SELECT SUM(calculated_price) AS calculated_price,order_product_id FROM (	SELECT 
+                                PG.product_group,
+                                P.product,
+                                PG.price_calculation,
+                                OP.order_product_id,
+                                (CASE 
+                                    WHEN PG.price_calculation = "biggest" THEN MAX(OP.price)
+                                    WHEN PG.price_calculation = "sum" THEN SUM(OP.price)
+                                    WHEN PG.price_calculation = "average" THEN AVG(OP.price) 
+                                    WHEN PG.price_calculation = "free" THEN 0
+                                    ELSE NULL
+                                END)  AS calculated_price
+                                
+                            FROM order_product OP
+                            INNER JOIN product_group PG ON OP.product_group_id = PG.id
+                            INNER JOIN product_group_product PGP ON PGP.product_group_id = OP.product_group_id AND PGP.product_child_id = OP.product_id
+                            INNER JOIN product P ON P.id = OP.product_id
+                            WHERE OP.parent_product_id IS NOT NULL AND OP.order_id = :order_id
+                            GROUP BY OP.order_product_id,PG.id
+                        ) AS SBG GROUP BY SBG.order_product_id
+                        
+                ) AS subquery ON OPO.id = subquery.order_product_id
+                SET OPO.price = subquery.calculated_price
+                ';
+
+
+        $connection = $this->manager->getConnection();
+        $statement = $connection->prepare($sql);
+        $statement->execute(['order_id' =>  $order->getId()]);
+
+        $result = $statement->fetchOne();
+        $order->setPrice($result);
+        $this->manager->persist($order);
+        $this->manager->flush();
+        return $order;
+    }
+
+
     public function createOrder(People $receiver, People $payer)
     {
         $status = $this->manager->getRepository(Status::class)->findOneBy([
             'status' => 'waiting payment',
             'context' => 'order'
         ]);
-        
+
         $order = new Order();
         $order->setProvider($receiver);
         $order->setClient($payer);

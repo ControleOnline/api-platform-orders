@@ -26,7 +26,7 @@ class OrderService
 
     public function calculateOrderPrice(Order $order)
     {
-        $sql = 'SELECT SUM(total) as total FROM order_product WHERE order_id = :order_id';
+        $sql = 'SELECT SUM(total) as total FROM order_product WHERE order_id = :order_id AND order_product_id IS NULL';
         $connection = $this->manager->getConnection();
         $statement = $connection->prepare($sql);
         $statement->execute(['order_id' =>  $order->getId()]);

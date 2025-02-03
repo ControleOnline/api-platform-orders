@@ -32,18 +32,18 @@ class OrderProductService
         $json = json_decode($this->request->getContent(), true);
 
 
-        foreach ($json->sub_products as $subproduct) {
-            $product = $this->manager->getRepository(Product::class)->find($subproduct->product);
+        foreach ($json['sub_products'] as $subproduct) {
+            $product = $this->manager->getRepository(Product::class)->find($subproduct['product']);
 
             $OProduct = new OrderProduct();
             $OProduct->setOrder($orderProduct->getOrder());
             $OProduct->setParentProduct($orderProduct->getProduct());
             $OProduct->setOrderProduct($orderProduct);
-            $OProduct->setProductGroup($this->manager->getRepository(ProductGroup::class)->find($subproduct->productGroup));
-            $OProduct->setQuantity($subproduct->quantity);
+            $OProduct->setProductGroup($this->manager->getRepository(ProductGroup::class)->find($subproduct['productGroup']));
+            $OProduct->setQuantity($subproduct['quantity']);
             $OProduct->setProduct($product);
             $OProduct->setPrice($product->getPrice());
-            $OProduct->setTotal($product->getPrice * $subproduct->quantity);
+            $OProduct->setTotal($product->getPrice() * $subproduct['quantity']);
             $this->manager->persist($OProduct);
             $this->manager->flush();
         }

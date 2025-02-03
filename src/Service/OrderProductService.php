@@ -9,19 +9,22 @@ use ControleOnline\Entity\ProductGroup;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Security;
 use Doctrine\ORM\QueryBuilder;
-use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 
 class OrderProductService
 {
-
+    private $request;
     public function __construct(
         private EntityManagerInterface $manager,
         private Security $security,
         private PeopleService $peopleService,
         private OrderService $orderService,
-        private Request $request
-    ) {}
+        private RequestStack $requestStack
+    ) {
+
+        $this->request = $this->requestStack->getCurrentRequest();
+    }
 
     public function afterPersist(OrderProduct $orderProduct)
     {

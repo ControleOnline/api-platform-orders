@@ -9,7 +9,7 @@ use Doctrine\ORM\QueryBuilder;
 
 class OrderProductService
 {
-    private $order;
+    private $orderProduct;
 
     public function __construct(
         private EntityManagerInterface $manager,
@@ -18,26 +18,32 @@ class OrderProductService
         private OrderService $orderService
     ) {}
 
-    public function afterPersist(OrderProduct $OrderProduct)
+    public function afterPersist(OrderProduct $orderProduct)
     {
-        $this->calculateProductPrice($OrderProduct);
-        return $OrderProduct;
+        $this->calculateProductPrice($orderProduct);
+        return $orderProduct;
     }
 
-    public function beforeDelete(OrderProduct $OrderProduct)
+    public function beforeDelete(OrderProduct $orderProduct)
     {
-        $this->order = $OrderProduct->getOrder();
+        $this->orderProduct = $orderProduct;
+        $parentProducts = $this->manager->getRepository(OrderProduct::class)->findOneBy([
+            'parentProduct'  => $orderProduct,
+        ]);
+        foreach ($parentProducts as $parentProduct)
+            $this->manager->remove($parentProduct);
+        $this->manager->flush();
     }
 
-    private function calculateProductPrice(OrderProduct $OrderProduct)
+    private function calculateProductPrice(OrderProduct $orderProduct)
     {
-        $this->order = $OrderProduct->getOrder();
-        $OrderProduct->setPrice($OrderProduct->getProduct()->getPrice());
-        $OrderProduct->setTotal($OrderProduct->getPrice() * $OrderProduct->getQuantity());
-        $this->manager->persist($OrderProduct);
+        $this->orderProduct = $orderProduct;
+        $orderProduct->setPrice($orderProduct->getProduct()->getPrice());
+        $orderProduct->setTotal($orderProduct->getPrice() * $orderProduct->getQuantity());
+        $this->manager->persist($orderProduct);
         $this->manager->flush();
 
-        return $OrderProduct;
+        return $orderProduct;
     }
 
 
@@ -53,10 +59,10 @@ class OrderProductService
 
     public function __destruct()
     {
-        if (!$this->order)
+        if (!$this->orderProduct)
             return;
 
-        $this->orderService->calculateGroupProductPrice($this->order);
-        $this->orderService->calculateOrderPrice($this->order);
+        $this->orderService->calculateGroupProductPrice($this->orderProduct->getOrder());
+        $this->orderService->calculateOrderPrice($this->orderProduct->getOrder());
     }
 }

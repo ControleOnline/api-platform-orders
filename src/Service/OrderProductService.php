@@ -28,7 +28,7 @@ class OrderProductService
     {
         $this->orderProduct = $orderProduct;
         $parentProducts = $this->manager->getRepository(OrderProduct::class)->findBy([
-            'parentProduct'  => $orderProduct,
+            'parentProduct'  => $orderProduct->getProduct(),
         ]);
         foreach ($parentProducts as $parentProduct)
             $this->manager->remove($parentProduct);

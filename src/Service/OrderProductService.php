@@ -45,10 +45,9 @@ class OrderProductService
             $OProduct->setPrice($product->getPrice());
             $OProduct->setTotal($product->getPrice() * $subproduct['quantity']);
             $this->manager->persist($OProduct);
-            $this->manager->flush();
         }
 
-
+        $this->manager->flush();
         return $this->calculateProductPrice($orderProduct);
     }
 

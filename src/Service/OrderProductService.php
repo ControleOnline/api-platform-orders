@@ -27,7 +27,7 @@ class OrderProductService
     public function beforeDelete(OrderProduct $orderProduct)
     {
         $this->orderProduct = $orderProduct;
-        $parentProducts = $this->manager->getRepository(OrderProduct::class)->findOneBy([
+        $parentProducts = $this->manager->getRepository(OrderProduct::class)->findBy([
             'parentProduct'  => $orderProduct,
         ]);
         foreach ($parentProducts as $parentProduct)

@@ -101,6 +101,16 @@ class OrderProduct
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProduct' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProduct.type' => 'exact'])]
     private $orderProduct;
+
+    /**
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\ProductGroup")
+     * @ORM\JoinColumn(nullable=true)
+     * @Groups({"order_product:write","order_product:read"})
+     */
+    #[ApiFilter(ExistsFilter::class, properties: ['productGroup'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['productGroup' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['productGroup.type' => 'exact'])]
+    private $productGroup;
     
 
     /**
@@ -263,6 +273,24 @@ class OrderProduct
     public function setOrderProduct($orderProduct): self
     {
         $this->orderProduct = $orderProduct;
+
+        return $this;
+    }
+
+    /**
+     * Get the value of productGroup
+     */
+    public function getProductGroup()
+    {
+        return $this->productGroup;
+    }
+
+    /**
+     * Set the value of productGroup
+     */
+    public function setProductGroup($productGroup): self
+    {
+        $this->productGroup = $productGroup;
 
         return $this;
     }

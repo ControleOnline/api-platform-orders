@@ -2,10 +2,15 @@
 
 namespace ControleOnline\Service;
 
+use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
+use ControleOnline\Entity\Product;
+use ControleOnline\Entity\ProductGroup;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Security;
 use Doctrine\ORM\QueryBuilder;
+use Symfony\Component\HttpFoundation\Request;
+
 
 class OrderProductService
 {
@@ -14,11 +19,33 @@ class OrderProductService
         private EntityManagerInterface $manager,
         private Security $security,
         private PeopleService $peopleService,
-        private OrderService $orderService
+        private OrderService $orderService,
+        private Request $request
     ) {}
 
     public function afterPersist(OrderProduct $orderProduct)
     {
+
+        $json = json_decode($this->request->getContent(), true);
+
+
+        foreach ($json->sub_products as $subproduct) {
+            $product = $this->manager->getRepository(Product::class)->find($subproduct->product);
+
+            $OProduct = new OrderProduct();
+            $OProduct->setOrder($orderProduct->getOrder());
+            $OProduct->setParentProduct($orderProduct->getProduct());
+            $OProduct->setOrderProduct($orderProduct);
+            $OProduct->setProductGroup($this->manager->getRepository(ProductGroup::class)->find($subproduct->productGroup));
+            $OProduct->setQuantity($subproduct->quantity);
+            $OProduct->setProduct($product);
+            $OProduct->setPrice($product->getPrice());
+            $OProduct->setTotal($product->getPrice * $subproduct->quantity);
+            $this->manager->persist($OProduct);
+            $this->manager->flush();
+        }
+
+
         return $this->calculateProductPrice($orderProduct);
     }
 

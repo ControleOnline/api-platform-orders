@@ -63,6 +63,10 @@ class OrderProductService
 
     public function beforeDelete(OrderProduct $orderProduct)
     {
+        
+        if (!self::$mainProduct) return;
+        self::$mainProduct = false;
+
         $parentProducts = $this->manager->getRepository(OrderProduct::class)->findBy([
             'parentProduct'  => $orderProduct->getProduct(),
         ]);

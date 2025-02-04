@@ -28,13 +28,14 @@ class OrderService
     {
         $sql = 'UPDATE orders O
                 JOIN (
-                    SELECT order_id, SUM(total) AS new_total
+                    SELECT order_id, IFNULL(SUM(total), 0) AS new_total
                     FROM order_product
                     WHERE order_product_id IS NULL
                     GROUP BY order_id
                 ) AS subquery ON O.id = subquery.order_id
                 SET O.price = subquery.new_total
-                WHERE O.id = :order_id';
+                WHERE O.id = :order_id;
+                ';
         $connection = $this->manager->getConnection();
         $statement = $connection->prepare($sql);
         $statement->execute(['order_id' =>  $order->getId()]);

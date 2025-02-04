@@ -54,9 +54,9 @@ class OrderService
                                 PG.price_calculation,
                                 OP.order_product_id,
                                 (CASE 
-                                    WHEN PG.price_calculation = "biggest" THEN MAX(PG.price)
-                                    WHEN PG.price_calculation = "sum" THEN SUM(PG.price)
-                                    WHEN PG.price_calculation = "average" THEN AVG(PG.price) 
+                                    WHEN PG.price_calculation = "biggest" THEN MAX(PGP.price)
+                                    WHEN PG.price_calculation = "sum" THEN SUM(PGP.price)
+                                    WHEN PG.price_calculation = "average" THEN AVG(PGP.price) 
                                     WHEN PG.price_calculation = "free" THEN 0
                                     ELSE NULL
                                 END)  AS calculated_price

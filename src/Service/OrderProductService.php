@@ -106,7 +106,7 @@ class OrderProductService
         //$queryBuilder->setParameter('companies', $companies);
     }
     
-    public function _destruct()
+    public function __destruct()
     {
         foreach (self::$calculateBefore as $order) {
             $this->orderService->calculateGroupProductPrice($order);

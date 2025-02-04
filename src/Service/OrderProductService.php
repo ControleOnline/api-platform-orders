@@ -37,7 +37,7 @@ class OrderProductService
         $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
             'product' => $product,
             'productGroup' => $productGroup
-        ]);
+        ]) ?: $orderProduct->getProduct();
 
 
         $OProduct = new OrderProduct();

@@ -97,10 +97,10 @@ class OrderProductService
         $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
             'product' => $orderProduct->getProduct(),
             'productGroup' => $orderProduct->getProductGroup()
-        ]);
+        ]) ?: $orderProduct->getProduct();
 
         $orderProduct->setPrice($productGroupProduct->getPrice());
-        $orderProduct->setTotal($productGroupProduct * $orderProduct->getQuantity());
+        $orderProduct->setTotal($productGroupProduct->getPrice() * $orderProduct->getQuantity());
         $this->manager->persist($orderProduct);
         $this->manager->flush();
 

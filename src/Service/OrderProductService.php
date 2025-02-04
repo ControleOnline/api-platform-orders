@@ -6,6 +6,7 @@ use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Product;
 use ControleOnline\Entity\ProductGroup;
+use ControleOnline\Entity\ProductGroupProduct;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Security;
 use Doctrine\ORM\QueryBuilder;
@@ -29,8 +30,16 @@ class OrderProductService
         $this->request = $this->requestStack->getCurrentRequest();
     }
 
+
+
     public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity)
     {
+        $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
+            'product' => $product,
+            'productGroup' => $productGroup
+        ]);
+
+
         $OProduct = new OrderProduct();
         $OProduct->setOrder($orderProduct->getOrder());
         $OProduct->setParentProduct($orderProduct->getProduct());
@@ -38,8 +47,8 @@ class OrderProductService
         $OProduct->setProductGroup($productGroup);
         $OProduct->setQuantity($quantity);
         $OProduct->setProduct($product);
-        $OProduct->setPrice($product->getPrice());
-        $OProduct->setTotal($product->getPrice() * $quantity);
+        $OProduct->setPrice($productGroupProduct->getPrice());
+        $OProduct->setTotal($productGroupProduct->getPrice() * $quantity);
         $this->manager->persist($OProduct);
         $this->manager->flush();
     }
@@ -85,9 +94,13 @@ class OrderProductService
 
     private function calculateProductPrice(OrderProduct $orderProduct)
     {
+        $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
+            'product' => $orderProduct->getProduct(),
+            'productGroup' => $orderProduct->getProductGroup()
+        ]);
 
-        $orderProduct->setPrice($orderProduct->getProduct()->getPrice());
-        $orderProduct->setTotal($orderProduct->getPrice() * $orderProduct->getQuantity());
+        $orderProduct->setPrice($productGroupProduct->getPrice());
+        $orderProduct->setTotal($productGroupProduct * $orderProduct->getQuantity());
         $this->manager->persist($orderProduct);
         $this->manager->flush();
 

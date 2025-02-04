@@ -63,7 +63,7 @@ class OrderProductService
 
     public function beforeDelete(OrderProduct $orderProduct)
     {
-        
+
         if (!self::$mainProduct) return;
         self::$mainProduct = false;
 
@@ -74,8 +74,11 @@ class OrderProductService
             $this->manager->remove($parentProduct);
         $this->manager->flush();
 
-        return $this->calculateProductPrice($orderProduct);
+        $this->orderService->calculateGroupProductPrice($orderProduct->getOrder());
+        $this->orderService->calculateOrderPrice($orderProduct->getOrder());
     }
+
+
 
     private function calculateProductPrice(OrderProduct $orderProduct)
     {

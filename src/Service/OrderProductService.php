@@ -67,15 +67,20 @@ class OrderProductService
 
         if (!self::$mainProduct) return;
         self::$mainProduct = false;
-
+        $order = $orderProduct->getOrder();
         $parentProducts = $this->manager->getRepository(OrderProduct::class)->findBy([
             'parentProduct'  => $orderProduct->getProduct(),
         ]);
+
+        if (!$parentProducts)
+            $this->manager->persist($order->setPrice(0));
+
+
         foreach ($parentProducts as $parentProduct)
             $this->manager->remove($parentProduct);
         $this->manager->flush();
 
-        self::$calculateBefore[] = $orderProduct->getOrder();
+        self::$calculateBefore[] = $order;
     }
 
 
@@ -105,7 +110,7 @@ class OrderProductService
         //$companies   = $this->peopleService->getMyCompanies();
         //$queryBuilder->setParameter('companies', $companies);
     }
-    
+
     public function __destruct()
     {
         foreach (self::$calculateBefore as $order) {

@@ -33,7 +33,7 @@ class OrderService
                     WHERE order_product_id IS NULL
                     GROUP BY order_id
                 ) AS subquery ON O.id = subquery.order_id
-                SET O.price = subquery.new_total
+                SET O.price = IFNULL(subquery.new_total, 0)
                 WHERE O.id = :order_id;
                 ';
         $connection = $this->manager->getConnection();

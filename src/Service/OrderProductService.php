@@ -17,6 +17,7 @@ class OrderProductService
 
     private $request;
     private static $mainProduct = true;
+    private static $calculateBefore = [];
 
     public function __construct(
         private EntityManagerInterface $manager,
@@ -74,8 +75,7 @@ class OrderProductService
             $this->manager->remove($parentProduct);
         $this->manager->flush();
 
-        $this->orderService->calculateGroupProductPrice($orderProduct->getOrder());
-        $this->orderService->calculateOrderPrice($orderProduct->getOrder());
+        self::$calculateBefore[] = $orderProduct->getOrder();
     }
 
 
@@ -104,5 +104,13 @@ class OrderProductService
         //$queryBuilder->andWhere('o.client IN(:companies) OR o.provider IN(:companies)');
         //$companies   = $this->peopleService->getMyCompanies();
         //$queryBuilder->setParameter('companies', $companies);
+    }
+    
+    public function _destruct()
+    {
+        foreach (self::$calculateBefore as $order) {
+            $this->orderService->calculateGroupProductPrice($order);
+            $this->orderService->calculateOrderPrice($order);
+        }
     }
 }

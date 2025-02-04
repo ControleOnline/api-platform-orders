@@ -14,7 +14,10 @@ use Symfony\Component\HttpFoundation\RequestStack;
 
 class OrderProductService
 {
+
     private $request;
+    private static $mainProduct = true;
+
     public function __construct(
         private EntityManagerInterface $manager,
         private Security $security,
@@ -23,31 +26,40 @@ class OrderProductService
         private RequestStack $requestStack
     ) {
 
+        if (!self::$mainProduct) return;
         $this->request = $this->requestStack->getCurrentRequest();
+        self::$mainProduct = false;
+    }
+
+    public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity)
+    {
+        $OProduct = new OrderProduct();
+        $OProduct->setOrder($orderProduct->getOrder());
+        $OProduct->setParentProduct($orderProduct->getProduct());
+        $OProduct->setOrderProduct($orderProduct);
+        $OProduct->setProductGroup($productGroup);
+        $OProduct->setQuantity($quantity);
+        $OProduct->setProduct($product);
+        $OProduct->setPrice($product->getPrice());
+        $OProduct->setTotal($product->getPrice() * $quantity);
+        $this->manager->persist($OProduct);
+        $this->manager->flush();
     }
 
     public function afterPersist(OrderProduct $orderProduct)
     {
 
+        if (!self::$mainProduct) return;
+
         $json = json_decode($this->request->getContent(), true);
+        $subProducts = $json['sub_products'];
 
-
-        foreach ($json['sub_products'] as $subproduct) {
+        foreach ($subProducts as $subproduct) {
             $product = $this->manager->getRepository(Product::class)->find($subproduct['product']);
-
-            $OProduct = new OrderProduct();
-            $OProduct->setOrder($orderProduct->getOrder());
-            $OProduct->setParentProduct($orderProduct->getProduct());
-            $OProduct->setOrderProduct($orderProduct);
-            $OProduct->setProductGroup($this->manager->getRepository(ProductGroup::class)->find($subproduct['productGroup']));
-            $OProduct->setQuantity($subproduct['quantity']);
-            $OProduct->setProduct($product);
-            $OProduct->setPrice($product->getPrice());
-            $OProduct->setTotal($product->getPrice() * $subproduct['quantity']);
-            $this->manager->persist($OProduct);
+            $productGroup =  $this->manager->getRepository(ProductGroup::class)->find($subproduct['productGroup']);
+            $this->addSubproduct($orderProduct, $product, $productGroup, $subproduct['quantity']);
         }
 
-        $this->manager->flush();
         return $this->calculateProductPrice($orderProduct);
     }
 

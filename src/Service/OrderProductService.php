@@ -25,10 +25,7 @@ class OrderProductService
         private OrderService $orderService,
         private RequestStack $requestStack
     ) {
-
-        if (!self::$mainProduct) return;
         $this->request = $this->requestStack->getCurrentRequest();
-        self::$mainProduct = false;
     }
 
     public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity)
@@ -50,6 +47,7 @@ class OrderProductService
     {
 
         if (!self::$mainProduct) return;
+        self::$mainProduct = false;
 
         $json = json_decode($this->request->getContent(), true);
         $subProducts = $json['sub_products'];

@@ -68,13 +68,11 @@ class OrderProductService
         if (!self::$mainProduct) return;
         self::$mainProduct = false;
         $order = $orderProduct->getOrder();
+        $this->manager->persist($order->setPrice(0));
+
         $parentProducts = $this->manager->getRepository(OrderProduct::class)->findBy([
             'parentProduct'  => $orderProduct->getProduct(),
         ]);
-
-        if (!$parentProducts)
-            $this->manager->persist($order->setPrice(0));
-
 
         foreach ($parentProducts as $parentProduct)
             $this->manager->remove($parentProduct);

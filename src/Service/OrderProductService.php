@@ -35,9 +35,9 @@ class OrderProductService
     public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity)
     {
         $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
-            'product' => $product,
+            'productChild' => $product,
             'productGroup' => $productGroup
-        ]) ?: $orderProduct->getProduct();
+        ]);
 
 
         $OProduct = new OrderProduct();
@@ -95,7 +95,7 @@ class OrderProductService
     private function calculateProductPrice(OrderProduct $orderProduct)
     {
         $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
-            'product' => $orderProduct->getProduct(),
+            'productChild' => $orderProduct->getProduct(),
             'productGroup' => $orderProduct->getProductGroup()
         ]) ?: $orderProduct->getProduct();
 

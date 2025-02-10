@@ -100,7 +100,7 @@ class Order
 
     /**
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProduct", mappedBy="order", cascade={"persist"})
-     * @Groups({"order:read","order_details:read","order:write"})
+     * @Groups({"order_details:read","order:write"})
      */
     private $orderProducts;
 

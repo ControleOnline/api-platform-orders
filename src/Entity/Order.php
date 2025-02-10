@@ -70,7 +70,7 @@ class Order
      * @ORM\Column(name="id", type="integer", nullable=false)
      * @ORM\Id
      * @ORM\GeneratedValue(strategy="IDENTITY")
-     * @Groups({"order_queue:read","order:read","order_details:read","company_expense:read","coupon:read","logistic:read","order_invoice:read"})
+     * @Groups({"order_product_queue:read","order:read","order_details:read","company_expense:read","coupon:read","logistic:read","order_invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
 
@@ -83,7 +83,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="client_id", referencedColumnName="id")
      * })
-     * @Groups({"order_queue:read","order:read","order_details:read","order:write", "invoice:read"})
+     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write", "invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['client' => 'exact'])]
 
@@ -92,7 +92,7 @@ class Order
     /**
      * @var \DateTimeInterface
      * @ORM\Column(name="order_date", type="datetime",  nullable=false, columnDefinition="DATETIME")
-     * @Groups({"order_queue:read","order:read","order_details:read","order:write"})
+     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(DateFilter::class, properties: ['orderDate'])]
 
@@ -132,7 +132,7 @@ class Order
 
     /**
      * @ORM\Column(name="alter_date", type="datetime",  nullable=false)
-     * @Groups({"display:read","order_queue:read","order:read","order_details:read","order:write"})
+     * @Groups({"display:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
 
     #[ApiFilter(DateFilter::class, properties: ['alterDate'])]
@@ -147,7 +147,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="status_id", referencedColumnName="id")
      * })
-     * @Groups({"display:read","order_queue:read","order:read","order_details:read","order:write"})
+     * @Groups({"display:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
 
@@ -157,7 +157,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="order_type", type="string",  nullable=true)
-     * @Groups({"display:read","order_queue:read","order:read","order_details:read","order:write"})
+     * @Groups({"display:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
 
@@ -168,7 +168,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="app", type="string",  nullable=true)
-     * @Groups({"display:read","order_queue:read","order:read","order_details:read","order:write"}) 
+     * @Groups({"display:read","order_product_queue:read","order:read","order_details:read","order:write"}) 
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
 
@@ -178,7 +178,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="other_informations", type="json",  nullable=true)
-     * @Groups({"order_queue:read","order:read","order_details:read","order:write"}) 
+     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write"}) 
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['otherInformations' => 'exact'])]
 
@@ -201,7 +201,7 @@ class Order
      * @var integer
      *
      * @ORM\Column(name="main_order_id", type="integer",  nullable=true)
-     * @Groups({"order_queue:read","order:read","order_details:read","order:write"})
+     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrderId' => 'exact'])]
 
@@ -216,7 +216,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="payer_people_id", referencedColumnName="id")
      * })
-     * @Groups({"order_queue:read","order:read","order_details:read","order:write","invoice:read"})
+     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['payer' => 'exact'])]
 
@@ -229,7 +229,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="provider_id", referencedColumnName="id")
      * })
-     * @Groups({"order_queue:read","order:read","order_details:read","order:write","invoice:read"})
+     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['provider' => 'exact'])]
 
@@ -294,7 +294,7 @@ class Order
      * @var float
      *
      * @ORM\Column(name="price", type="float",  nullable=false)
-     * @Groups({"order_queue:read","order:read","order_details:read","order:write"})
+     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['price' => 'exact'])]
 
@@ -306,7 +306,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="comments", type="string",  nullable=true)
-     * @Groups({"order_queue:read","order:read","order_details:read","order:write"})
+     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['comments' => 'exact'])]
 
@@ -324,12 +324,12 @@ class Order
     /**
      * @var \Doctrine\Common\Collections\Collection
      *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderQueue", mappedBy="order")
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProductQueue", mappedBy="order")
      * @Groups({"order:read","order_details:read","order:write"}) 
      */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderQueue' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProductQueue' => 'exact'])]
 
-    private $orderQueue;
+    private $orderProductQueue;
 
 
 
@@ -340,7 +340,7 @@ class Order
         $this->invoiceTax   = new ArrayCollection();
         $this->invoice      = new ArrayCollection();
         $this->task         = new ArrayCollection();
-        $this->orderQueue   = new ArrayCollection();
+        $this->orderProductQueue   = new ArrayCollection();
         $this->orderProducts = new ArrayCollection();
         // $this->parkingDate  = new \DateTime('now');
         $this->otherInformations = json_encode(new stdClass());
@@ -950,36 +950,36 @@ class Order
     }
 
     /**
-     * Add OrderQueue
+     * Add OrderProductQueue
      *
-     * @param \ControleOnline\Entity\OrderQueue $invoice_tax
+     * @param \ControleOnline\Entity\OrderProductQueue $invoice_tax
      * @return Order
      */
-    public function addAOrderQueue(\ControleOnline\Entity\OrderQueue $orderQueue)
+    public function addAOrderProductQueue(\ControleOnline\Entity\OrderProductQueue $orderProductQueue)
     {
-        $this->orderQueue[] = $orderQueue;
+        $this->orderProductQueue[] = $orderProductQueue;
 
         return $this;
     }
 
     /**
-     * Remove OrderQueue
+     * Remove OrderProductQueue
      *
-     * @param \ControleOnline\Entity\OrderQueue $invoice_tax
+     * @param \ControleOnline\Entity\OrderProductQueue $invoice_tax
      */
-    public function removeOrderQueue(\ControleOnline\Entity\OrderQueue $orderQueue)
+    public function removeOrderProductQueue(\ControleOnline\Entity\OrderProductQueue $orderProductQueue)
     {
-        $this->orderQueue->removeElement($orderQueue);
+        $this->orderProductQueue->removeElement($orderProductQueue);
     }
 
     /**
-     * Get OrderQueue
+     * Get OrderProductQueue
      *
      * @return \Doctrine\Common\Collections\Collection
      */
-    public function getOrderQueue()
+    public function getOrderProductQueue()
     {
-        return $this->orderQueue;
+        return $this->orderProductQueue;
     }
 
     public function isOriginAndDestinationTheSame(): ?bool

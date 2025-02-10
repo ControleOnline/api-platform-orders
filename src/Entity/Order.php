@@ -325,7 +325,7 @@ class Order
      * @var \Doctrine\Common\Collections\Collection
      *
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderQueue", mappedBy="order")
-     * @Groups({"order_queue:read","order:read","order_details:read","order:write"}) 
+     * @Groups({"order:read","order_details:read","order:write"}) 
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderQueue' => 'exact'])]
 

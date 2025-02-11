@@ -321,15 +321,7 @@ class Order
 
     private $notified = false;
 
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProductQueue", mappedBy="order")
-     * @Groups({"order:read","order_details:read","order:write"}) 
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProductQueue' => 'exact'])]
 
-    private $orderProductQueue;
 
 
 
@@ -340,7 +332,6 @@ class Order
         $this->invoiceTax   = new ArrayCollection();
         $this->invoice      = new ArrayCollection();
         $this->task         = new ArrayCollection();
-        $this->orderProductQueue   = new ArrayCollection();
         $this->orderProducts = new ArrayCollection();
         // $this->parkingDate  = new \DateTime('now');
         $this->otherInformations = json_encode(new stdClass());
@@ -947,39 +938,6 @@ class Order
     public function getTask()
     {
         return $this->task;
-    }
-
-    /**
-     * Add OrderProductQueue
-     *
-     * @param \ControleOnline\Entity\OrderProductQueue $invoice_tax
-     * @return Order
-     */
-    public function addAOrderProductQueue(\ControleOnline\Entity\OrderProductQueue $orderProductQueue)
-    {
-        $this->orderProductQueue[] = $orderProductQueue;
-
-        return $this;
-    }
-
-    /**
-     * Remove OrderProductQueue
-     *
-     * @param \ControleOnline\Entity\OrderProductQueue $invoice_tax
-     */
-    public function removeOrderProductQueue(\ControleOnline\Entity\OrderProductQueue $orderProductQueue)
-    {
-        $this->orderProductQueue->removeElement($orderProductQueue);
-    }
-
-    /**
-     * Get OrderProductQueue
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getOrderProductQueue()
-    {
-        return $this->orderProductQueue;
     }
 
     public function isOriginAndDestinationTheSame(): ?bool

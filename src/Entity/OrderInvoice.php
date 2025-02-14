@@ -65,7 +65,7 @@ class OrderInvoice
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="order_id", referencedColumnName="id")
      * })
-     * @Groups({"invoice:read","order_invoice:read","order_invoice:write"})
+     * @Groups({"invoice:read","invoice_details:read","order_invoice:read","order_invoice:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['order' => 'exact'])]
     private $order;

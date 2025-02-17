@@ -83,7 +83,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="client_id", referencedColumnName="id")
      * })
-     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write", "invoice:read"})
+     * @Groups({"order_product_queue:read","order_product_queue:read","order:read","order_details:read","order:write", "invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['client' => 'exact'])]
 
@@ -147,7 +147,7 @@ class Order
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="status_id", referencedColumnName="id")
      * })
-     * @Groups({"display:read","order_product_queue:read","order:read","order_details:read","order:write"})
+     * @Groups({"order_product_queue:read","display:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
 
@@ -157,7 +157,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="order_type", type="string",  nullable=true)
-     * @Groups({"display:read","order_product_queue:read","order:read","order_details:read","order:write"})
+     * @Groups({"order_product_queue:read","display:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
 
@@ -168,7 +168,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="app", type="string",  nullable=true)
-     * @Groups({"display:read","order_product_queue:read","order:read","order_details:read","order:write"}) 
+     * @Groups({"order_product_queue:read","display:read","order_product_queue:read","order:read","order_details:read","order:write"}) 
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
 
@@ -306,7 +306,7 @@ class Order
      * @var string
      *
      * @ORM\Column(name="comments", type="string",  nullable=true)
-     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write"})
+     * @Groups({"order_product_queue:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['comments' => 'exact'])]
 

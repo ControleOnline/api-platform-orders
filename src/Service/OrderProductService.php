@@ -2,7 +2,6 @@
 
 namespace ControleOnline\Service;
 
-use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Product;
 use ControleOnline\Entity\ProductGroup;
@@ -25,7 +24,8 @@ class OrderProductService
         private Security $security,
         private PeopleService $peopleService,
         private OrderService $orderService,
-        private RequestStack $requestStack
+        private RequestStack $requestStack,
+        private OrderProductQueueService $orderProductQueueService
     ) {
         $this->request = $this->requestStack->getCurrentRequest();
     }
@@ -51,6 +51,8 @@ class OrderProductService
         $OProduct->setTotal($productGroupProduct->getPrice() * $quantity);
         $this->manager->persist($OProduct);
         $this->manager->flush();
+
+        $this->orderProductQueueService->addProductToQueue($OProduct);
     }
 
     public function afterPersist(OrderProduct $orderProduct)
@@ -67,7 +69,7 @@ class OrderProductService
             $productGroup =  $this->manager->getRepository(ProductGroup::class)->find($subproduct['productGroup']);
             $this->addSubproduct($orderProduct, $product, $productGroup, $subproduct['quantity']);
         }
-
+        $this->orderProductQueueService->addProductToQueue($orderProduct);
         return $this->calculateProductPrice($orderProduct);
     }
 

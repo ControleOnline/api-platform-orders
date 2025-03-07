@@ -19,6 +19,7 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiProperty;
 use ControleOnline\Controller\CreateNFeAction;
+use ControleOnline\Controller\DiscoveryCart;
 use ControleOnline\Entity\OrderProduct;
 
 /**
@@ -33,6 +34,12 @@ use ControleOnline\Entity\OrderProduct;
     operations: [
         new Get(
             security: 'is_granted(\'ROLE_CLIENT\')',
+        ),
+        new GetCollection(
+            security: 'is_granted(\'IS_AUTHENTICATED_ANONYMOUSLY\')',
+            uriTemplate: '/cart',
+            controller: DiscoveryCart::class
+
         ),
         new GetCollection(
             security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',

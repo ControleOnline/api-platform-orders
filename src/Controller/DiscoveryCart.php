@@ -6,7 +6,9 @@ use Symfony\Component\HttpFoundation\Request;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use ControleOnline\Entity\Order;
-use ControleOnline\Service\NFeService;
+use Symfony\Component\HttpFoundation\Response;
+use ControleOnline\Service\HydratorService;
+use Exception;
 
 class DiscoveryCart
 {
@@ -14,36 +16,20 @@ class DiscoveryCart
 
 
     public function __construct(
+        private HydratorService $hydratorService,
         private EntityManagerInterface $manager,
-        private NFeService $nFeService
     ) {}
 
 
-    public function __invoke(Order $data, Request $request): JsonResponse
+    public function __invoke(Request $request): JsonResponse
     {
         try {
 
-            $invoiceTax = $this->nFeService->createNfe($data, 55);
-            return new JsonResponse([
-                'response' => [
-                    'data'    => $data->getId(),
-                    'invoice_tax' => $invoiceTax->getId(),
-                    'xml' => $invoiceTax->getInvoice(),
-                    'count'   => 1,
-                    'error'   => '',
-                    'success' => true,
-                ],
-            ]);
-        } catch (\Throwable $th) {
-            return new JsonResponse([
-                'response' => [
-                    'count'   => 0,
-                    'error'   => $th->getMessage(),
-                    'file' => $th->getFile(),
-                    'line' => $th->getLine(),
-                    'success' => false,
-                ],
-            ], 500);
+            $order = $this->manager->getRepository(Order::class)->find(59628);
+
+            return new JsonResponse($this->hydratorService->data($order, 'order_details:read'), Response::HTTP_OK);
+        } catch (Exception $e) {
+            return new JsonResponse($this->hydratorService->error($e));
         }
     }
 }

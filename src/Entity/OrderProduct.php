@@ -52,6 +52,7 @@ use ApiPlatform\Metadata\ApiProperty;
     denormalizationContext: ['groups' => ['order_product:write']]
 )]
 #[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]
+#[ApiFilter(OrderFilter::class, properties: ['id' => 'ASC', 'product.product' => 'ASC'])]
 
 class OrderProduct
 {
@@ -111,7 +112,7 @@ class OrderProduct
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['productGroup' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['productGroup.type' => 'exact'])]
     private $productGroup;
-    
+
 
     /**
      * @ORM\Column(type="float")

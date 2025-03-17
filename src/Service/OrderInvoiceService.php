@@ -13,24 +13,7 @@ class OrderInvoiceService
     public function __construct(
         private EntityManagerInterface $manager,
         private Security $security,
-        private BraspagService $braspagService
-    ) {
-    }
+    ) {}
 
-    public function afterPersist(OrderInvoice $OrderInvoice)
-    {
-        $invoice = $OrderInvoice->getInvoice();
-        $order = $OrderInvoice->getOrder();
-        //if ($invoice->getStatus()->getStatus() == 'Pago') {
-        $orderStatus = $this->manager->getRepository(Status::class)->findOneBy([
-            'status' => 'Pago',
-            'context' => 'order'
-        ]);
-        $order->setStatus($orderStatus);
-        $this->manager->persist($order);
-        $this->manager->flush();
-        //}
-        $this->braspagService->split($invoice);
-        return $order;
-    }
+    public function afterPersist(OrderInvoice $OrderInvoice) {}
 }

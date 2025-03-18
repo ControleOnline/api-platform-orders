@@ -15,5 +15,5 @@ class OrderInvoiceService
         private Security $security,
     ) {}
 
-    public function afterPersist(OrderInvoice $OrderInvoice) {}
+    public function postPersist(OrderInvoice $OrderInvoice) {}
 }

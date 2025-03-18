@@ -55,7 +55,7 @@ class OrderProductService
         $this->orderProductQueueService->addProductToQueue($OProduct);
     }
 
-    public function afterPersist(OrderProduct $orderProduct)
+    public function postPersist(OrderProduct $orderProduct)
     {
 
         if (!self::$mainProduct) return;
@@ -73,7 +73,7 @@ class OrderProductService
         return $this->calculateProductPrice($orderProduct);
     }
 
-    public function beforeDelete(OrderProduct $orderProduct)
+    public function preRemove(OrderProduct $orderProduct)
     {
 
         if (!self::$mainProduct) return;

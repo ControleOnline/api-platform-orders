@@ -328,7 +328,20 @@ class Order
 
     private $notified = false;
 
+    /**
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\User")
+     * @ORM\JoinColumn(nullable=true)
+     * @Groups({"order_product_queue:read","display:read","order_product_queue:read","order:read","order_details:read","order:write"})
+     */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['user' => 'exact'])]
+    private $user;
 
+    /**
+     * @ORM\Column(type="string", length=50)
+     * @Groups({"order_product_queue:read","display:read","order_product_queue:read","order:read","order_details:read","order:write"})
+     */
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['device' => 'exact'])]
+    private $device;
 
 
 
@@ -1006,6 +1019,42 @@ class Order
     public function removeOrderProduct(OrderProduct $orderProduct): self
     {
         $this->orderProducts->removeElement($orderProduct);
+        return $this;
+    }
+
+    /**
+     * Get the value of user
+     */
+    public function getUser()
+    {
+        return $this->user;
+    }
+
+    /**
+     * Set the value of user
+     */
+    public function setUser($user): self
+    {
+        $this->user = $user;
+
+        return $this;
+    }
+
+    /**
+     * Get the value of device
+     */
+    public function getDevice()
+    {
+        return $this->device;
+    }
+
+    /**
+     * Set the value of device
+     */
+    public function setDevice($device): self
+    {
+        $this->device = $device;
+
         return $this;
     }
 }

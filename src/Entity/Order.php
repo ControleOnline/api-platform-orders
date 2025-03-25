@@ -66,7 +66,8 @@ use ControleOnline\Entity\OrderProduct;
     normalizationContext: ['groups' => ['order_details:read']],
     denormalizationContext: ['groups' => ['order:write']]
 )]
-#[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]
+#[ApiFilter(OrderFilter::class, properties: ['alterDate' => 'DESC'])]
+#[ApiFilter(OrderFilter::class, properties: ['alterDate' => 'ASC', 'id' => 'ASC'])]
 
 
 class Order

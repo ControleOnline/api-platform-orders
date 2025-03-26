@@ -55,30 +55,6 @@ class OrderProductService
         $this->orderProductQueueService->addProductToQueue($OProduct);
     }
 
-    public function prePersist(OrderProduct $orderProduct)
-    {
-
-        $product = $orderProduct->getProduct();
-        $productType = $product->getType();
-
-        if (!in_array($productType, ['product', 'service']) || $orderProduct->getId()) return $orderProduct;
-
-
-        $existOrderProduct = $this->manager->getRepository(OrderProduct::class)->findOneBy([
-            'product' =>  $product,
-            'order' => $orderProduct->getOrder()
-        ]);
-        if ($existOrderProduct) {
-            $existOrderProduct->setQuantity($orderProduct->getQuantity());
-            $this->manager->persist($existOrderProduct);
-            //$this->manager->flush();
-            return $existOrderProduct;
-        }
-
-
-        return $orderProduct;
-    }
-
     public function postPersist(OrderProduct $orderProduct)
     {
 

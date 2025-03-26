@@ -101,7 +101,7 @@ class OrderService
         return $order;
     }
 
-    public function secutiryFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
+    public function securityFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
     {
         $companies   = $this->PeopleService->getMyCompanies();
 

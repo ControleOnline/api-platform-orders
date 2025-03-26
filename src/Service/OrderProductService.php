@@ -135,7 +135,7 @@ class OrderProductService
 
 
 
-    public function  secutiryFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
+    public function  securityFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
     {
         //$queryBuilder->join(sprintf('%s.order', $rootAlias), 'o');
         //$queryBuilder->andWhere('o.client IN(:companies) OR o.provider IN(:companies)');

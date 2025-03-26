@@ -71,7 +71,7 @@ class OrderProductService
         if ($existOrderProduct) {
             $existOrderProduct->setQuantity($orderProduct->getQuantity());
             $this->manager->persist($existOrderProduct);
-            $this->manager->flush();
+            //$this->manager->flush();
             return $existOrderProduct;
         }
 

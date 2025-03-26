@@ -61,7 +61,7 @@ class OrderProductService
         $product = $orderProduct->getProduct();
         $productType = $product->getType();
 
-        if (!in_array($productType, ['pruduct', 'service']) || $orderProduct->getId()) return $orderProduct;
+        if (!in_array($productType, ['product', 'service']) || $orderProduct->getId()) return $orderProduct;
 
 
         $existOrderProduct = $this->manager->getRepository(OrderProduct::class)->findOneBy([

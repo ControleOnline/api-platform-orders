@@ -53,11 +53,10 @@ class PrintOrderAction
             // Agrupar produtos por fila usando OrderProductQueue
             $queues = [];
             foreach ($order->getOrderProducts() as $orderProduct) {
-                $queueEntries = $this->entityManager->getRepository(OrderProductQueue::class)
-                    ->findBy(['order_product' => $orderProduct]);
+                $queueEntries = $orderProduct->getOrderProductQueues();
 
                 // Se não houver filas associadas, coloca em "Sem fila definida"
-                if (empty($queueEntries)) {
+                if ($queueEntries->isEmpty()) {
                     if (!isset($queues['Sem fila definida'])) {
                         $queues['Sem fila definida'] = [];
                     }
@@ -95,7 +94,7 @@ class PrintOrderAction
                         $text .= "  Personalizações:\n";
                         $productGroupProducts = $this->entityManager->getRepository(ProductGroupProduct::class)
                             ->findBy(['product' => $product->getId()]);
-                        
+
                         foreach ($productGroupProducts as $pgp) {
                             $childProduct = $pgp->getProductChild();
                             if ($childProduct) {
@@ -108,7 +107,6 @@ class PrintOrderAction
             }
 
             $text .= "------------------------\n";
-            $text .= "Status: " . $order->getStatus()->getStatus() . "\n";
 
             return $text;
         }

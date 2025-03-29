@@ -9,6 +9,7 @@ use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Product;
 use ControleOnline\Entity\ProductGroupProduct;
+use ControleOnline\Entity\OrderProductQueue;
 
 class PrintOrderAction
 {
@@ -44,23 +45,38 @@ class PrintOrderAction
         if ($printType === 'pos') {
             $text = "PEDIDO #" . $order->getId() . "\n";
             $text .= "Data: " . $order->getOrderDate()->format('d/m/Y H:i') . "\n";
-
-            // Correção: Verificar explicitamente se getClient() é null
             $client = $order->getClient();
             $text .= "Cliente: " . ($client !== null ? $client->getName() : 'Não informado') . "\n";
-
             $text .= "Total: R$ " . number_format($order->getPrice(), 2, ',', '.') . "\n";
             $text .= "------------------------\n";
 
-            // Agrupar produtos por fila diretamente
+            // Agrupar produtos por fila usando OrderProductQueue
             $queues = [];
             foreach ($order->getOrderProducts() as $orderProduct) {
-                $queue = $orderProduct->getQueue();
-                $queueName = $queue ? $queue->getQueue() : 'Sem fila definida';
-                if (!isset($queues[$queueName])) {
-                    $queues[$queueName] = [];
+                $queueEntries = $this->entityManager->getRepository(OrderProductQueue::class)
+                    ->findBy(['order_product' => $orderProduct]);
+
+                // Se não houver filas associadas, coloca em "Sem fila definida"
+                if (empty($queueEntries)) {
+                    if (!isset($queues['Sem fila definida'])) {
+                        $queues['Sem fila definida'] = [];
+                    }
+                    $queues['Sem fila definida'][] = $orderProduct;
+                } else {
+                    // Adiciona o produto em todas as filas associadas
+                    foreach ($queueEntries as $queueEntry) {
+                        $queue = $queueEntry->getQueue();
+                        $queueName = $queue ? $queue->getQueue() : 'Sem fila definida';
+
+                        // Log para depuração
+                        error_log("Produto: " . $orderProduct->getProduct()->getProduct() . " | Queue ID: " . ($queue ? $queue->getId() : 'NULL') . " | Queue Name: " . $queueName);
+
+                        if (!isset($queues[$queueName])) {
+                            $queues[$queueName] = [];
+                        }
+                        $queues[$queueName][] = $orderProduct;
+                    }
                 }
-                $queues[$queueName][] = $orderProduct;
             }
 
             // Exibir produtos organizados por fila

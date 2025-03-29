@@ -62,14 +62,6 @@ class OrderProduct
     private $product;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Queue")
-     * @ORM\JoinColumn(nullable=true)
-     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","order_product:write","order_product:read"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['queue' => 'exact'])]
-    private $queue;
-
-    /**
      * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
      * @ORM\JoinColumn(nullable=true)
      * @Groups({"order_product:write","order_product:read"})
@@ -149,17 +141,6 @@ class OrderProduct
     public function setProduct($product): self
     {
         $this->product = $product;
-        return $this;
-    }
-
-    public function getQueue()
-    {
-        return $this->queue;
-    }
-
-    public function setQueue($queue): self
-    {
-        $this->queue = $queue;
         return $this;
     }
 

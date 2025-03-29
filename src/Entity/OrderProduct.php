@@ -2,7 +2,6 @@
 
 namespace ControleOnline\Entity;
 
-
 use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
 use ApiPlatform\Core\Annotation\ApiSubresource;
@@ -22,13 +21,12 @@ use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiProperty;
 
 /**
- *  OrderProduct
+ * OrderProduct
  *
  * @ORM\EntityListeners({ControleOnline\Listener\LogListener::class})
  * @ORM\Table(name="order_product")
  * @ORM\Entity(repositoryClass="ControleOnline\Repository\OrderProductRepository")
  */
-
 #[ApiResource(
     operations: [
         new Get(
@@ -53,7 +51,6 @@ use ApiPlatform\Metadata\ApiProperty;
 )]
 #[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]
 #[ApiFilter(OrderFilter::class, properties: ['id' => 'ASC', 'product.product' => 'ASC'])]
-
 class OrderProduct
 {
     /**
@@ -81,7 +78,6 @@ class OrderProduct
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['product' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['product.type' => 'exact'])]
     private $product;
-
 
     /**
      * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
@@ -113,6 +109,11 @@ class OrderProduct
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['productGroup.type' => 'exact'])]
     private $productGroup;
 
+    /**
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProductQueue", mappedBy="order_product")
+     * @Groups({"order_product:read"})
+     */
+    private $orderProductQueues;
 
     /**
      * @ORM\Column(type="float")
@@ -132,6 +133,11 @@ class OrderProduct
      */
     private $total = 0;
 
+    public function __construct()
+    {
+        $this->orderProductQueues = new ArrayCollection();
+    }
+
     // Getters and setters
 
     /**
@@ -148,7 +154,6 @@ class OrderProduct
     public function setId($id): self
     {
         $this->id = $id;
-
         return $this;
     }
 
@@ -166,7 +171,6 @@ class OrderProduct
     public function setOrder($order): self
     {
         $this->order = $order;
-
         return $this;
     }
 
@@ -184,7 +188,6 @@ class OrderProduct
     public function setProduct($product): self
     {
         $this->product = $product;
-
         return $this;
     }
 
@@ -202,7 +205,6 @@ class OrderProduct
     public function setQuantity($quantity): self
     {
         $this->quantity = $quantity;
-
         return $this;
     }
 
@@ -220,7 +222,6 @@ class OrderProduct
     public function setPrice($price): self
     {
         $this->price = $price;
-
         return $this;
     }
 
@@ -238,7 +239,6 @@ class OrderProduct
     public function setTotal($total): self
     {
         $this->total = $total;
-
         return $this;
     }
 
@@ -256,7 +256,6 @@ class OrderProduct
     public function setParentProduct($parentProduct): self
     {
         $this->parentProduct = $parentProduct;
-
         return $this;
     }
 
@@ -274,7 +273,6 @@ class OrderProduct
     public function setOrderProduct($orderProduct): self
     {
         $this->orderProduct = $orderProduct;
-
         return $this;
     }
 
@@ -292,7 +290,36 @@ class OrderProduct
     public function setProductGroup($productGroup): self
     {
         $this->productGroup = $productGroup;
+        return $this;
+    }
 
+    /**
+     * Get the value of orderProductQueues
+     */
+    public function getOrderProductQueues()
+    {
+        return $this->orderProductQueues;
+    }
+
+    /**
+     * Add an OrderProductQueue
+     */
+    public function addOrderProductQueue(OrderProductQueue $orderProductQueue): self
+    {
+        if (!$this->orderProductQueues->contains($orderProductQueue)) {
+            $this->orderProductQueues[] = $orderProductQueue;
+            $orderProductQueue->setOrderProduct($this);
+        }
+        return $this;
+    }
+
+    public function removeOrderProductQueue(OrderProductQueue $orderProductQueue): self
+    {
+        if ($this->orderProductQueues->removeElement($orderProductQueue)) {
+            if ($orderProductQueue->getOrderProduct() === $this) {
+                $orderProductQueue->setOrderProduct(null);
+            }
+        }
         return $this;
     }
 }

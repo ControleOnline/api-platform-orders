@@ -20,6 +20,7 @@ use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiProperty;
 use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Controller\DiscoveryCart;
+use ControleOnline\Controller\PrintOrderAction;
 use ControleOnline\Entity\OrderProduct;
 
 /**
@@ -60,6 +61,13 @@ use ControleOnline\Entity\OrderProduct;
             uriTemplate: '/orders/{id}/nfe',
             #requirements: ['format' => '^(pdf|xml)+$'],
             controller: CreateNFeAction::class
+        ),
+        new Post(
+            security: 'is_granted(\'ROLE_CLIENT\')',
+            uriTemplate: '/orders/{id}/print',
+            controller: PrintOrderAction::class,
+            denormalizationContext: ['groups' => ['print:write']],
+            normalizationContext: ['groups' => ['print:read']],
         ),
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],

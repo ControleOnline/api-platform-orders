@@ -86,9 +86,9 @@ class PrintOrderAction
                     $unit = $product->getProductUnit()->getProductUnit();
                     $quantity = $orderProduct->getQuantity();
 
-                    $text .= "$quantity" . " " . $unit . " X " . $product->getProduct() . ")\n";
+                    $text .= "- " . $product->getProduct() . " (" . $quantity . " " . $unit . ")\n";
                     $text .= "..............";
-                    $text .= " R$ " . number_format($product->getPrice() * $quantity, 2, ',', '.') . "\n";
+                    $text .= "  R$ " . number_format($product->getPrice() * $quantity, 2, ',', '.') . "\n";
 
                     // Verifica se o produto é customizado
                     if ($product->getType() === 'custom') {

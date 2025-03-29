@@ -50,24 +50,20 @@ class PrintOrderAction
             $text .= "Total: R$ " . number_format($order->getPrice(), 2, ',', '.') . "\n";
             $text .= "------------------------\n";
 
-            // Agrupar produtos por fila usando OrderProductQueue
             $queues = [];
             foreach ($order->getOrderProducts() as $orderProduct) {
                 $queueEntries = $orderProduct->getOrderProductQueues();
 
-                // Se não houver filas associadas, coloca em "Sem fila definida"
                 if ($queueEntries->isEmpty()) {
                     if (!isset($queues['Sem fila definida'])) {
                         $queues['Sem fila definida'] = [];
                     }
                     $queues['Sem fila definida'][] = $orderProduct;
                 } else {
-                    // Adiciona o produto em todas as filas associadas
                     foreach ($queueEntries as $queueEntry) {
                         $queue = $queueEntry->getQueue();
                         $queueName = $queue ? $queue->getQueue() : 'Sem fila definida';
 
-                        // Log para depuração
                         error_log("Produto: " . $orderProduct->getProduct()->getProduct() . " | Queue ID: " . ($queue ? $queue->getId() : 'NULL') . " | Queue Name: " . $queueName);
 
                         if (!isset($queues[$queueName])) {
@@ -78,7 +74,6 @@ class PrintOrderAction
                 }
             }
 
-            // Exibir produtos organizados por fila
             foreach ($queues as $queueName => $products) {
                 $text .= strtoupper($queueName) . ":\n";
                 foreach ($products as $orderProduct) {
@@ -90,7 +85,6 @@ class PrintOrderAction
                     $text .= "..............";
                     $text .= "  R$ " . number_format($product->getPrice() * $quantity, 2, ',', '.') . "\n";
 
-                    // Verifica se o produto é customizado
                     if ($product->getType() === 'custom') {
                         $text .= "  Personalizações:\n";
                         $productGroupProducts = $this->entityManager->getRepository(ProductGroupProduct::class)

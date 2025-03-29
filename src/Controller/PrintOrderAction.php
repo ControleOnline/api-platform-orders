@@ -4,9 +4,11 @@ namespace ControleOnline\Controller;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use ApiPlatform\Core\Bridge\Doctrine\Orm\Util\QueryNameGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use ControleOnline\Entity\Order;
+use ControleOnline\Entity\OrderProduct;
+use ControleOnline\Entity\Product;
+use ControleOnline\Entity\ProductGroupProduct;
 
 class PrintOrderAction
 {
@@ -19,53 +21,81 @@ class PrintOrderAction
 
     public function __invoke(Request $request, int $id): JsonResponse
     {
-        // Busca o pedido pelo ID
         $order = $this->entityManager->getRepository(Order::class)->find($id);
         if (!$order) {
             return new JsonResponse(['error' => 'Order not found'], 404);
         }
 
-        // Pega os parâmetros da requisição (print-type e device-type)
         $data = json_decode($request->getContent(), true);
         $printType = $data['print-type'] ?? 'pos';
         $deviceType = $data['device-type'] ?? 'cielo';
 
-        // Lógica para decidir o que retornar (texto ou imagem)
         $printData = $this->generatePrintData($order, $printType, $deviceType);
 
-        // Retorna os dados a serem impressos
         return new JsonResponse($printData);
     }
 
-    private function generatePrintData(Order $order, string $printType, string $deviceType): array|string
+    private function generatePrintData(Order $order, string $printType, string $deviceType)
     {
         if ($deviceType !== 'cielo') {
             return ['error' => 'Unsupported device type'];
         }
 
         if ($printType === 'pos') {
-            // Exemplo: retorna um texto simples para impressão no POS
-            $text = "Order ID: " . $order->getId() . "\n";
-            $text .= "Client: " . $order->getClient()->getName() . "\n";
-            $text .= "Price: " . number_format($order->getPrice(), 2, ',', '.') . "\n";
-            $text .= "Date: " . $order->getOrderDate()->format('d/m/Y H:i:s') . "\n";
+            $text = "PEDIDO #" . $order->getId() . "\n";
+            $text .= "Data: " . $order->getOrderDate()->format('d/m/Y H:i') . "\n";
 
-            foreach ($order->getOrderProducts() as $product) {
-                $text .= "- " . $product->getProduct()->getName() . " x" . $product->getQuantity() . "\n";
+            // Correção: Verificar explicitamente se getClient() é null
+            $client = $order->getClient();
+            $text .= "Cliente: " . ($client !== null ? $client->getName() : 'Não informado') . "\n";
+
+            $text .= "Total: R$ " . number_format($order->getPrice(), 2, ',', '.') . "\n";
+            $text .= "------------------------\n";
+
+            // Agrupar produtos por fila diretamente
+            $queues = [];
+            foreach ($order->getOrderProducts() as $orderProduct) {
+                $queue = $orderProduct->getQueue();
+                $queueName = $queue ? $queue->getQueue() : 'Sem fila definida';
+                if (!isset($queues[$queueName])) {
+                    $queues[$queueName] = [];
+                }
+                $queues[$queueName][] = $orderProduct;
             }
+
+            // Exibir produtos organizados por fila
+            foreach ($queues as $queueName => $products) {
+                $text .= strtoupper($queueName) . ":\n";
+                foreach ($products as $orderProduct) {
+                    $product = $orderProduct->getProduct();
+                    $unit = $product->getProductUnit()->getProductUnit();
+                    $quantity = $orderProduct->getQuantity();
+
+                    $text .= "- " . $product->getProduct() . " (" . $quantity . " " . $unit . ")\n";
+                    $text .= "  R$ " . number_format($product->getPrice() * $quantity, 2, ',', '.') . "\n";
+
+                    // Verifica se o produto é customizado
+                    if ($product->getType() === 'custom') {
+                        $text .= "  Personalizações:\n";
+                        $productGroupProducts = $this->entityManager->getRepository(ProductGroupProduct::class)
+                            ->findBy(['product' => $product->getId()]);
+                        
+                        foreach ($productGroupProducts as $pgp) {
+                            $childProduct = $pgp->getProductChild();
+                            if ($childProduct) {
+                                $text .= "    - " . $childProduct->getProduct() . " (" . $pgp->getQuantity() . " " . $childProduct->getProductUnit()->getProductUnit() . ")\n";
+                            }
+                        }
+                    }
+                }
+                $text .= "\n";
+            }
+
+            $text .= "------------------------\n";
+            $text .= "Status: " . $order->getStatus()->getStatus() . "\n";
 
             return $text;
         }
-
-        // Caso queira suportar imagem no futuro
-        // Exemplo fictício de imagem em base64
-        /*
-        if ($printType === 'image') {
-            $imagePath = $this->generateImage($order); // Implementar lógica para gerar imagem
-            $imageContent = file_get_contents($imagePath);
-            return base64_encode($imageContent);
-        }
-        */
 
         return ['error' => 'Unsupported print type'];
     }

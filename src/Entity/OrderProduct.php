@@ -340,24 +340,22 @@ class OrderProduct
     /**
      * Add a component
      */
-    public function addOrderProductComponent(self $orderProductComponent): self
+    public function addOrderProductComponent($orderProductComponent): self
     {
-        if (!$this->orderProductComponents->contains($orderProductComponent)) {
-            $this->orderProductComponents[] = $orderProductComponent;
-            $orderProductComponent->setParentProduct($this);
-        }
+
+        $this->orderProductComponents[] = $orderProductComponent;
+        $orderProductComponent->setParentProduct($this);
+
         return $this;
     }
 
     /**
      * Remove a component
      */
-    public function removeOrderProductComponent(self $orderProductComponent): self
+    public function removeOrderProductComponent($orderProductComponent): self
     {
         if ($this->orderProductComponents->removeElement($orderProductComponent)) {
-            if ($orderProductComponent->getParentProduct() === $this) {
-                $orderProductComponent->setParentProduct(null);
-            }
+            $orderProductComponent->setParentProduct(null);
         }
         return $this;
     }

@@ -80,14 +80,14 @@ class ProductComponent
     private $product;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\OrderProduct", inversedBy="order_product_components")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\OrderProduct", inversedBy="orderProductComponents")
      * @ORM\JoinColumn(name="order_product_id", referencedColumnName="id", nullable=true)
      * @Groups({"product_components:read", "product_components:write"})
      */
-    #[ApiFilter(ExistsFilter::class, properties: ['parent_order_product'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parent_order_product' => 'exact'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parent_order_product.type' => 'exact'])]
-    private $parent_order_product;
+    #[ApiFilter(ExistsFilter::class, properties: ['parentOrderProduct'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentOrderProduct' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentOrderProduct.type' => 'exact'])]
+    private $parentOrderProduct;
 
     /**
      * @ORM\Column(type="float")
@@ -214,19 +214,19 @@ class ProductComponent
     }
 
     /**
-     * Get the value of parent_order_product
+     * Get the value of parentOrderProduct
      */
     public function getParentOrderProduct()
     {
-        return $this->parent_order_product;
+        return $this->parentOrderProduct;
     }
 
     /**
-     * Set the value of parent_order_product
+     * Set the value of parentOrderProduct
      */
-    public function setParentOrderProduct($parent_order_product): self
+    public function setParentOrderProduct($parentOrderProduct): self
     {
-        $this->parent_order_product = $parent_order_product;
+        $this->parentOrderProduct = $parentOrderProduct;
 
         return $this;
     }

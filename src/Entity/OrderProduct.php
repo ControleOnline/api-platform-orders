@@ -111,10 +111,10 @@ class OrderProduct
     private $productGroup;
 
     /**
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\ProductComponent", mappedBy="parentOrderProduct")
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\ProductComponent", mappedBy="parent_order_product")
      * @Groups({"order_product:read", "order_product:write"})
      */
-    private $orderProductComponents;
+    private $order_product_components;
 
     /**
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProductQueue", mappedBy="order_product")
@@ -143,7 +143,7 @@ class OrderProduct
     public function __construct()
     {
         $this->orderProductQueues = new ArrayCollection();
-        $this->orderProductComponents = new ArrayCollection();
+        $this->order_product_components = new ArrayCollection();
     }
 
     /**
@@ -334,17 +334,17 @@ class OrderProduct
      */
     public function getOrderProductComponent()
     {
-        return $this->orderProductComponents;
+        return $this->order_product_components;
     }
 
     /**
      * Add a component
      */
-    public function addOrderProductComponent($orderProductComponent): self
+    public function addOrderProductComponent($order_product_component): self
     {
 
-        $this->orderProductComponents[] = $orderProductComponent;
-        $orderProductComponent->setParentProduct($this);
+        $this->order_product_components[] = $order_product_component;
+        $order_product_component->setParentProduct($this);
 
         return $this;
     }
@@ -352,9 +352,9 @@ class OrderProduct
     /**
      * Remove a component
      */
-    public function removeOrderProductComponent($orderProductComponent): self
+    public function removeOrderProductComponent($order_product_component): self
     {
-        $this->orderProductComponents->removeElement($orderProductComponent);
+        $this->order_product_components->removeElement($order_product_component);
         
         return $this;
     }

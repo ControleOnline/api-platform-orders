@@ -80,7 +80,7 @@ class ProductComponent
     private $product;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\OrderProduct")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\OrderProduct", inversedBy="orderProductComponents")
      * @ORM\JoinColumn(name="order_product_id", referencedColumnName="id", nullable=true)
      * @Groups({"product_components:read", "product_components:write"})
      */

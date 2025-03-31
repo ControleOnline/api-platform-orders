@@ -20,7 +20,6 @@ use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiProperty;
 
-
 /**
  * OrderProduct
  *
@@ -91,8 +90,8 @@ class OrderProduct
     private $parentProduct;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\OrderProduct")
-     * @ORM\JoinColumn(nullable=true)
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\OrderProduct", inversedBy="orderProductComponents")
+     * @ORM\JoinColumn(name="order_product_id", nullable=true)
      * @Groups({"order_product:write","order_product:read"})
      */
     #[ApiFilter(ExistsFilter::class, properties: ['orderProduct'])]
@@ -111,7 +110,7 @@ class OrderProduct
     private $productGroup;
 
     /**
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\ProductComponent", mappedBy="parentOrderProduct")
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProduct", mappedBy="orderProduct")
      * @Groups({"order_product:read", "order_product:write"})
      */
     private $orderProductComponents;
@@ -276,7 +275,7 @@ class OrderProduct
     /**
      * Set the value of orderProduct
      */
-    public function setOrderProduct($orderProduct): self
+    public function setOrderProduct(?OrderProduct $orderProduct): self
     {
         $this->orderProduct = $orderProduct;
         return $this;
@@ -319,6 +318,9 @@ class OrderProduct
         return $this;
     }
 
+    /**
+     * Remove an OrderProductQueue
+     */
     public function removeOrderProductQueue(OrderProductQueue $orderProductQueue): self
     {
         if ($this->orderProductQueues->removeElement($orderProductQueue)) {
@@ -330,32 +332,35 @@ class OrderProduct
     }
 
     /**
-     * Get the value of components
+     * Get the value of orderProductComponents
      */
-    public function getOrderProductComponent()
+    public function getOrderProductComponents()
     {
         return $this->orderProductComponents;
     }
 
     /**
-     * Add a component
+     * Add an OrderProduct component
      */
-    public function addOrderProductComponent($orderProductComponent): self
+    public function addOrderProductComponent(OrderProduct $orderProductComponent): self
     {
-
-        $this->orderProductComponents[] = $orderProductComponent;
-        $orderProductComponent->setParentProduct($this);
-
+        if (!$this->orderProductComponents->contains($orderProductComponent)) {
+            $this->orderProductComponents[] = $orderProductComponent;
+            $orderProductComponent->setOrderProduct($this);
+        }
         return $this;
     }
 
     /**
-     * Remove a component
+     * Remove an OrderProduct component
      */
-    public function removeOrderProductComponent($orderProductComponent): self
+    public function removeOrderProductComponent(OrderProduct $orderProductComponent): self
     {
-        $this->orderProductComponents->removeElement($orderProductComponent);
-        
+        if ($this->orderProductComponents->removeElement($orderProductComponent)) {
+            if ($orderProductComponent->getOrderProduct() === $this) {
+                $orderProductComponent->setOrderProduct(null);
+            }
+        }
         return $this;
     }
 }

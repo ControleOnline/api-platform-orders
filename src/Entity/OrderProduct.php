@@ -354,9 +354,8 @@ class OrderProduct
      */
     public function removeOrderProductComponent($orderProductComponent): self
     {
-        if ($this->orderProductComponents->removeElement($orderProductComponent)) {
-            $orderProductComponent->setParentProduct(null);
-        }
+        $this->orderProductComponents->removeElement($orderProductComponent);
+        
         return $this;
     }
 }

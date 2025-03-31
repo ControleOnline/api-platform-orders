@@ -20,6 +20,7 @@ use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiProperty;
 
+
 /**
  * OrderProduct
  *
@@ -81,7 +82,7 @@ class OrderProduct
 
     /**
      * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
-     * @ORM\JoinColumn(nullable=true)
+     * @ORM\JoinColumn(name="parent_product_id", referencedColumnName="id", nullable=true)
      * @Groups({"order_product:write","order_product:read"})
      */
     #[ApiFilter(ExistsFilter::class, properties: ['parentProduct'])]
@@ -110,6 +111,12 @@ class OrderProduct
     private $productGroup;
 
     /**
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\ProductComponent", mappedBy="parentProduct")
+     * @Groups({"order_product:read", "order_product:write"})
+     */
+    private $components;
+
+    /**
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProductQueue", mappedBy="order_product")
      * @Groups({"order_product:read"})
      */
@@ -136,9 +143,8 @@ class OrderProduct
     public function __construct()
     {
         $this->orderProductQueues = new ArrayCollection();
+        $this->components = new ArrayCollection();
     }
-
-    // Getters and setters
 
     /**
      * Get the value of id
@@ -318,6 +324,39 @@ class OrderProduct
         if ($this->orderProductQueues->removeElement($orderProductQueue)) {
             if ($orderProductQueue->getOrderProduct() === $this) {
                 $orderProductQueue->setOrderProduct(null);
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * Get the value of components
+     */
+    public function getComponents()
+    {
+        return $this->components;
+    }
+
+    /**
+     * Add a component
+     */
+    public function addComponent(self $component): self
+    {
+        if (!$this->components->contains($component)) {
+            $this->components[] = $component;
+            $component->setParentProduct($this);
+        }
+        return $this;
+    }
+
+    /**
+     * Remove a component
+     */
+    public function removeComponent(self $component): self
+    {
+        if ($this->components->removeElement($component)) {
+            if ($component->getParentProduct() === $this) {
+                $component->setParentProduct(null);
             }
         }
         return $this;

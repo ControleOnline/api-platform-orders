@@ -111,10 +111,10 @@ class OrderProduct
     private $productGroup;
 
     /**
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\ProductComponent", mappedBy="parentProduct")
+     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\ProductComponent", mappedBy="parentOrderProduct")
      * @Groups({"order_product:read", "order_product:write"})
      */
-    private $components;
+    private $orderProductComponent;
 
     /**
      * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProductQueue", mappedBy="order_product")
@@ -143,7 +143,7 @@ class OrderProduct
     public function __construct()
     {
         $this->orderProductQueues = new ArrayCollection();
-        $this->components = new ArrayCollection();
+        $this->orderProductComponent = new ArrayCollection();
     }
 
     /**
@@ -332,19 +332,19 @@ class OrderProduct
     /**
      * Get the value of components
      */
-    public function getComponents()
+    public function getOrderProductComponent()
     {
-        return $this->components;
+        return $this->orderProductComponent;
     }
 
     /**
      * Add a component
      */
-    public function addComponent(self $component): self
+    public function addOrderProductComponent(self $orderProductComponent): self
     {
-        if (!$this->components->contains($component)) {
-            $this->components[] = $component;
-            $component->setParentProduct($this);
+        if (!$this->orderProductComponent->contains($orderProductComponent)) {
+            $this->orderProductComponent[] = $orderProductComponent;
+            $orderProductComponent->setParentProduct($this);
         }
         return $this;
     }
@@ -352,11 +352,11 @@ class OrderProduct
     /**
      * Remove a component
      */
-    public function removeComponent(self $component): self
+    public function removeOrderProductComponent(self $orderProductComponent): self
     {
-        if ($this->components->removeElement($component)) {
-            if ($component->getParentProduct() === $this) {
-                $component->setParentProduct(null);
+        if ($this->orderProductComponent->removeElement($orderProductComponent)) {
+            if ($orderProductComponent->getParentProduct() === $this) {
+                $orderProductComponent->setParentProduct(null);
             }
         }
         return $this;

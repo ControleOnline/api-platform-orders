@@ -80,14 +80,14 @@ class ProductComponent
     private $product;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
-     * @ORM\JoinColumn(name="parent_product_id", referencedColumnName="id", nullable=true)
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\OrderProduct")
+     * @ORM\JoinColumn(name="order_product_id", referencedColumnName="id", nullable=true)
      * @Groups({"product_components:read", "product_components:write"})
      */
-    #[ApiFilter(ExistsFilter::class, properties: ['parentProduct'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentProduct' => 'exact'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentProduct.type' => 'exact'])]
-    private $parentProduct;
+    #[ApiFilter(ExistsFilter::class, properties: ['parentOrderProduct'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentOrderProduct' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentOrderProduct.type' => 'exact'])]
+    private $parentOrderProduct;
 
     /**
      * @ORM\Column(type="float")
@@ -107,9 +107,7 @@ class ProductComponent
      */
     private $total = 0;
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     /**
      * Get the value of id
@@ -162,22 +160,7 @@ class ProductComponent
         return $this;
     }
 
-    /**
-     * Get the value of parentProduct
-     */
-    public function getParentProduct()
-    {
-        return $this->parentProduct;
-    }
 
-    /**
-     * Set the value of parentProduct
-     */
-    public function setParentProduct($parentProduct): self
-    {
-        $this->parentProduct = $parentProduct;
-        return $this;
-    }
 
     /**
      * Get the value of quantity
@@ -227,6 +210,24 @@ class ProductComponent
     public function setTotal($total): self
     {
         $this->total = $total;
+        return $this;
+    }
+
+    /**
+     * Get the value of parentOrderProduct
+     */
+    public function getParentOrderProduct()
+    {
+        return $this->parentOrderProduct;
+    }
+
+    /**
+     * Set the value of parentOrderProduct
+     */
+    public function setParentOrderProduct($parentOrderProduct): self
+    {
+        $this->parentOrderProduct = $parentOrderProduct;
+
         return $this;
     }
 }

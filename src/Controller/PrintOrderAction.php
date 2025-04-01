@@ -6,10 +6,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Doctrine\ORM\EntityManagerInterface;
 use ControleOnline\Entity\Order;
-use ControleOnline\Entity\OrderProduct;
-use ControleOnline\Entity\Product;
 use ControleOnline\Entity\ProductGroupProduct;
-use ControleOnline\Entity\OrderProductQueue;
+use Exception;
 
 class PrintOrderAction
 {
@@ -103,9 +101,14 @@ class PrintOrderAction
 
             $text .= "------------------------\n";
 
-            return $text;
+
+            return   [
+                "operation" => "PRINT_TEXT",
+                "styles" => ['{}'],
+                "value" => [$text]
+            ];
         }
 
-        return ['error' => 'Unsupported print type'];
+        throw new Exception("Unsupported print type", 1);
     }
 }

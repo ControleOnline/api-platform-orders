@@ -105,7 +105,7 @@ class PrintOrderAction
             return   [
                 "operation" => "PRINT_TEXT",
                 "styles" => ['{}'],
-                "value" => [json_encode($text)]
+                "value" => [$text]
             ];
         }
 

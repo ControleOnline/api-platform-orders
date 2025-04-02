@@ -102,8 +102,8 @@ class PrintOrderAction
 
             return   [
                 "operation" => "PRINT_TEXT",
-                "styles" => ['{}'],
-                "value" => [$text]
+                "styles" => [[]],
+                "value" => $text
             ];
         }
 

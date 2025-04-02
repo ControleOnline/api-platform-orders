@@ -98,6 +98,11 @@ class PrintOrderAction
             }
 
             $text[] = "------------------------";
+            $text[] = "";
+            $text[] = "";
+            $text[] = "";
+            $text[] = "";
+            $text[] = "";
 
 
             return   [

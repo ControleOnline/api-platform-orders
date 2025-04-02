@@ -41,12 +41,12 @@ class PrintOrderAction
         }
 
         if ($printType === 'pos') {
-            $text = "PEDIDO #" . $order->getId() . "\n";
-            $text .= "Data: " . $order->getOrderDate()->format('d/m/Y H:i') . "\n";
+            $text = "   PEDIDO #" . $order->getId() . "\n";
+            $text .= "   Data: " . $order->getOrderDate()->format('d/m/Y H:i') . "\n";
             $client = $order->getClient();
-            $text .= "Cliente: " . ($client !== null ? $client->getName() : 'Não informado') . "\n";
-            $text .= "Total: R$ " . number_format($order->getPrice(), 2, ',', '.') . "\n";
-            $text .= "------------------------\n";
+            $text .= "   Cliente: " . ($client !== null ? $client->getName() : 'Não informado') . "\n";
+            $text .= "   Total: R$ " . number_format($order->getPrice(), 2, ',', '.') . "\n";
+            $text .= "   ------------------------\n";
 
             $queues = [];
             foreach ($order->getOrderProducts() as $orderProduct) {
@@ -62,7 +62,6 @@ class PrintOrderAction
                         $queue = $queueEntry->getQueue();
                         $queueName = $queue ? $queue->getQueue() : 'Sem fila definida';
 
-                        error_log("Produto: " . $orderProduct->getProduct()->getProduct() . " | Queue ID: " . ($queue ? $queue->getId() : 'NULL') . " | Queue Name: " . $queueName);
 
                         if (!isset($queues[$queueName])) {
                             $queues[$queueName] = [];
@@ -79,28 +78,28 @@ class PrintOrderAction
                     $unit = $product->getProductUnit()->getProductUnit();
                     $quantity = $orderProduct->getQuantity();
 
-                    $text .= "- " . $product->getProduct() . " (" . $quantity . " " . $unit . ")\n";
-                    $text .= "..............";
-                    $text .= "  R$ " . number_format($product->getPrice() * $quantity, 2, ',', '.') . "\n";
+                    $text .= "   - " . $product->getProduct() . " (" . $quantity . " " . $unit . ")\n";
+                    $text .= "   ..............";
+                    $text .= "     R$ " . number_format($product->getPrice() * $quantity, 2, ',', '.') . "\n";
 
                     if ($product->getType() === 'custom') {
-                        $text .= "  Personalizações:\n";
+                        $text .= "     Personalizações:\n";
                         $productGroupProducts = $this->entityManager->getRepository(ProductGroupProduct::class)
                             ->findBy(['product' => $product->getId()]);
 
                         foreach ($productGroupProducts as $pgp) {
                             $childProduct = $pgp->getProductChild();
                             if ($childProduct) {
-                                $text .= "    - " . $childProduct->getProduct() . " (" . $pgp->getQuantity() . " " . $childProduct->getProductUnit()->getProductUnit() . ")\n";
+                                $text .= "       - " . $childProduct->getProduct() . " (" . $pgp->getQuantity() . " " . $childProduct->getProductUnit()->getProductUnit() . ")\n";
                             }
                         }
                     }
                 }
-                $text .= "\n";
+                $text .= "   \n";
             }
 
-            $text .= "------------------------\n";
-            $text .= "\n\n\n\n\n";
+            $text .= "   ------------------------\n";
+
 
 
             return   [

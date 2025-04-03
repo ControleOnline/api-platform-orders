@@ -6,7 +6,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Doctrine\ORM\EntityManagerInterface;
 use ControleOnline\Entity\Order;
-use ControleOnline\Service\PrintService;
+use ControleOnline\Service\OrderPrintService;
 
 class PrintOrderAction
 {
@@ -14,7 +14,7 @@ class PrintOrderAction
 
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private PrintService $print
+        private OrderPrintService $print
     ) {}
 
     public function __invoke(Request $request, int $id): JsonResponse

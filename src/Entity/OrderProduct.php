@@ -12,6 +12,7 @@ use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use stdClass;
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
+use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Put;
 use ApiPlatform\Metadata\Post;
@@ -51,6 +52,8 @@ use ApiPlatform\Metadata\ApiProperty;
 )]
 #[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]
 #[ApiFilter(OrderFilter::class, properties: ['id' => 'ASC', 'product.product' => 'ASC'])]
+#[ApiFilter(NumericFilter::class, properties: ['order.id'])]
+
 class OrderProduct
 {
     /**

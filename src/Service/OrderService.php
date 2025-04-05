@@ -17,11 +17,16 @@ class OrderService
     public function __construct(
         private EntityManagerInterface $manager,
         private Security $security,
-        private PeopleService $PeopleService,
+        private PeopleService $peopleService,
         RequestStack $requestStack
 
     ) {
         $this->request  = $requestStack->getCurrentRequest();
+    }
+
+    public function getPurchasingSuggestion(People $company)
+    {
+        return $this->manager->getRepository(Order::class)->getPurchasingSuggestion($company);
     }
 
     public function calculateOrderPrice(Order $order)
@@ -103,7 +108,7 @@ class OrderService
 
     public function securityFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
     {
-        $companies   = $this->PeopleService->getMyCompanies();
+        $companies   = $this->peopleService->getMyCompanies();
 
         if ($invoice = $this->request->query->get('invoiceId', null)) {
             $queryBuilder->join(sprintf('%s.invoice', $rootAlias), 'OrderInvoice');

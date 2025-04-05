@@ -36,7 +36,7 @@ class OrderRepository extends ServiceEntityRepository
         'SUM(pi.minimum) AS minimum',
         '(CASE WHEN SUM(pi.available + pi.ordered + pi.transit - pi.minimum - pi.sales) * -1 < 0 THEN 0 ELSE SUM(pi.available + pi.ordered + pi.transit - pi.minimum - pi.sales) * -1 END) AS needed'
       ])
-      ->join('p.company', 'pe')
+      ->join('p.people', 'pe')
       ->join('ControleOnline\Entity\ProductInventory', 'pi', 'WITH', 'pi.product = p.id')
       ->andWhere('p.type NOT IN (:excludedTypes)')
       ->andWhere('pe IN (:companies)')

@@ -10,12 +10,6 @@ use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\DBAL\DBALException;
 use Doctrine\ORM\Query\ResultSetMapping;
 
-/**
- * @method Order|null find($id, $lockMode = null, $lockVersion = null)
- * @method Order|null findOneBy(array $criteria, array $orderBy = null)
- * @method Order[]    findAll()
- * @method Order[]    findBy(array $criteria, array $orderBy = null, $limit = null, $offset = null)
- */
 class OrderRepository extends ServiceEntityRepository
 {
   public function __construct(
@@ -25,7 +19,6 @@ class OrderRepository extends ServiceEntityRepository
   ) {
     parent::__construct($registry, Order::class);
   }
-
 
   public function getPurchasingSuggestion(?People $company): array
   {
@@ -41,7 +34,7 @@ class OrderRepository extends ServiceEntityRepository
         'p.type AS type',
         'SUM(pi.available + pi.ordered + pi.transit - pi.sales) AS stock',
         'SUM(pi.minimum) AS minimum',
-        'GREATEST(0, SUM(pi.available + pi.ordered + pi.transit - pi.minimum - pi.sales) * -1) AS needed'
+        '(CASE WHEN SUM(pi.available + pi.ordered + pi.transit - pi.minimum - pi.sales) * -1 < 0 THEN 0 ELSE SUM(pi.available + pi.ordered + pi.transit - pi.minimum - pi.sales) * -1 END) AS needed'
       ])
       ->join('p.company', 'pe')
       ->join('ControleOnline\Entity\ProductInventory', 'pi', 'WITH', 'pi.product = p.id')
@@ -56,7 +49,7 @@ class OrderRepository extends ServiceEntityRepository
       );
 
     if ($company)
-      $qb->andWhere('pe = :company')->setParameter('company',  $company);
+      $qb->andWhere('pe = :company')->setParameter('company', $company);
 
     return $qb->getQuery()->getResult();
   }

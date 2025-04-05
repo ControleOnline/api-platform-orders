@@ -53,7 +53,6 @@ use ApiPlatform\Metadata\ApiProperty;
 #[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]
 #[ApiFilter(OrderFilter::class, properties: ['id' => 'ASC', 'product.product' => 'ASC'])]
 #[ApiFilter(NumericFilter::class, properties: ['order.id'])]
-
 class OrderProduct
 {
     /**
@@ -81,6 +80,24 @@ class OrderProduct
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['product' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['product.type' => 'exact'])]
     private $product;
+
+    /**
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Inventory")
+     * @ORM\JoinColumn(name="in_inventory_id", referencedColumnName="id", nullable=true)
+     * @Groups({"order_product:write","order_product:read"})
+     */
+    #[ApiFilter(ExistsFilter::class, properties: ['inInventory'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['inInventory' => 'exact'])]
+    private $inInventory;
+
+    /**
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Inventory")
+     * @ORM\JoinColumn(name="out_inventory_id", referencedColumnName="id", nullable=true)
+     * @Groups({"order_product:write","order_product:read"})
+     */
+    #[ApiFilter(ExistsFilter::class, properties: ['outInventory'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['outInventory' => 'exact'])]
+    private $outInventory;
 
     /**
      * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
@@ -148,170 +165,99 @@ class OrderProduct
         $this->orderProductComponents = new ArrayCollection();
     }
 
-    /**
-     * Get the value of id
-     */
     public function getId()
     {
         return $this->id;
     }
 
-    /**
-     * Set the value of id
-     */
     public function setId($id): self
     {
         $this->id = $id;
         return $this;
     }
 
-    /**
-     * Get the value of order
-     */
     public function getOrder()
     {
         return $this->order;
     }
 
-    /**
-     * Set the value of order
-     */
     public function setOrder($order): self
     {
         $this->order = $order;
         return $this;
     }
 
-    /**
-     * Get the value of product
-     */
     public function getProduct()
     {
         return $this->product;
     }
 
-    /**
-     * Set the value of product
-     */
     public function setProduct($product): self
     {
         $this->product = $product;
         return $this;
     }
 
-    /**
-     * Get the value of quantity
-     */
-    public function getQuantity()
+    public function getInInventory()
     {
-        return $this->quantity;
+        return $this->inInventory;
     }
 
-    /**
-     * Set the value of quantity
-     */
-    public function setQuantity($quantity): self
+    public function setInInventory($inInventory): self
     {
-        $this->quantity = $quantity;
+        $this->inInventory = $inInventory;
         return $this;
     }
 
-    /**
-     * Get the value of price
-     */
-    public function getPrice()
+    public function getOutInventory()
     {
-        return $this->price;
+        return $this->outInventory;
     }
 
-    /**
-     * Set the value of price
-     */
-    public function setPrice($price): self
+    public function setOutInventory($outInventory): self
     {
-        $this->price = $price;
+        $this->outInventory = $outInventory;
         return $this;
     }
 
-    /**
-     * Get the value of total
-     */
-    public function getTotal()
-    {
-        return $this->total;
-    }
-
-    /**
-     * Set the value of total
-     */
-    public function setTotal($total): self
-    {
-        $this->total = $total;
-        return $this;
-    }
-
-    /**
-     * Get the value of parentProduct
-     */
     public function getParentProduct()
     {
         return $this->parentProduct;
     }
 
-    /**
-     * Set the value of parentProduct
-     */
     public function setParentProduct($parentProduct): self
     {
         $this->parentProduct = $parentProduct;
         return $this;
     }
 
-    /**
-     * Get the value of orderProduct
-     */
     public function getOrderProduct()
     {
         return $this->orderProduct;
     }
 
-    /**
-     * Set the value of orderProduct
-     */
     public function setOrderProduct(?OrderProduct $orderProduct): self
     {
         $this->orderProduct = $orderProduct;
         return $this;
     }
 
-    /**
-     * Get the value of productGroup
-     */
     public function getProductGroup()
     {
         return $this->productGroup;
     }
 
-    /**
-     * Set the value of productGroup
-     */
     public function setProductGroup($productGroup): self
     {
         $this->productGroup = $productGroup;
         return $this;
     }
 
-    /**
-     * Get the value of orderProductQueues
-     */
     public function getOrderProductQueues()
     {
         return $this->orderProductQueues;
     }
 
-    /**
-     * Add an OrderProductQueue
-     */
     public function addOrderProductQueue(OrderProductQueue $orderProductQueue): self
     {
         if (!$this->orderProductQueues->contains($orderProductQueue)) {
@@ -321,9 +267,6 @@ class OrderProduct
         return $this;
     }
 
-    /**
-     * Remove an OrderProductQueue
-     */
     public function removeOrderProductQueue(OrderProductQueue $orderProductQueue): self
     {
         if ($this->orderProductQueues->removeElement($orderProductQueue)) {
@@ -334,17 +277,11 @@ class OrderProduct
         return $this;
     }
 
-    /**
-     * Get the value of orderProductComponents
-     */
     public function getOrderProductComponents()
     {
         return $this->orderProductComponents;
     }
 
-    /**
-     * Add an OrderProduct component
-     */
     public function addOrderProductComponent(OrderProduct $orderProductComponent): self
     {
         if (!$this->orderProductComponents->contains($orderProductComponent)) {
@@ -354,9 +291,6 @@ class OrderProduct
         return $this;
     }
 
-    /**
-     * Remove an OrderProduct component
-     */
     public function removeOrderProductComponent(OrderProduct $orderProductComponent): self
     {
         if ($this->orderProductComponents->removeElement($orderProductComponent)) {
@@ -364,6 +298,39 @@ class OrderProduct
                 $orderProductComponent->setOrderProduct(null);
             }
         }
+        return $this;
+    }
+
+    public function getQuantity()
+    {
+        return $this->quantity;
+    }
+
+    public function setQuantity($quantity): self
+    {
+        $this->quantity = $quantity;
+        return $this;
+    }
+
+    public function getPrice()
+    {
+        return $this->price;
+    }
+
+    public function setPrice($price): self
+    {
+        $this->price = $price;
+        return $this;
+    }
+
+    public function getTotal()
+    {
+        return $this->total;
+    }
+
+    public function setTotal($total): self
+    {
+        $this->total = $total;
         return $this;
     }
 }

@@ -39,7 +39,6 @@ class OrderProductService
             'productGroup' => $productGroup
         ]);
 
-
         $OProduct = new OrderProduct();
         $OProduct->setOrder($orderProduct->getOrder());
         $OProduct->setParentProduct($orderProduct->getProduct());
@@ -49,10 +48,23 @@ class OrderProductService
         $OProduct->setProduct($product);
         $OProduct->setPrice($productGroupProduct->getPrice());
         $OProduct->setTotal($productGroupProduct->getPrice() * $quantity);
+        $this->checkInventory($OProduct);
         $this->manager->persist($OProduct);
         $this->manager->flush();
 
         $this->orderProductQueueService->addProductToQueue($OProduct);
+    }
+
+    private function checkInventory(OrderProduct &$orderProduct)
+    {
+        $order = $orderProduct->getOrder();
+        $product =  $orderProduct->getProduct();
+
+        if ($order->getOrderType() == 'sale' && !$orderProduct->getOutInventory())
+            $orderProduct->setOutInventory($product->getDefaultOutInventory());
+
+        if ($order->getOrderType() == 'purchase' && !$orderProduct->getInInventory())
+            $orderProduct->setInInventory($product->getDefaultInInventory());
     }
 
     public function postPersist(OrderProduct $orderProduct)
@@ -63,7 +75,7 @@ class OrderProductService
 
         $json = json_decode($this->request->getContent(), true);
         $subProducts = $json['sub_products'];
-
+        $this->checkInventory($orderProduct);
         foreach ($subProducts as $subproduct) {
             $product = $this->manager->getRepository(Product::class)->find($subproduct['product']);
             $productGroup =  $this->manager->getRepository(ProductGroup::class)->find($subproduct['productGroup']);

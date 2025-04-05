@@ -4,13 +4,12 @@ namespace ControleOnline\Controller;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Doctrine\ORM\EntityManagerInterface;
-use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
-use ControleOnline\Service\OrderPrintService;
 use ControleOnline\Service\OrderService;
 
-class PurchasingSuggestionAction
+class PurchasingSuggestionController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $entityManager,

@@ -17,7 +17,7 @@ class PurchasingSuggestionAction
 
     /**
      * @Route("/orders/purchasing-suggestion", name="invoice_inflow", methods={"GET"})
-     * @IsGranted("ROLE_ADMIN")
+     * @Security("is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')")
      */
     public function __invoke(Request $request, int $id): JsonResponse
     {

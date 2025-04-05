@@ -24,11 +24,6 @@ class OrderService
         $this->request  = $requestStack->getCurrentRequest();
     }
 
-    public function getPurchasingSuggestion(People $company)
-    {
-        return $this->manager->getRepository(Order::class)->getPurchasingSuggestion($company);
-    }
-
     public function calculateOrderPrice(Order $order)
     {
         $sql = 'UPDATE orders O

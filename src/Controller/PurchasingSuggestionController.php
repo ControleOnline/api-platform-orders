@@ -17,7 +17,7 @@ class PurchasingSuggestionController extends AbstractController
     ) {}
 
     /**
-     * @Route("/orders/purchasing-suggestion", name="invoice_inflow", methods={"GET"})
+     * @Route("/orders/purchasing-suggestion", name="purchasing_suggestion", methods={"GET"})
      * @Security("is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')")
      */
     public function getPurchasingSuggestion(Request $request): JsonResponse

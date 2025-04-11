@@ -1,6 +1,7 @@
 <?php
 
-namespace ControleOnline\Entity;
+namespace ControleOnline\Entity; 
+use ControleOnline\Listener\LogListener;
 
 use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -23,10 +24,6 @@ use ApiPlatform\Metadata\ApiProperty;
 
 /**
  * OrderProduct
- *
- * @ORM\EntityListeners({ControleOnline\Listener\LogListener::class})
- * @ORM\Table(name="order_product")
- * @ORM\Entity(repositoryClass="ControleOnline\Repository\OrderProductRepository")
  */
 #[ApiResource(
     operations: [
@@ -53,110 +50,113 @@ use ApiPlatform\Metadata\ApiProperty;
 #[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]
 #[ApiFilter(OrderFilter::class, properties: ['id' => 'ASC', 'product.product' => 'ASC'])]
 #[ApiFilter(NumericFilter::class, properties: ['order.id'])]
+#[ORM\Table(name: 'order_product')]
+#[ORM\EntityListeners([LogListener::class])]
+#[ORM\Entity(repositoryClass: \ControleOnline\Repository\OrderProductRepository::class)]
 class OrderProduct
 {
     /**
-     * @ORM\Id
-     * @ORM\GeneratedValue
-     * @ORM\Column(type="integer")
      * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","order_product:write","order_product:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(type: 'integer')]
     private $id;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order")
-     * @ORM\JoinColumn(nullable=false)
      * @Groups({"order_product_queue:read","order_product:write","order_product:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['order' => 'exact'])]
+    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Order::class)]
     private $order;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
-     * @ORM\JoinColumn(nullable=false)
      * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","order_product:write","order_product:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['product' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['product.type' => 'exact'])]
+    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Product::class)]
     private $product;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Inventory")
-     * @ORM\JoinColumn(name="in_inventory_id", referencedColumnName="id", nullable=true)
      * @Groups({"order_product:write","order_product:read"})
      */
     #[ApiFilter(ExistsFilter::class, properties: ['inInventory'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['inInventory' => 'exact'])]
+    #[ORM\JoinColumn(name: 'in_inventory_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Inventory::class)]
     private $inInventory;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Inventory")
-     * @ORM\JoinColumn(name="out_inventory_id", referencedColumnName="id", nullable=true)
      * @Groups({"order_product:write","order_product:read"})
      */
     #[ApiFilter(ExistsFilter::class, properties: ['outInventory'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['outInventory' => 'exact'])]
+    #[ORM\JoinColumn(name: 'out_inventory_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Inventory::class)]
     private $outInventory;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Product")
-     * @ORM\JoinColumn(name="parent_product_id", referencedColumnName="id", nullable=true)
      * @Groups({"order_product:write","order_product:read"})
      */
     #[ApiFilter(ExistsFilter::class, properties: ['parentProduct'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentProduct' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentProduct.type' => 'exact'])]
+    #[ORM\JoinColumn(name: 'parent_product_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Product::class)]
     private $parentProduct;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\OrderProduct", inversedBy="orderProductComponents")
-     * @ORM\JoinColumn(name="order_product_id", nullable=true)
      * @Groups({"order_product:write","order_product:read"})
      */
     #[ApiFilter(ExistsFilter::class, properties: ['orderProduct'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProduct' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProduct.type' => 'exact'])]
+    #[ORM\JoinColumn(name: 'order_product_id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\OrderProduct::class, inversedBy: 'orderProductComponents')]
     private $orderProduct;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\ProductGroup")
-     * @ORM\JoinColumn(nullable=true)
      * @Groups({"order_product:write","order_product:read"})
      */
     #[ApiFilter(ExistsFilter::class, properties: ['productGroup'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['productGroup' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['productGroup.type' => 'exact'])]
+    #[ORM\JoinColumn(nullable: true)]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\ProductGroup::class)]
     private $productGroup;
 
     /**
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProduct", mappedBy="orderProduct")
      * @Groups({"order_product:read", "order_product:write"})
      */
+    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\OrderProduct::class, mappedBy: 'orderProduct')]
     private $orderProductComponents;
 
     /**
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProductQueue", mappedBy="order_product")
      * @Groups({"order_product:read"})
      */
+    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\OrderProductQueue::class, mappedBy: 'order_product')]
     private $orderProductQueues;
 
     /**
-     * @ORM\Column(type="float")
      * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","order_product:write","order_product:read"})
      */
+    #[ORM\Column(type: 'float')]
     private $quantity = 1;
 
     /**
-     * @ORM\Column(type="float")
      * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","order_product:write","order_product:read"})
      */
+    #[ORM\Column(type: 'float')]
     private $price = 0;
 
     /**
-     * @ORM\Column(type="float")
      * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","order_product:write","order_product:read"})
      */
+    #[ORM\Column(type: 'float')]
     private $total = 0;
 
     public function __construct()

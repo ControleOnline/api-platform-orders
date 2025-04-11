@@ -1,6 +1,7 @@
 <?php
 
-namespace ControleOnline\Entity;
+namespace ControleOnline\Entity; 
+use ControleOnline\Listener\LogListener;
 
 use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -24,12 +25,7 @@ use ControleOnline\Entity\OrderProduct;
 
 /**
  * Order
- *
- * @ORM\EntityListeners({ControleOnline\Listener\LogListener::class})
- * @ORM\Table(name="orders", uniqueConstraints={@ORM\UniqueConstraint(name="discount_id", columns={"discount_coupon_id"})}, indexes={@ORM\Index(name="adress_destination_id", columns={"address_destination_id"}), @ORM\Index(name="notified", columns={"notified"}), @ORM\Index(name="delivery_contact_id", columns={"delivery_contact_id"}), @ORM\Index(name="delivery_people_id", columns={"delivery_people_id"}), @ORM\Index(name="status_id", columns={"status_id"}), @ORM\Index(name="order_date", columns={"order_date"}), @ORM\Index(name="provider_id", columns={"provider_id"}), @ORM\Index(name="quote_id", columns={"quote_id", "provider_id"}), @ORM\Index(name="adress_origin_id", columns={"address_origin_id"}), @ORM\Index(name="retrieve_contact_id", columns={"retrieve_contact_id"}), @ORM\Index(name="main_order_id", columns={"main_order_id"}), @ORM\Index(name="retrieve_people_id", columns={"retrieve_people_id"}), @ORM\Index(name="payer_people_id", columns={"payer_people_id"}), @ORM\Index(name="client_id", columns={"client_id"}), @ORM\Index(name="alter_date", columns={"alter_date"}), @ORM\Index(name="IDX_E52FFDEEDB805178", columns={"quote_id"})})
- * @ORM\Entity(repositoryClass="ControleOnline\Repository\OrderRepository")
  */
-
 #[ApiResource(
     operations: [
         new Get(
@@ -73,6 +69,26 @@ use ControleOnline\Entity\OrderProduct;
     denormalizationContext: ['groups' => ['order:write']]
 )]
 #[ApiFilter(OrderFilter::class, properties: ['alterDate', 'id'])]
+#[ORM\Table(name: 'orders')]
+#[ORM\Index(name: 'adress_destination_id', columns: ['address_destination_id'])]
+#[ORM\Index(name: 'notified', columns: ['notified'])]
+#[ORM\Index(name: 'delivery_contact_id', columns: ['delivery_contact_id'])]
+#[ORM\Index(name: 'delivery_people_id', columns: ['delivery_people_id'])]
+#[ORM\Index(name: 'status_id', columns: ['status_id'])]
+#[ORM\Index(name: 'order_date', columns: ['order_date'])]
+#[ORM\Index(name: 'provider_id', columns: ['provider_id'])]
+#[ORM\Index(name: 'quote_id', columns: ['quote_id', 'provider_id'])]
+#[ORM\Index(name: 'adress_origin_id', columns: ['address_origin_id'])]
+#[ORM\Index(name: 'retrieve_contact_id', columns: ['retrieve_contact_id'])]
+#[ORM\Index(name: 'main_order_id', columns: ['main_order_id'])]
+#[ORM\Index(name: 'retrieve_people_id', columns: ['retrieve_people_id'])]
+#[ORM\Index(name: 'payer_people_id', columns: ['payer_people_id'])]
+#[ORM\Index(name: 'client_id', columns: ['client_id'])]
+#[ORM\Index(name: 'alter_date', columns: ['alter_date'])]
+#[ORM\Index(name: 'IDX_E52FFDEEDB805178', columns: ['quote_id'])]
+#[ORM\UniqueConstraint(name: 'discount_id', columns: ['discount_coupon_id'])]
+#[ORM\EntityListeners([LogListener::class])]
+#[ORM\Entity(repositoryClass: \ControleOnline\Repository\OrderRepository::class)]
 
 
 class Order
@@ -80,75 +96,69 @@ class Order
     /**
      * @var integer
      *
-     * @ORM\Column(name="id", type="integer", nullable=false)
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="IDENTITY")
      * @Groups({"order_product_queue:read","order:read","order_details:read","company_expense:read","coupon:read","logistic:read","order_invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
+    #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
+    #[ORM\Id]
+    #[ORM\GeneratedValue(strategy: 'IDENTITY')]
 
     private $id;
 
     /**
      * @var \ControleOnline\Entity\People
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="client_id", referencedColumnName="id")
-     * })
      * @Groups({"order_product_queue:read","order_product_queue:read","order:read","order_details:read","order:write", "invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['client' => 'exact'])]
+    #[ORM\JoinColumn(name: 'client_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\People::class)]
 
     private $client;
 
     /**
      * @var \DateTimeInterface
-     * @ORM\Column(name="order_date", type="datetime",  nullable=false, columnDefinition="DATETIME")
      * @Groups({"order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(DateFilter::class, properties: ['orderDate'])]
+    #[ORM\Column(name: 'order_date', type: 'datetime', nullable: false, columnDefinition: 'DATETIME')]
 
     private $orderDate;
 
     /**
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderProduct", mappedBy="order", cascade={"persist"})
      * @Groups({"order_details:read","order:write"})
      */
+    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\OrderProduct::class, mappedBy: 'order', cascade: ['persist'])]
     private $orderProducts;
 
     /**
      * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderInvoice", mappedBy="order")
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
+    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\OrderInvoice::class, mappedBy: 'order')]
     private $invoice;
 
     /**
      * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Task", mappedBy="order")
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['task' => 'exact'])]
+    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\Task::class, mappedBy: 'order')]
 
     private $task;
 
     /**
      * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderInvoiceTax", mappedBy="order")
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoiceTax' => 'exact'])]
+    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\OrderInvoiceTax::class, mappedBy: 'order')]
 
     private $invoiceTax;
 
     /**
-     * @ORM\Column(name="alter_date", type="datetime",  nullable=false)
      * @Groups({"display:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
-
     #[ApiFilter(DateFilter::class, properties: ['alterDate'])]
+    #[ORM\Column(name: 'alter_date', type: 'datetime', nullable: false)]
 
     private $alterDate;
 
@@ -156,23 +166,21 @@ class Order
     /**
      * @var \ControleOnline\Entity\Status
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Status")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="status_id", referencedColumnName="id")
-     * })
      * @Groups({"order_product_queue:read","display:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
+    #[ORM\JoinColumn(name: 'status_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Status::class)]
 
     private $status;
 
     /**
      * @var string
      *
-     * @ORM\Column(name="order_type", type="string",  nullable=true)
      * @Groups({"order_product_queue:read","display:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
+    #[ORM\Column(name: 'order_type', type: 'string', nullable: true)]
 
     private $orderType;
 
@@ -180,32 +188,29 @@ class Order
     /**
      * @var string
      *
-     * @ORM\Column(name="app", type="string",  nullable=true)
-     * @Groups({"order_product_queue:read","display:read","order_product_queue:read","order:read","order_details:read","order:write"}) 
+     * @Groups({"order_product_queue:read","display:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
+    #[ORM\Column(name: 'app', type: 'string', nullable: true)]
 
     private $app = 'Manual';
 
     /**
      * @var string
      *
-     * @ORM\Column(name="other_informations", type="json",  nullable=true)
-     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write"}) 
+     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['otherInformations' => 'exact'])]
+    #[ORM\Column(name: 'other_informations', type: 'json', nullable: true)]
 
     private $otherInformations;
 
     /**
      * @var \ControleOnline\Entity\Order
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="main_order_id", referencedColumnName="id")
-     * })
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrder' => 'exact'])]
+    #[ORM\JoinColumn(name: 'main_order_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Order::class)]
 
     private $mainOrder;
 
@@ -213,10 +218,10 @@ class Order
     /**
      * @var integer
      *
-     * @ORM\Column(name="main_order_id", type="integer",  nullable=true)
      * @Groups({"order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrderId' => 'exact'])]
+    #[ORM\Column(name: 'main_order_id', type: 'integer', nullable: true)]
 
     private $mainOrderId;
 
@@ -225,26 +230,22 @@ class Order
     /**
      * @var \ControleOnline\Entity\People
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="payer_people_id", referencedColumnName="id")
-     * })
      * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['payer' => 'exact'])]
+    #[ORM\JoinColumn(name: 'payer_people_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\People::class)]
 
     private $payer;
 
     /**
      * @var \ControleOnline\Entity\People
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="provider_id", referencedColumnName="id")
-     * })
      * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","invoice:read"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['provider' => 'exact'])]
+    #[ORM\JoinColumn(name: 'provider_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\People::class)]
 
     private $provider;
 
@@ -255,50 +256,40 @@ class Order
     /**
      * @var \ControleOnline\Entity\Address
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Address")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="address_origin_id", referencedColumnName="id")
-     * })
      * @Groups({"order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['addressOrigin' => 'exact'])]
+    #[ORM\JoinColumn(name: 'address_origin_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Address::class)]
 
     private $addressOrigin;
 
     /**
      * @var \ControleOnline\Entity\Address
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Address")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="address_destination_id", referencedColumnName="id")
-     * })
      * @Groups({"order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['addressDestination' => 'exact'])]
+    #[ORM\JoinColumn(name: 'address_destination_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Address::class)]
 
     private $addressDestination;
 
     /**
      * @var \ControleOnline\Entity\People
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="retrieve_contact_id", referencedColumnName="id")
-     * })
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['retrieveContact' => 'exact'])]
+    #[ORM\JoinColumn(name: 'retrieve_contact_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\People::class)]
 
     private $retrieveContact;
 
     /**
      * @var \ControleOnline\Entity\People
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="delivery_contact_id", referencedColumnName="id")
-     * })
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['deliveryContact' => 'exact'])]
+    #[ORM\JoinColumn(name: 'delivery_contact_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\People::class)]
 
     private $deliveryContact;
 
@@ -306,10 +297,10 @@ class Order
     /**
      * @var float
      *
-     * @ORM\Column(name="price", type="float",  nullable=false)
      * @Groups({"order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['price' => 'exact'])]
+    #[ORM\Column(name: 'price', type: 'float', nullable: false)]
 
     private $price = 0;
 
@@ -318,41 +309,38 @@ class Order
     /**
      * @var string
      *
-     * @ORM\Column(name="comments", type="string",  nullable=true)
      * @Groups({"order_product_queue:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['comments' => 'exact'])]
+    #[ORM\Column(name: 'comments', type: 'string', nullable: true)]
 
     private $comments;
 
     /**
      * @var boolean
-     *
-     * @ORM\Column(name="notified", type="boolean")
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['notified' => 'exact'])]
+    #[ORM\Column(name: 'notified', type: 'boolean')]
 
     private $notified = false;
 
     /**
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\User")
-     * @ORM\JoinColumn(nullable=true)
      * @Groups({"order_product_queue:read","display:read","order_product_queue:read","order:read","order_details:read","order:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['user' => 'exact'])]
+    #[ORM\JoinColumn(nullable: true)]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\User::class)]
     private $user;
 
     /**
      * @var \ControleOnline\Entity\Device
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Device")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="device_id", referencedColumnName="id", nullable=true)
-     * })
      * @Groups({"device_config:read","device:read","device_config:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['device' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['device.device' => 'exact'])]
+    #[ORM\JoinColumn(name: 'device_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Device::class)]
     private $device;
 
 
@@ -921,9 +909,7 @@ class Order
             return false;
 
         return $currentUser->getPeople()->getLink()->exists(
-            function ($key, $element) use ($provider) {
-                return $element->getCompany() === $provider;
-            }
+            fn($key, $element) => $element->getCompany() === $provider
         );
     }
 

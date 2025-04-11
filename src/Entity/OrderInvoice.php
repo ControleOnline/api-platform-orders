@@ -1,6 +1,7 @@
 <?php
 
-namespace ControleOnline\Entity;
+namespace ControleOnline\Entity; 
+use ControleOnline\Listener\LogListener;
 
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Get;
@@ -15,10 +16,6 @@ use Doctrine\Common\Collections\ArrayCollection;
 
 /**
  * OrderInvoice
- *
- * @ORM\EntityListeners ({ControleOnline\Listener\LogListener::class})
- * @ORM\Table (name="order_invoice", uniqueConstraints={@ORM\UniqueConstraint (name="order_id", columns={"order_id", "invoice_id"})}, indexes={@ORM\Index (name="invoice_id", columns={"invoice_id"})})
- * @ORM\Entity
  */
 #[ApiResource(
     operations: [
@@ -35,47 +32,48 @@ use Doctrine\Common\Collections\ArrayCollection;
     normalizationContext: ['groups' => ['order_invoice:read']],
     denormalizationContext: ['groups' => ['order_invoice:write']]
 )]
+#[ORM\Table(name: 'order_invoice')]
+#[ORM\Index(name: 'invoice_id', columns: ['invoice_id'])]
+#[ORM\UniqueConstraint(name: 'order_id', columns: ['order_id', 'invoice_id'])]
+#[ORM\EntityListeners([LogListener::class])]
+#[ORM\Entity]
 
 class OrderInvoice
 {
     /**
      * @var integer
      *
-     * @ORM\Column(name="id", type="integer", nullable=false)
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="IDENTITY")
      * @Groups({"order_invoice:read","order:read"})
      */
+    #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
+    #[ORM\Id]
+    #[ORM\GeneratedValue(strategy: 'IDENTITY')]
     private $id;
     /**
      * @var \ControleOnline\Entity\Invoice
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Invoice", inversedBy="order", cascade={"persist"})
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="invoice_id", referencedColumnName="id")
-     * })
-     * @Groups({"order_invoice:read","order:read","order_details:read","order:write","order_invoice:write"}) 
+     * @Groups({"order_invoice:read","order:read","order_details:read","order:write","order_invoice:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
+    #[ORM\JoinColumn(name: 'invoice_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Invoice::class, inversedBy: 'order', cascade: ['persist'])]
     private $invoice;
     /**
      * @var \ControleOnline\Entity\Order
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Order", inversedBy="invoice", cascade={"persist"})
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="order_id", referencedColumnName="id")
-     * })
      * @Groups({"invoice:read","invoice_details:read","order_invoice:read","order_invoice:write"})
      */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['order' => 'exact'])]
+    #[ORM\JoinColumn(name: 'order_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Order::class, inversedBy: 'invoice', cascade: ['persist'])]
     private $order;
     /**
      * @var float
      *
-     * @ORM\Column(name="real_price", type="float",  nullable=false)
      * @Groups({"order_invoice:read","order:read","order_details:read","order:write","order_invoice:write"})
-     * 
+     *
      */
+    #[ORM\Column(name: 'real_price', type: 'float', nullable: false)]
     private $realPrice = 0;
     /**
      * Get id

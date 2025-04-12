@@ -32,7 +32,7 @@ use ControleOnline\Entity\OrderProduct;
             security: 'is_granted(\'ROLE_CLIENT\')',
         ),
         new GetCollection(
-            security: 'is_granted(\'IS_AUTHENTICATED_ANONYMOUSLY\')',
+            security: 'is_granted(\'PUBLIC_ACCESS\')',
             uriTemplate: '/cart',
             controller: DiscoveryCart::class
         ),

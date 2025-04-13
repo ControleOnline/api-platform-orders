@@ -9,6 +9,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Doctrine\DBAL\Types\Type;
 
 class OrderService
 {
@@ -37,7 +38,8 @@ class OrderService
                 ';
         $connection = $this->manager->getConnection();
         $statement = $connection->prepare($sql);
-        $statement->executeStatement(['order_id' =>  $order->getId()]);
+        $statement->bindValue(':order_id', $order->getId(), Type::getType('integer'));
+        $statement->executeStatement();
 
         return $order;
     }
@@ -72,7 +74,7 @@ class OrderService
                 ';
         $connection = $this->manager->getConnection();
         $statement = $connection->prepare($sql);
-        $statement->bindValue(':order_id', $order->getId(), \PDO::PARAM_INT);
+        $statement->bindValue(':order_id', $order->getId(), Type::getType('integer'));
         $statement->executeStatement();
 
         return $order;

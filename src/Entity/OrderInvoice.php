@@ -1,4 +1,5 @@
 <?php
+
 namespace ControleOnline\Entity;
 
 use Symfony\Component\Serializer\Attribute\Groups;
@@ -64,7 +65,7 @@ class OrderInvoice
         return $this->id;
     }
 
-    public function setInvoice(Invoice $invoice = null)
+    public function setInvoice(Invoice $invoice)
     {
         $this->invoice = $invoice;
         return $this;
@@ -75,7 +76,7 @@ class OrderInvoice
         return $this->invoice;
     }
 
-    public function setOrder(Order $order = null)
+    public function setOrder(Order $order)
     {
         $this->order = $order;
         return $this;

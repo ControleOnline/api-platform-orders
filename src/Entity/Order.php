@@ -470,7 +470,7 @@ class Order
         return $this->app;
     }
 
-    public function setMainOrder(self $main_order = null)
+    public function setMainOrder(self $main_order)
     {
         $this->mainOrder = $main_order;
         return $this;

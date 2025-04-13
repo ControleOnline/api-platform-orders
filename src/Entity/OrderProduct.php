@@ -1,162 +1,127 @@
 <?php
+namespace ControleOnline\Entity;
 
-namespace ControleOnline\Entity; 
-use ControleOnline\Listener\LogListener;
-
-use Doctrine\ORM\Mapping as ORM;
-use Doctrine\Common\Collections\ArrayCollection;
-use ApiPlatform\Core\Annotation\ApiSubresource;
-use Symfony\Component\Serializer\Annotation\Groups;
+use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
+use ApiPlatform\Metadata\Delete;
+use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Annotation\Groups;
+use Doctrine\Common\Collections\ArrayCollection;
+use ControleOnline\Entity\Order;
+use ControleOnline\Entity\Product;
+use ControleOnline\Entity\Inventory;
+use ControleOnline\Entity\ProductGroup;
+use ControleOnline\Entity\OrderProductQueue;
+use ControleOnline\Repository\OrderProductRepository;
+use ControleOnline\Listener\LogListener;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
-use stdClass;
-use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
 use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
-use ApiPlatform\Metadata\GetCollection;
-use ApiPlatform\Metadata\Put;
-use ApiPlatform\Metadata\Post;
-use ApiPlatform\Metadata\Get;
-use ApiPlatform\Metadata\Delete;
-use ApiPlatform\Metadata\ApiResource;
-use ApiPlatform\Metadata\ApiProperty;
 
-/**
- * OrderProduct
- */
-#[ApiResource(
-    operations: [
-        new Get(
-            security: 'is_granted(\'ROLE_CLIENT\')',
-        ),
-        new GetCollection(
-            security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
-        ),
-        new Post(
-            security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
-        ),
-        new Put(
-            security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
-        ),
-        new Delete(
-            security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
-        ),
-    ],
-    formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
-    normalizationContext: ['groups' => ['order_product:read']],
-    denormalizationContext: ['groups' => ['order_product:write']]
-)]
-#[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]
-#[ApiFilter(OrderFilter::class, properties: ['id' => 'ASC', 'product.product' => 'ASC'])]
-#[ApiFilter(NumericFilter::class, properties: ['order.id'])]
 #[ORM\Table(name: 'order_product')]
 #[ORM\EntityListeners([LogListener::class])]
-#[ORM\Entity(repositoryClass: \ControleOnline\Repository\OrderProductRepository::class)]
+#[ORM\Entity(repositoryClass: OrderProductRepository::class)]
+#[ApiResource(
+    formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
+    normalizationContext: ['groups' => ['order_product:read']],
+    denormalizationContext: ['groups' => ['order_product:write']],
+    operations: [
+        new GetCollection(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')"),
+        new Get(security: "is_granted('ROLE_CLIENT')"),
+        new Post(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')"),
+        new Put(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')"),
+        new Delete(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')")
+    ]
+)]
+#[ApiFilter(OrderFilter::class, properties: ['alterDate' => 'DESC', 'id' => 'ASC', 'product.product' => 'ASC'])]
+#[ApiFilter(NumericFilter::class, properties: ['order.id'])]
+#[ApiFilter(SearchFilter::class, properties: [
+    'id' => 'exact',
+    'order' => 'exact',
+    'product' => 'exact',
+    'product.type' => 'exact',
+    'inInventory' => 'exact',
+    'outInventory' => 'exact',
+    'parentProduct' => 'exact',
+    'parentProduct.type' => 'exact',
+    'orderProduct' => 'exact',
+    'orderProduct.type' => 'exact',
+    'productGroup' => 'exact',
+    'productGroup.type' => 'exact'
+])]
+#[ApiFilter(ExistsFilter::class, properties: [
+    'inInventory',
+    'outInventory',
+    'parentProduct',
+    'orderProduct',
+    'productGroup'
+])]
 class OrderProduct
 {
-    /**
-     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","order_product:write","order_product:read"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: 'integer')]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
     private $id;
 
-    /**
-     * @Groups({"order_product_queue:read","order_product:write","order_product:read"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['order' => 'exact'])]
+    #[ORM\ManyToOne(targetEntity: Order::class)]
     #[ORM\JoinColumn(nullable: false)]
-    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Order::class)]
+    #[Groups(['order_product_queue:read', 'order_product:write', 'order_product:read'])]
     private $order;
 
-    /**
-     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","order_product:write","order_product:read"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['product' => 'exact'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['product.type' => 'exact'])]
+    #[ORM\ManyToOne(targetEntity: Product::class)]
     #[ORM\JoinColumn(nullable: false)]
-    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Product::class)]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
     private $product;
 
-    /**
-     * @Groups({"order_product:write","order_product:read"})
-     */
-    #[ApiFilter(ExistsFilter::class, properties: ['inInventory'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['inInventory' => 'exact'])]
+    #[ORM\ManyToOne(targetEntity: Inventory::class)]
     #[ORM\JoinColumn(name: 'in_inventory_id', referencedColumnName: 'id', nullable: true)]
-    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Inventory::class)]
+    #[Groups(['order_product:write', 'order_product:read'])]
     private $inInventory;
 
-    /**
-     * @Groups({"order_product:write","order_product:read"})
-     */
-    #[ApiFilter(ExistsFilter::class, properties: ['outInventory'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['outInventory' => 'exact'])]
+    #[ORM\ManyToOne(targetEntity: Inventory::class)]
     #[ORM\JoinColumn(name: 'out_inventory_id', referencedColumnName: 'id', nullable: true)]
-    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Inventory::class)]
+    #[Groups(['order_product:write', 'order_product:read'])]
     private $outInventory;
 
-    /**
-     * @Groups({"order_product:write","order_product:read"})
-     */
-    #[ApiFilter(ExistsFilter::class, properties: ['parentProduct'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentProduct' => 'exact'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['parentProduct.type' => 'exact'])]
+    #[ORM\ManyToOne(targetEntity: Product::class)]
     #[ORM\JoinColumn(name: 'parent_product_id', referencedColumnName: 'id', nullable: true)]
-    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Product::class)]
+    #[Groups(['order_product:write', 'order_product:read'])]
     private $parentProduct;
 
-    /**
-     * @Groups({"order_product:write","order_product:read"})
-     */
-    #[ApiFilter(ExistsFilter::class, properties: ['orderProduct'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProduct' => 'exact'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProduct.type' => 'exact'])]
+    #[ORM\ManyToOne(targetEntity: self::class, inversedBy: 'orderProductComponents')]
     #[ORM\JoinColumn(name: 'order_product_id', nullable: true)]
-    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\OrderProduct::class, inversedBy: 'orderProductComponents')]
+    #[Groups(['order_product:write', 'order_product:read'])]
     private $orderProduct;
 
-    /**
-     * @Groups({"order_product:write","order_product:read"})
-     */
-    #[ApiFilter(ExistsFilter::class, properties: ['productGroup'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['productGroup' => 'exact'])]
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['productGroup.type' => 'exact'])]
+    #[ORM\ManyToOne(targetEntity: ProductGroup::class)]
     #[ORM\JoinColumn(nullable: true)]
-    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\ProductGroup::class)]
+    #[Groups(['order_product:write', 'order_product:read'])]
     private $productGroup;
 
-    /**
-     * @Groups({"order_product:read", "order_product:write"})
-     */
-    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\OrderProduct::class, mappedBy: 'orderProduct')]
+    #[ORM\OneToMany(targetEntity: self::class, mappedBy: 'orderProduct')]
+    #[Groups(['order_product:write', 'order_product:read'])]
     private $orderProductComponents;
 
-    /**
-     * @Groups({"order_product:read"})
-     */
-    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\OrderProductQueue::class, mappedBy: 'order_product')]
+    #[ORM\OneToMany(targetEntity: OrderProductQueue::class, mappedBy: 'order_product')]
+    #[Groups(['order_product:read'])]
     private $orderProductQueues;
 
-    /**
-     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","order_product:write","order_product:read"})
-     */
     #[ORM\Column(type: 'float')]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
     private $quantity = 1;
 
-    /**
-     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","order_product:write","order_product:read"})
-     */
     #[ORM\Column(type: 'float')]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
     private $price = 0;
 
-    /**
-     * @Groups({"order_product_queue:read","order:read","order_details:read","order:write","order_product:write","order_product:read"})
-     */
     #[ORM\Column(type: 'float')]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
     private $total = 0;
 
     public function __construct()

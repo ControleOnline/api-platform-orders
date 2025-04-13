@@ -2,6 +2,8 @@
 
 namespace ControleOnline\Entity;
 
+use Symfony\Component\Serializer\Attribute\Groups;
+
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
@@ -91,22 +93,22 @@ class Order
     #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'IDENTITY')]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'order:read', 'order_details:read', 'company_expense:read', 'coupon:read', 'logistic:read', 'order_invoice:read']])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'company_expense:read', 'coupon:read', 'logistic:read', 'order_invoice:read'])]
     private $id;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['client' => 'exact'])]
     #[ORM\JoinColumn(name: 'client_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: People::class)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'invoice:read']])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'invoice:read'])]
     private $client;
 
     #[ApiFilter(DateFilter::class, properties: ['orderDate'])]
     #[ORM\Column(name: 'order_date', type: 'datetime', nullable: false, columnDefinition: 'DATETIME')]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'order:read', 'order_details:read', 'order:write']])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write'])]
     private $orderDate;
 
     #[ORM\OneToMany(targetEntity: OrderProduct::class, mappedBy: 'order', cascade: ['persist'])]
-    #[ApiResource(normalizationContext: ['groups' => ['order_details:read', 'order:write']])]
+    #[Groups(['order_details:read', 'order:write'])]
     private $orderProducts;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
@@ -123,28 +125,28 @@ class Order
 
     #[ApiFilter(DateFilter::class, properties: ['alterDate'])]
     #[ORM\Column(name: 'alter_date', type: 'datetime', nullable: false)]
-    #[ApiResource(normalizationContext: ['groups' => ['display:read', 'order_product_queue:read', 'order:read', 'order_details:read', 'order:write']])]
+    #[Groups(['display:read', 'order_product_queue:read', 'order:read', 'order_details:read', 'order:write'])]
     private $alterDate;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
     #[ORM\JoinColumn(name: 'status_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: Status::class)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write']])]
+    #[Groups(['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write'])]
     private $status;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
     #[ORM\Column(name: 'order_type', type: 'string', nullable: true)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write']])]
+    #[Groups(['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write'])]
     private $orderType;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
     #[ORM\Column(name: 'app', type: 'string', nullable: true)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write']])]
+    #[Groups(['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write'])]
     private $app = 'Manual';
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['otherInformations' => 'exact'])]
     #[ORM\Column(name: 'other_informations', type: 'json', nullable: true)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'order:read', 'order_details:read', 'order:write']])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write'])]
     private $otherInformations;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrder' => 'exact'])]
@@ -154,31 +156,31 @@ class Order
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrderId' => 'exact'])]
     #[ORM\Column(name: 'main_order_id', type: 'integer', nullable: true)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'order:read', 'order_details:read', 'order:write']])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write'])]
     private $mainOrderId;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['payer' => 'exact'])]
     #[ORM\JoinColumn(name: 'payer_people_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: People::class)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'invoice:read']])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'invoice:read'])]
     private $payer;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['provider' => 'exact'])]
     #[ORM\JoinColumn(name: 'provider_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: People::class)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'invoice:read']])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'invoice:read'])]
     private $provider;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['addressOrigin' => 'exact'])]
     #[ORM\JoinColumn(name: 'address_origin_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: Address::class)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_details:read', 'order:write']])]
+    #[Groups(['order_details:read', 'order:write'])]
     private $addressOrigin;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['addressDestination' => 'exact'])]
     #[ORM\JoinColumn(name: 'address_destination_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: Address::class)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_details:read', 'order:write']])]
+    #[Groups(['order_details:read', 'order:write'])]
     private $addressDestination;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['retrieveContact' => 'exact'])]
@@ -193,12 +195,12 @@ class Order
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['price' => 'exact'])]
     #[ORM\Column(name: 'price', type: 'float', nullable: false)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'order:read', 'order_details:read', 'order:write']])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write'])]
     private $price = 0;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['comments' => 'exact'])]
     #[ORM\Column(name: 'comments', type: 'string', nullable: true)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'order:read', 'order_details:read', 'order:write']])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write'])]
     private $comments;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['notified' => 'exact'])]
@@ -208,13 +210,13 @@ class Order
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['user' => 'exact'])]
     #[ORM\JoinColumn(nullable: true)]
     #[ORM\ManyToOne(targetEntity: User::class)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write']])]
+    #[Groups(['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write'])]
     private $user;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['device' => 'exact', 'device.device' => 'exact'])]
     #[ORM\JoinColumn(name: 'device_id', referencedColumnName: 'id', nullable: true)]
     #[ORM\ManyToOne(targetEntity: Device::class)]
-    #[ApiResource(normalizationContext: ['groups' => ['device_config:read', 'device:read', 'device_config:write']])]
+    #[Groups(['device_config:read', 'device:read', 'device_config:write'])]
     private $device;
 
     public function __construct()

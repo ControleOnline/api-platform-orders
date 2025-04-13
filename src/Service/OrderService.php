@@ -6,8 +6,7 @@ use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\Status;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface
- AS Security;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Component\HttpFoundation\RequestStack;
 
@@ -20,7 +19,6 @@ class OrderService
         private Security $security,
         private PeopleService $peopleService,
         RequestStack $requestStack
-
     ) {
         $this->request  = $requestStack->getCurrentRequest();
     }
@@ -39,11 +37,10 @@ class OrderService
                 ';
         $connection = $this->manager->getConnection();
         $statement = $connection->prepare($sql);
-        $statement->execute(['order_id' =>  $order->getId()]);
+        $statement->executeStatement(['order_id' =>  $order->getId()]);
 
         return $order;
     }
-
 
     public function calculateGroupProductPrice(Order $order)
     {
@@ -73,14 +70,11 @@ class OrderService
                 ) AS subquery ON OPO.id = subquery.order_product_id
                 SET OPO.price = subquery.calculated_price,OPO.total = (subquery.calculated_price * OPO.quantity)
                 ';
-
-
         $connection = $this->manager->getConnection();
         $statement = $connection->prepare($sql);
-        $statement->execute(['order_id' =>  $order->getId()]);
+        $statement->executeStatement(['order_id' =>  $order->getId()]);
         return $order;
     }
-
 
     public function createOrder(People $receiver, People $payer)
     {

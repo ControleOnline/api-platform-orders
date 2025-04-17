@@ -48,29 +48,24 @@ class OrderService
     {
         $sql = 'UPDATE order_product OPO
                 JOIN (
-                        SELECT SUM(calculated_price) AS calculated_price,order_product_id FROM (	SELECT 
-                                PG.product_group,
-                                P.product,
-                                PG.price_calculation,
-                                OP.order_product_id,
-                                (CASE 
-                                    WHEN PG.price_calculation = "biggest" THEN MAX(PGP.price)
-                                    WHEN PG.price_calculation = "sum" THEN SUM(PGP.price)
-                                    WHEN PG.price_calculation = "average" THEN AVG(PGP.price) 
-                                    WHEN PG.price_calculation = "free" THEN 0
-                                    ELSE NULL
-                                END)  AS calculated_price
-                                
-                            FROM order_product OP
-                            INNER JOIN product_group PG ON OP.product_group_id = PG.id
-                            INNER JOIN product_group_product PGP ON PGP.product_group_id = OP.product_group_id AND PGP.product_child_id = OP.product_id
-                            INNER JOIN product P ON P.id = OP.product_id
-                            WHERE OP.parent_product_id IS NOT NULL AND OP.order_id = :order_id
-                            GROUP BY OP.order_product_id,PG.id
-                        ) AS SBG GROUP BY SBG.order_product_id
-                        
+                    SELECT 
+                        OP.order_product_id,
+                        (CASE 
+                            WHEN PG.price_calculation = "biggest" THEN MAX(PGP.price)
+                            WHEN PG.price_calculation = "sum" THEN SUM(PGP.price)
+                            WHEN PG.price_calculation = "average" THEN AVG(PGP.price) 
+                            WHEN PG.price_calculation = "free" THEN 0
+                            ELSE NULL
+                        END) AS calculated_price
+                    FROM order_product OP
+                    INNER JOIN product_group PG ON OP.product_group_id = PG.id
+                    INNER JOIN product_group_product PGP ON PGP.product_group_id = OP.product_group_id AND PGP.product_child_id = OP.product_id
+                    INNER JOIN product P ON P.id = OP.product_id
+                    WHERE OP.parent_product_id IS NOT NULL AND OP.order_id = :order_id
+                    GROUP BY OP.order_product_id, PG.id
                 ) AS subquery ON OPO.id = subquery.order_product_id
-                SET OPO.price = subquery.calculated_price,OPO.total = (subquery.calculated_price * OPO.quantity)
+                SET OPO.price = subquery.calculated_price,
+                    OPO.total = (subquery.calculated_price * OPO.quantity)
                 ';
         $connection = $this->manager->getConnection();
         $statement = $connection->prepare($sql);

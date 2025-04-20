@@ -19,6 +19,7 @@ class OrderService
         private EntityManagerInterface $manager,
         private Security $security,
         private PeopleService $peopleService,
+        private StatusService $statusService,
         RequestStack $requestStack
     ) {
         $this->request  = $requestStack->getCurrentRequest();
@@ -77,10 +78,12 @@ class OrderService
 
     public function createOrder(People $receiver, People $payer)
     {
-        $status = $this->manager->getRepository(Status::class)->findOneBy([
-            'status' => 'waiting payment',
-            'context' => 'order'
-        ]);
+
+        $status = $this->statusService->discoveryStatus(
+            'pending',
+            'waiting payment',
+            'order'
+        );
 
         $order = new Order();
         $order->setProvider($receiver);

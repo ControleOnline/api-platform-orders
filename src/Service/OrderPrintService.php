@@ -2,8 +2,10 @@
 
 namespace ControleOnline\Service;
 
+use ControleOnline\Entity\Device;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\ProductGroupProduct;
+use ControleOnline\Entity\Spool;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 
@@ -103,7 +105,7 @@ class OrderPrintService
         }
     }
 
-    public function generatePrintData(Order $order, string $printType, string $deviceType)
+    public function generatePrintData(Order $order, Device $device): Spool
     {
 
         $this->printService->addLine("PEDIDO #" . $order->getId());
@@ -116,6 +118,6 @@ class OrderPrintService
 
         $this->printQueues($queues);
         $this->printService->addLine("", "", "-");
-        return $this->printService->generatePrintData($printType, $deviceType);
+        return $this->printService->generatePrintData($device);
     }
 }

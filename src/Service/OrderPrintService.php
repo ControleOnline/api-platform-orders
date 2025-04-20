@@ -118,6 +118,6 @@ class OrderPrintService
 
         $this->printQueues($queues);
         $this->printService->addLine("", "", "-");
-        return $this->printService->generatePrintData($device);
+        return $this->printService->generatePrintData($device,$order->getProvider());
     }
 }

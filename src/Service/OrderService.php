@@ -76,7 +76,7 @@ class OrderService
         return $order;
     }
 
-    public function createOrder(People $receiver, People $payer)
+    public function createOrder(People $receiver, People $payer, $app)
     {
 
         $status = $this->statusService->discoveryStatus(
@@ -91,7 +91,7 @@ class OrderService
         $order->setPayer($payer);
         $order->setOrderType('sale');
         $order->setStatus($status);
-        $order->setApp('Asaas');
+        $order->setApp($app);
 
         $this->manager->persist($order);
         $this->manager->flush();

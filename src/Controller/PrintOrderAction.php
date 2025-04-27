@@ -11,6 +11,7 @@ use ControleOnline\Entity\Spool;
 use ControleOnline\Service\HydratorService;
 use ControleOnline\Service\OrderPrintService;
 use Exception;
+use Symfony\Component\HttpFoundation\Response;
 
 class PrintOrderAction
 {

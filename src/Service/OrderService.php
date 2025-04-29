@@ -2,9 +2,9 @@
 
 namespace ControleOnline\Service;
 
+use ControleOnline\Entity\ExtraFields;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
-use ControleOnline\Entity\Status;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
 use Doctrine\ORM\QueryBuilder;

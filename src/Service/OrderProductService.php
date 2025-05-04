@@ -32,7 +32,7 @@ class OrderProductService
         $this->request = $this->requestStack->getCurrentRequest();
     }
 
-    public function addProduct(Order $order, Product $product, $quantity, $price, ?ProductGroup  $productGroup = null, ?Product $parentProduct = null, ?OrderProduct $orderProductParent =  null): OrderProduct
+    public function addOrderProduct(Order $order, Product $product, $quantity, $price, ?ProductGroup  $productGroup = null, ?Product $parentProduct = null, ?OrderProduct $orderProductParent =  null): OrderProduct
     {
         $OProduct = new OrderProduct();
         $OProduct->setOrder($order);

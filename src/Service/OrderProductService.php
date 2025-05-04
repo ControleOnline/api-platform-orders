@@ -2,13 +2,14 @@
 
 namespace ControleOnline\Service;
 
+use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Product;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\ProductGroupProduct;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface
- AS Security;
+as Security;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Component\HttpFoundation\RequestStack;
 
@@ -31,7 +32,24 @@ class OrderProductService
         $this->request = $this->requestStack->getCurrentRequest();
     }
 
+    public function addProduct(Order $order, Product $product, $quantity, $price, ?ProductGroup  $productGroup = null, ?Product $parentProduct = null, ?OrderProduct $orderProductParent =  null): OrderProduct
+    {
+        $OProduct = new OrderProduct();
+        $OProduct->setOrder($order);
+        $OProduct->setParentProduct($parentProduct);
+        $OProduct->setOrderProduct($orderProductParent);
+        $OProduct->setProductGroup($productGroup);
+        $OProduct->setQuantity($quantity);
+        $OProduct->setProduct($product);
+        $OProduct->setPrice($price);
+        $OProduct->setTotal($price * $quantity);
+        $this->checkInventory($OProduct);
+        $this->manager->persist($OProduct);
+        $this->manager->flush();
 
+        $this->orderProductQueueService->addProductToQueue($OProduct);
+        return   $OProduct;
+    }
 
     public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity)
     {
@@ -71,7 +89,7 @@ class OrderProductService
     public function postPersist(OrderProduct $orderProduct)
     {
 
-        if (!self::$mainProduct) return;
+        if (!self::$mainProduct || !$this->request) return;
         self::$mainProduct = false;
 
         $json = json_decode($this->request->getContent(), true);
@@ -105,8 +123,6 @@ class OrderProductService
         self::$calculateBefore[] = $order;
     }
 
-
-
     private function calculateProductPrice(OrderProduct $orderProduct)
     {
         $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
@@ -126,8 +142,6 @@ class OrderProductService
 
         return $orderProduct;
     }
-
-
 
     public function  securityFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
     {

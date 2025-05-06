@@ -105,7 +105,7 @@ class OrderPrintService
         }
     }
 
-    public function generatePrintData(Order $order, Device $device): Spool
+    public function generatePrintData(Order $order, Device $device,?array $aditionalData = []): Spool
     {
 
         $this->printService->addLine("PEDIDO #" . $order->getId());
@@ -118,6 +118,8 @@ class OrderPrintService
 
         $this->printQueues($queues);
         $this->printService->addLine("", "", "-");
-        return $this->printService->generatePrintData($device,$order->getProvider());
+
+
+        return $this->printService->generatePrintData($device, $order->getProvider(), $aditionalData);
     }
 }

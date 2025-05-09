@@ -15,7 +15,9 @@ class OrderPrintService
 
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private PrintService $printService
+        private PrintService $printService,
+        private ConfigService $configService,
+        private DeviceService $deviceService,
     ) {}
 
 
@@ -41,6 +43,18 @@ class OrderPrintService
             }
         }
         return $queues;
+    }
+
+    public  function printOrder(Order $order, ?array $devices = [])
+    {
+        if (empty($devices))
+            $devices = $this->configService->getConfig($order->getProvider(), 'order-print-devices', true);
+
+        if ($devices)
+            $devices = $this->deviceService->findDevices($devices);
+
+        foreach ($devices as $device)
+            $this->generatePrintData($order, $device, ['sound' => 'iFood']);
     }
 
     private function printProduct($orderProduct, $indent = "- ")
@@ -105,7 +119,7 @@ class OrderPrintService
         }
     }
 
-    public function generatePrintData(Order $order, Device $device,?array $aditionalData = []): Spool
+    public function generatePrintData(Order $order, Device $device, ?array $aditionalData = []): Spool
     {
 
         $this->printService->addLine("PEDIDO #" . $order->getId());

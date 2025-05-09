@@ -54,7 +54,7 @@ class OrderPrintService
             $devices = $this->deviceService->findDevices($devices);
 
         foreach ($devices as $device)
-            $this->generatePrintData($order, $device, ['sound' => 'iFood']);
+            $this->generatePrintData($order, $device);
     }
 
     private function printProduct($orderProduct, $indent = "- ")

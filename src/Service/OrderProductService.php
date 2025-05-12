@@ -139,7 +139,7 @@ class OrderProductService
         $this->orderService->calculateGroupProductPrice($orderProduct->getOrder());
         $this->orderService->calculateOrderPrice($orderProduct->getOrder());
 
-        $this->invoiceService->payOrder($order);
+        $this->invoiceService->payOrder($orderProduct->getOrder());
         $this->manager->refresh($orderProduct);
 
         return $orderProduct;

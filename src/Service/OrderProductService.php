@@ -27,7 +27,8 @@ class OrderProductService
         private PeopleService $peopleService,
         private OrderService $orderService,
         private RequestStack $requestStack,
-        private OrderProductQueueService $orderProductQueueService
+        private OrderProductQueueService $orderProductQueueService,
+        private InvoiceService $invoiceService
     ) {
         $this->request = $this->requestStack->getCurrentRequest();
     }
@@ -138,6 +139,7 @@ class OrderProductService
         $this->orderService->calculateGroupProductPrice($orderProduct->getOrder());
         $this->orderService->calculateOrderPrice($orderProduct->getOrder());
 
+        $this->invoiceService->payOrder($order);
         $this->manager->refresh($orderProduct);
 
         return $orderProduct;

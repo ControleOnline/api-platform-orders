@@ -94,13 +94,17 @@ class OrderProductService
         self::$mainProduct = false;
 
         $json = json_decode($this->request->getContent(), true);
-        $subProducts = $json['sub_products'];
-        $this->checkInventory($orderProduct);
-        foreach ($subProducts as $subproduct) {
-            $product = $this->manager->getRepository(Product::class)->find($subproduct['product']);
-            $productGroup =  $this->manager->getRepository(ProductGroup::class)->find($subproduct['productGroup']);
-            $this->addSubproduct($orderProduct, $product, $productGroup, $subproduct['quantity']);
+
+        if (isset($json['sub_products'])) {
+            $subProducts = $json['sub_products'];
+            foreach ($subProducts as $subproduct) {
+                $product = $this->manager->getRepository(Product::class)->find($subproduct['product']);
+                $productGroup =  $this->manager->getRepository(ProductGroup::class)->find($subproduct['productGroup']);
+                $this->addSubproduct($orderProduct, $product, $productGroup, $subproduct['quantity']);
+            }
         }
+
+        $this->checkInventory($orderProduct);
         $this->orderProductQueueService->addProductToQueue($orderProduct);
         return $this->calculateProductPrice($orderProduct);
     }

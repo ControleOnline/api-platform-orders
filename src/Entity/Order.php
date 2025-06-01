@@ -13,6 +13,7 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
+use ControleOnline\Controller\AddProductsOrderAction;
 use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Controller\DiscoveryCart;
 use ControleOnline\Controller\PrintOrderAction;
@@ -61,6 +62,14 @@ use stdClass;
             denormalizationContext: ['groups' => ['print:write']],
             normalizationContext: ['groups' => ['print:read']],
         ),
+        new Put(
+            security: 'is_granted(\'ROLE_CLIENT\')',
+            uriTemplate: '/orders/{id}/add-products',
+            controller: AddProductsOrderAction::class,
+            denormalizationContext: ['groups' => ['order:write']],
+            normalizationContext: ['groups' => ['order_details:read']],
+        ),
+
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
     normalizationContext: ['groups' => ['order_details:read']],

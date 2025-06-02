@@ -2,12 +2,11 @@
 
 namespace ControleOnline\Controller;
 
-use App\Library\Rates\Model\Product;
-use ControleOnline\Entity\Device;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Doctrine\ORM\EntityManagerInterface;
 use ControleOnline\Entity\Order;
+use ControleOnline\Entity\Product;
 use ControleOnline\Service\HydratorService;
 use ControleOnline\Service\OrderProductService;
 use Exception;

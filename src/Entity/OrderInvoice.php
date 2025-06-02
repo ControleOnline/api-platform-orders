@@ -48,7 +48,7 @@ class OrderInvoice
 
     #[ORM\ManyToOne(targetEntity: Invoice::class, inversedBy: 'order', cascade: ['persist'])]
     #[ORM\JoinColumn(name: 'invoice_id', referencedColumnName: 'id')]
-    #[Groups(['order_invoice:read', 'order:read', 'order_details:read', 'order:write', 'order_invoice:write'])]
+    #[Groups(['order_invoice:read', 'order:read', 'order_details:read', 'order:write',  'order_invoice:write'])]
     private $invoice;
 
     #[ORM\ManyToOne(targetEntity: Order::class, inversedBy: 'invoice', cascade: ['persist'])]
@@ -57,7 +57,7 @@ class OrderInvoice
     private $order;
 
     #[ORM\Column(name: 'real_price', type: 'float', nullable: false)]
-    #[Groups(['order_invoice:read', 'order:read', 'order_details:read', 'order:write', 'order_invoice:write'])]
+    #[Groups(['order_invoice:read', 'order:read', 'order_details:read', 'order:write',  'order_invoice:write'])]
     private $realPrice = 0;
 
     public function getId()

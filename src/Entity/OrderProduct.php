@@ -68,7 +68,7 @@ class OrderProduct
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: 'integer')]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
     private $id;
 
     #[ORM\ManyToOne(targetEntity: Order::class)]
@@ -78,7 +78,7 @@ class OrderProduct
 
     #[ORM\ManyToOne(targetEntity: Product::class)]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
     private $product;
 
     #[ORM\ManyToOne(targetEntity: Inventory::class)]
@@ -115,15 +115,15 @@ class OrderProduct
     private $orderProductQueues;
 
     #[ORM\Column(type: 'float')]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
     private $quantity = 1;
 
     #[ORM\Column(type: 'float')]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
     private $price = 0;
 
     #[ORM\Column(type: 'float')]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
     private $total = 0;
 
     public function __construct()

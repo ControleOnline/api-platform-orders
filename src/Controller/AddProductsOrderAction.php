@@ -42,7 +42,7 @@ class AddProductsOrderAction
 
             $this->entityManager->refresh($order);
 
-            return new JsonResponse($this->hydratorService->item(Order::class, $order->getId(), "order_details:read"), Response::HTTP_OK);
+            return new JsonResponse($this->hydratorService->item(Order::class, $order->getId(), "order:write"), Response::HTTP_OK);
         } catch (Exception $e) {
             return new JsonResponse($this->hydratorService->error($e));
         }

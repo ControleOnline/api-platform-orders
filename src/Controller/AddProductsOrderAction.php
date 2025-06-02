@@ -9,6 +9,7 @@ use ControleOnline\Entity\Order;
 use ControleOnline\Entity\Product;
 use ControleOnline\Service\HydratorService;
 use ControleOnline\Service\OrderProductService;
+use ControleOnline\Service\OrderService;
 use Exception;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -19,7 +20,8 @@ class AddProductsOrderAction
     public function __construct(
         private EntityManagerInterface $entityManager,
         private HydratorService $hydratorService,
-        private OrderProductService $orderProductService
+        private OrderProductService $orderProductService,
+        private OrderService $orderService
 
     ) {}
 
@@ -38,7 +40,8 @@ class AddProductsOrderAction
                 $price = $product->getPrice();
                 $this->orderProductService->addOrderProduct($order, $product, $quantity, $price);
             }
-
+            $this->entityManager->flush();
+            $this->orderService->calculateOrderPrice($order);
             $this->entityManager->refresh($order);
 
             return new JsonResponse($this->hydratorService->item(Order::class, $order->getId(), "order:write"), Response::HTTP_OK);

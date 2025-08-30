@@ -25,32 +25,35 @@ class DiscoveryCart
     ) {}
 
 
-    public function __invoke(Request $request,Security $security): JsonResponse
+    public function __invoke(Request $request, Security $security): JsonResponse
     {
         try {
 
             /**
              * @var \ControleOnline\Entity\User
              */
-            $currentUser = $security->getToken()->getUser()->getPeople();
-            $status = $this->statusService->discoveryStatus('open', 'open', 'order');
+            $currentUser = $security->getToken()?->getUser()?->getPeople();
+            $order = null;
+            if ($currentUser) {
+                $status = $this->statusService->discoveryStatus('open', 'open', 'order');
 
-            $order = $this->manager->getRepository(Order::class)->findOneBy([
-                'client' => $currentUser,
-                'status' => $status
-            ]);
+                $order = $this->manager->getRepository(Order::class)->findOneBy([
+                    'client' => $currentUser,
+                    'status' => $status
+                ]);
 
-            if (!$order) {
-                $order = new Order();
-                $order->setStatus($status);
-                $order->setClient($currentUser);
-                $order->setOrderType('order');
-                $order->setApp('SHOP');
-                //$order->setProvider();
-                //$order->setPayer();
-                $this->manager->persist($order);
+                if (!$order) {
+                    $order = new Order();
+                    $order->setStatus($status);
+                    $order->setClient($currentUser);
+                    $order->setOrderType('order');
+                    $order->setApp('SHOP');
+                    //$order->setProvider();
+                    //$order->setPayer();
+                    $this->manager->persist($order);
 
-                $this->manager->flush();
+                    $this->manager->flush();
+                }
             }
 
             return new JsonResponse($this->hydratorService->data($order, 'order_details:read'), Response::HTTP_OK);

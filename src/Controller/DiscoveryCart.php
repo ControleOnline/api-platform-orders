@@ -57,7 +57,7 @@ class DiscoveryCart
                 }
             }
 
-            return new JsonResponse($this->hydratorService->data($order, 'order_details:read'), Response::HTTP_OK);
+            return new JsonResponse($this->hydratorService->item(Order::class,$order->getId(), 'order_details:read'), Response::HTTP_OK);
         } catch (Exception $e) {
             return new JsonResponse($this->hydratorService->error($e));
         }

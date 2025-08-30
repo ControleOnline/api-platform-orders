@@ -87,12 +87,8 @@ class OrderProductService
             $orderProduct->setInInventory($product->getDefaultInInventory());
     }
 
-    public function postPersist(OrderProduct $orderProduct)
+    private function checkSubproducts(OrderProduct $orderProduct)
     {
-
-        if (!self::$mainProduct || !$this->request) return;
-        self::$mainProduct = false;
-
         $json = json_decode($this->request->getContent(), true);
 
         if (isset($json['sub_products'])) {
@@ -103,7 +99,19 @@ class OrderProductService
                 $this->addSubproduct($orderProduct, $product, $productGroup, $subproduct['quantity']);
             }
         }
+    }
 
+    public function postUpdate(OrderProduct $orderProduct)
+    {
+        $this->postPersist($orderProduct);
+    }
+    
+    public function postPersist(OrderProduct $orderProduct)
+    {
+        if (!self::$mainProduct || !$this->request) return;
+        self::$mainProduct = false;
+
+        $this->checkSubproducts($orderProduct);
         $this->checkInventory($orderProduct);
         $this->orderProductQueueService->addProductToQueue($orderProduct);
         return $this->calculateProductPrice($orderProduct);

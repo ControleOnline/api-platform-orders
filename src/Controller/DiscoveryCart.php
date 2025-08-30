@@ -21,31 +21,32 @@ class DiscoveryCart
     public function __construct(
         private HydratorService $hydratorService,
         private EntityManagerInterface $manager,
-        private StatusService $statusService
+        private StatusService $statusService,
+        private Security $security
     ) {}
 
 
-    public function __invoke(Request $request, Security $security): JsonResponse
+    public function __invoke(Request $request): JsonResponse
     {
         try {
 
             /**
-             * @var \ControleOnline\Entity\User
+             * @var \ControleOnline\Entity\People
              */
-            $currentUser = $security->getToken()?->getUser()?->getPeople();
+            $userPeople = $this->security->getToken()?->getUser()?->getPeople();
             $order = null;
-            if ($currentUser) {
+            if ($userPeople) {
                 $status = $this->statusService->discoveryStatus('open', 'open', 'order');
 
                 $order = $this->manager->getRepository(Order::class)->findOneBy([
-                    'client' => $currentUser,
+                    'client' => $userPeople,
                     'status' => $status
                 ]);
 
                 if (!$order) {
                     $order = new Order();
                     $order->setStatus($status);
-                    $order->setClient($currentUser);
+                    $order->setClient($userPeople);
                     $order->setOrderType('order');
                     $order->setApp('SHOP');
                     //$order->setProvider();

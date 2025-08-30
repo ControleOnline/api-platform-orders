@@ -6,6 +6,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use ControleOnline\Entity\Order;
+use ControleOnline\Entity\People;
 use Symfony\Component\HttpFoundation\Response;
 use ControleOnline\Service\HydratorService;
 use ControleOnline\Service\StatusService;
@@ -34,12 +35,23 @@ class DiscoveryCart
              * @var \ControleOnline\Entity\People
              */
             $userPeople = $this->security->getToken()?->getUser()?->getPeople();
+
+            $providerId = $request->get('provider');
+            if (!$providerId) {
+                return new JsonResponse(['error' => 'Provider é obrigatório'], Response::HTTP_BAD_REQUEST);
+            }
+            $provider = $this->manager->getRepository(People::class)->find($providerId);
+            if (!$provider) {
+                return new JsonResponse(['error' => 'Provider inválido'], Response::HTTP_BAD_REQUEST);
+            }
+
             $order = null;
             if ($userPeople) {
                 $status = $this->statusService->discoveryStatus('open', 'open', 'order');
 
                 $order = $this->manager->getRepository(Order::class)->findOneBy([
                     'client' => $userPeople,
+                    'provider' => $provider,
                     'status' => $status
                 ]);
 
@@ -49,7 +61,7 @@ class DiscoveryCart
                     $order->setClient($userPeople);
                     $order->setOrderType('order');
                     $order->setApp('SHOP');
-                    $order->setProvider($userPeople);
+                    $order->setProvider($provider);
                     //$order->setPayer();
                     $this->manager->persist($order);
 
@@ -57,7 +69,7 @@ class DiscoveryCart
                 }
             }
 
-            return new JsonResponse($this->hydratorService->item(Order::class,$order->getId(), 'order_details:read'), Response::HTTP_OK);
+            return new JsonResponse($this->hydratorService->item(Order::class, $order->getId(), 'order_details:read'), Response::HTTP_OK);
         } catch (Exception $e) {
             return new JsonResponse($this->hydratorService->error($e));
         }

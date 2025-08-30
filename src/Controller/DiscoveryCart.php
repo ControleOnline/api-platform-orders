@@ -49,7 +49,7 @@ class DiscoveryCart
                     $order->setClient($userPeople);
                     $order->setOrderType('order');
                     $order->setApp('SHOP');
-                    //$order->setProvider();
+                    $order->setProvider($userPeople);
                     //$order->setPayer();
                     $this->manager->persist($order);
 

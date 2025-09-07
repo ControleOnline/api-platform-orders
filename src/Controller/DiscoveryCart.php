@@ -17,16 +17,12 @@ as Security;
 
 class DiscoveryCart
 {
-
-
-
     public function __construct(
         private HydratorService $hydratorService,
         private EntityManagerInterface $manager,
         private StatusService $statusService,
         private Security $security
     ) {}
-
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -36,12 +32,15 @@ class DiscoveryCart
              * @var \ControleOnline\Entity\People
              */
             $user = $this->security->getToken()?->getUser();
-
             $clientId = $request->get('client');
+            $providerId = $request->get('provider');
+
             if (!$clientId) {
                 return new JsonResponse(['error' => 'Client é obrigatório'], Response::HTTP_BAD_REQUEST);
             }
+
             $client = $this->manager->getRepository(People::class)->find($clientId);
+            
             if (!$client) {
                 return new JsonResponse(['error' => 'Client inválido'], Response::HTTP_BAD_REQUEST);
             }
@@ -52,8 +51,7 @@ class DiscoveryCart
             ) {
                 return new JsonResponse(['error' => 'Você não possui vínculo com esse cliente'], Response::HTTP_FORBIDDEN);
             }
-
-            $providerId = $request->get('provider');
+            
             if (!$providerId) {
                 return new JsonResponse(['error' => 'Provider é obrigatório'], Response::HTTP_BAD_REQUEST);
             }
@@ -80,10 +78,8 @@ class DiscoveryCart
                     $order->setClient($client);
                     $order->setOrderType('order');
                     $order->setApp('SHOP');
-                    $order->setProvider($provider);
-                    //$order->setPayer();
+                    $order->setProvider($provider);                    
                     $this->manager->persist($order);
-
                     $this->manager->flush();
                 }
             }

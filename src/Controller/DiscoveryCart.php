@@ -7,6 +7,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
+use ControleOnline\Entity\PeopleLink;
 use Symfony\Component\HttpFoundation\Response;
 use ControleOnline\Service\HydratorService;
 use ControleOnline\Service\StatusService;
@@ -34,23 +35,41 @@ class DiscoveryCart
             /**
              * @var \ControleOnline\Entity\People
              */
-            $userPeople = $this->security->getToken()?->getUser()?->getPeople();
+            $user = $this->security->getToken()?->getUser();
+
+            $clientId = $request->get('client');
+            if (!$clientId) {
+                return new JsonResponse(['error' => 'Client é obrigatório'], Response::HTTP_BAD_REQUEST);
+            }
+            $client = $this->manager->getRepository(People::class)->find($clientId);
+            if (!$client) {
+                return new JsonResponse(['error' => 'Client inválido'], Response::HTTP_BAD_REQUEST);
+            }
+
+            if (
+                !$this->manager->getRepository(PeopleLink::class)->hasLinkWith($user, $client) &&
+                $user->getPeople()->getId() != $client->getId()
+            ) {
+                return new JsonResponse(['error' => 'Você não possui vínculo com esse cliente'], Response::HTTP_FORBIDDEN);
+            }
 
             $providerId = $request->get('provider');
             if (!$providerId) {
                 return new JsonResponse(['error' => 'Provider é obrigatório'], Response::HTTP_BAD_REQUEST);
             }
+
             $provider = $this->manager->getRepository(People::class)->find($providerId);
             if (!$provider) {
                 return new JsonResponse(['error' => 'Provider inválido'], Response::HTTP_BAD_REQUEST);
             }
 
+
             $order = null;
-            if ($userPeople) {
+            if ($client) {
                 $status = $this->statusService->discoveryStatus('open', 'open', 'order');
 
                 $order = $this->manager->getRepository(Order::class)->findOneBy([
-                    'client' => $userPeople,
+                    'client' => $client,
                     'provider' => $provider,
                     'status' => $status
                 ]);
@@ -58,7 +77,7 @@ class DiscoveryCart
                 if (!$order) {
                     $order = new Order();
                     $order->setStatus($status);
-                    $order->setClient($userPeople);
+                    $order->setClient($client);
                     $order->setOrderType('order');
                     $order->setApp('SHOP');
                     $order->setProvider($provider);

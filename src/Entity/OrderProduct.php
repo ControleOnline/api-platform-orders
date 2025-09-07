@@ -111,7 +111,7 @@ class OrderProduct
     private $orderProductComponents;
 
     #[ORM\OneToMany(targetEntity: OrderProductQueue::class, mappedBy: 'order_product')]
-    #[Groups(['order_product:read'])]
+    #[Groups(['order_product:read', 'order_details:read'])]
     private $orderProductQueues;
 
     #[ORM\Column(type: 'float')]

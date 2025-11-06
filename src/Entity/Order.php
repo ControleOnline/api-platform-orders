@@ -17,7 +17,7 @@ use ControleOnline\Controller\AddProductsOrderAction;
 use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Controller\DiscoveryCart;
 use ControleOnline\Controller\PrintOrderAction;
-use ControleOnline\Listener\LogListener;
+
 use ControleOnline\Repository\OrderRepository;
 use DateTime;
 use DateTimeInterface;

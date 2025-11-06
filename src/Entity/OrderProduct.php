@@ -19,7 +19,7 @@ use ControleOnline\Entity\Inventory;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\OrderProductQueue;
 use ControleOnline\Repository\OrderProductRepository;
-use ControleOnline\Listener\LogListener;
+
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;

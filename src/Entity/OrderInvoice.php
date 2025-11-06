@@ -13,7 +13,7 @@ use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use Doctrine\ORM\Mapping as ORM;
 use ControleOnline\Entity\Invoice;
 use ControleOnline\Entity\Order;
-use ControleOnline\Listener\LogListener;
+
 
 #[ORM\Table(name: 'order_invoice')]
 #[ORM\Index(name: 'invoice_id', columns: ['invoice_id'])]

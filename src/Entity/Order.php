@@ -94,7 +94,7 @@ use stdClass;
 #[ORM\Index(name: 'alter_date', columns: ['alter_date'])]
 #[ORM\Index(name: 'IDX_E52FFDEEDB805178', columns: ['quote_id'])]
 #[ORM\UniqueConstraint(name: 'discount_id', columns: ['discount_coupon_id'])]
-#[ORM\EntityListeners([LogListener::class])]
+
 #[ORM\Entity(repositoryClass: OrderRepository::class)]
 class Order
 {

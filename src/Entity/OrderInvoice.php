@@ -18,7 +18,7 @@ use ControleOnline\Listener\LogListener;
 #[ORM\Table(name: 'order_invoice')]
 #[ORM\Index(name: 'invoice_id', columns: ['invoice_id'])]
 #[ORM\UniqueConstraint(name: 'order_id', columns: ['order_id', 'invoice_id'])]
-#[ORM\EntityListeners([LogListener::class])]
+
 #[ORM\Entity]
 #[ApiResource(
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],

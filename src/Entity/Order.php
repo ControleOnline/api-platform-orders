@@ -75,22 +75,12 @@ use stdClass;
     normalizationContext: ['groups' => ['order_details:read']],
     denormalizationContext: ['groups' => ['order:write']],
     // AleMac // 06/12/2025 // ordenação padrão alterada para alterDate
-    order: ['alterDate' => 'DESC']
+    order: ['alterDate' => 'DESC', 'id', 'orderDate', 'provider', 'app', 'orderType', 'status', 'client']
 )]
 
-// AleMac // 03/12/2025
-// novos campos para ordenação
-// #[ApiFilter(OrderFilter::class, properties: ['alterDate', 'id'])]
 #[ApiFilter(OrderFilter::class, properties: [
     'alterDate',
-    'id',
-    // novos campos para ordenação
-    'orderDate',
-    'provider',
-    'app',
-    'orderType',
-    'status',
-    'client'
+    'id'
 ])]
 
 #[ORM\Table(name: 'orders')]

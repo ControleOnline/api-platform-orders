@@ -73,9 +73,26 @@ use stdClass;
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
     normalizationContext: ['groups' => ['order_details:read']],
-    denormalizationContext: ['groups' => ['order:write']]
+    denormalizationContext: ['groups' => ['order:write']],
+    // AleMac // 06/12/2025 // ordenação padrão alterada para alterDate
+    order: ['alterDate' => 'DESC']
 )]
-#[ApiFilter(OrderFilter::class, properties: ['alterDate', 'id'])]
+
+// AleMac // 03/12/2025
+// novos campos para ordenação
+// #[ApiFilter(OrderFilter::class, properties: ['alterDate', 'id'])]
+#[ApiFilter(OrderFilter::class, properties: [
+    'alterDate',
+    'id',
+    // novos campos para ordenação
+    'orderDate',
+    'provider',
+    'app',
+    'orderType',
+    'status',
+    'client'
+])]
+
 #[ORM\Table(name: 'orders')]
 #[ORM\Index(name: 'adress_destination_id', columns: ['address_destination_id'])]
 #[ORM\Index(name: 'notified', columns: ['notified'])]

@@ -10,6 +10,7 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ControleOnline\Controller\CreateOrderInvoiceController;
 use Doctrine\ORM\Mapping as ORM;
 use ControleOnline\Entity\Invoice;
 use ControleOnline\Entity\Order;
@@ -28,10 +29,10 @@ use ControleOnline\Entity\Order;
         new GetCollection(security: "is_granted('ROLE_CLIENT')"),
         new Get(security: "is_granted('ROLE_CLIENT')"),
         new Post(
-            security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')",
-            validationContext: ['groups' => ['order_invoice:write']],
-            denormalizationContext: ['groups' => ['order_invoice:write']]
-        )
+            uriTemplate: '/order_invoices/custom',
+            controller: CreateOrderInvoiceController::class,
+            security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')"
+        ),
     ]
 )]
 #[ApiFilter(SearchFilter::class, properties: [

@@ -29,7 +29,6 @@ use ControleOnline\Entity\Order;
         new GetCollection(security: "is_granted('ROLE_CLIENT')"),
         new Get(security: "is_granted('ROLE_CLIENT')"),
         new Post(
-            uriTemplate: '/order_invoices/custom',
             controller: CreateOrderInvoiceController::class,
             security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')"
         ),

@@ -19,6 +19,7 @@ use ControleOnline\Entity\Inventory;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\OrderProductQueue;
 use ControleOnline\Repository\OrderProductRepository;
+use Symfony\Component\Serializer\Annotation\MaxDepth;
 
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
@@ -74,6 +75,7 @@ class OrderProduct
     #[ORM\ManyToOne(targetEntity: Order::class)]
     #[ORM\JoinColumn(nullable: false)]
     #[Groups(['order_product_queue:read', 'order_product:write', 'order_product:read'])]
+    #[MaxDepth(1)]
     private $order;
 
     #[ORM\ManyToOne(targetEntity: Product::class)]

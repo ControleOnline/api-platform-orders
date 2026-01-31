@@ -73,7 +73,7 @@ class OrderProduct
 
     #[ORM\ManyToOne(targetEntity: Order::class)]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product_queue:read', 'order_product:write', 'order_product:read'])]
     private $order;
 
     #[ORM\ManyToOne(targetEntity: Product::class)]

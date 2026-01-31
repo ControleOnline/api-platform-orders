@@ -40,6 +40,11 @@ use stdClass;
             security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
             normalizationContext: ['groups' => ['order:read']],
         ),
+        new GetCollection(
+            uriTemplate: '/orders-queue',
+            security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
+            normalizationContext: ['groups' => ['orders-queue:read']],
+        ),
         new Post(
             security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
             validationContext: ['groups' => ['order:write']],
@@ -109,22 +114,23 @@ class Order
     #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'IDENTITY')]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'company_expense:read', 'coupon:read', 'logistic:read', 'order_invoice:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'company_expense:read', 'coupon:read', 'logistic:read', 'order_invoice:read'])]
     private $id;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['client' => 'exact'])]
     #[ORM\JoinColumn(name: 'client_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: People::class)]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write',  'invoice:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write',  'invoice:read'])]
     private $client;
 
     #[ApiFilter(DateFilter::class, properties: ['orderDate'])]
     #[ORM\Column(name: 'order_date', type: 'datetime', nullable: false, columnDefinition: 'DATETIME')]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $orderDate;
 
     #[ORM\OneToMany(targetEntity: OrderProduct::class, mappedBy: 'order', cascade: ['persist'])]
     #[Groups(['order_details:read', 'order:write', 'order:write'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProducts.orderProductQueues.status' => 'exact'])]
     private $orderProducts;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
@@ -141,28 +147,28 @@ class Order
 
     #[ApiFilter(DateFilter::class, properties: ['alterDate'])]
     #[ORM\Column(name: 'alter_date', type: 'datetime', nullable: false)]
-    #[Groups(['display:read', 'order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    #[Groups(['display:read', 'order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $alterDate;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
     #[ORM\JoinColumn(name: 'status_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: Status::class)]
-    #[Groups(['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $status;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
     #[ORM\Column(name: 'order_type', type: 'string', nullable: true)]
-    #[Groups(['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $orderType;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
     #[ORM\Column(name: 'app', type: 'string', nullable: true)]
-    #[Groups(['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $app = 'Manual';
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['otherInformations' => 'exact'])]
     #[ORM\Column(name: 'other_informations', type: 'json', nullable: true)]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $otherInformations;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrder' => 'exact'])]
@@ -172,19 +178,19 @@ class Order
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrderId' => 'exact'])]
     #[ORM\Column(name: 'main_order_id', type: 'integer', nullable: true)]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $mainOrderId;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['payer' => 'exact'])]
     #[ORM\JoinColumn(name: 'payer_people_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: People::class)]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write',  'invoice:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write',  'invoice:read'])]
     private $payer;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['provider' => 'exact'])]
     #[ORM\JoinColumn(name: 'provider_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: People::class)]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write',  'invoice:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write',  'invoice:read'])]
     private $provider;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['addressOrigin' => 'exact'])]
@@ -211,12 +217,12 @@ class Order
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['price' => 'exact'])]
     #[ORM\Column(name: 'price', type: 'float', nullable: false)]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $price = 0;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['comments' => 'exact'])]
     #[ORM\Column(name: 'comments', type: 'string', nullable: true)]
-    #[Groups(['order_product_queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $comments;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['notified' => 'exact'])]
@@ -226,7 +232,7 @@ class Order
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['user' => 'exact'])]
     #[ORM\JoinColumn(nullable: true)]
     #[ORM\ManyToOne(targetEntity: User::class)]
-    #[Groups(['order_product_queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $user;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['device' => 'exact', 'device.device' => 'exact'])]

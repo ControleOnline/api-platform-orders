@@ -20,6 +20,8 @@ class OrderService
         private Security $security,
         private PeopleService $peopleService,
         private StatusService $statusService,
+        private Food99Service $food99Service,
+        private iFoodService $iFoodService,
         RequestStack $requestStack
     ) {
         $this->request  = $requestStack->getCurrentRequest();
@@ -120,5 +122,14 @@ class OrderService
             $queryBuilder->andWhere(sprintf('%s.client IN(:client)', $rootAlias));
             $queryBuilder->setParameter('client', preg_replace("/[^0-9]/", "", $client));
         }
+    }
+
+    public function postUpdate(Order $order)
+    {
+        if ($order->getApp() == '99Food')
+            $this->food99Service->changeStatus($order);
+
+        if ($order->getApp() == 'iFood')
+            $this->iFoodService->changeStatus($order);
     }
 }

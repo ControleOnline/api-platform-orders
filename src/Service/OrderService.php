@@ -10,6 +10,8 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInt
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Doctrine\DBAL\Types\Type;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use ControleOnline\Event\OrderUpdatedEvent;
 
 class OrderService
 {
@@ -20,8 +22,7 @@ class OrderService
         private Security $security,
         private PeopleService $peopleService,
         private StatusService $statusService,
-        //private Food99Service $food99Service,
-        //private iFoodService $iFoodService,
+        private EventDispatcherInterface $dispatcher,
         RequestStack $requestStack
     ) {
         $this->request  = $requestStack->getCurrentRequest();
@@ -126,10 +127,6 @@ class OrderService
 
     public function postUpdate(Order $order)
     {
-        //if ($order->getApp() == '99Food')
-        //    $this->food99Service->changeStatus($order);
-
-        //if ($order->getApp() == 'iFood')
-        //    $this->iFoodService->changeStatus($order);
+        $this->dispatcher->dispatch(new OrderUpdatedEvent($order));
     }
 }

@@ -127,6 +127,6 @@ class OrderService
 
     public function postUpdate(Order $order)
     {
-        $this->dispatcher->dispatch(new OrderUpdatedEvent($order));
+        $this->dispatcher->dispatch((new OrderUpdatedEvent())->setOrder($order));
     }
 }

@@ -16,7 +16,4 @@ services:
         resource: '../../src/Command'
         tags: ['console.command']
     ControleOnline\Filter\:
-        resource: '../../src/Filter'            
-    ControleOnline\Event\OrderUpdatedEvent:
-        abstract: true
-        autowire: false
+        resource: '../../src/Filter'

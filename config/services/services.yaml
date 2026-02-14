@@ -19,3 +19,4 @@ services:
         resource: '../../src/Filter'            
     ControleOnline\Event\OrderUpdatedEvent:
         abstract: true
+        autowire: false

@@ -117,6 +117,9 @@ class Order
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'company_expense:read', 'coupon:read', 'logistic:read', 'order_invoice:read'])]
     private $id;
 
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'company_expense:read', 'coupon:read', 'logistic:read', 'order_invoice:read'])]
+    private $extraData = null;
+
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['client' => 'exact'])]
     #[ORM\JoinColumn(name: 'client_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: People::class)]
@@ -129,7 +132,7 @@ class Order
     private $orderDate;
 
     #[ORM\OneToMany(targetEntity: OrderProduct::class, mappedBy: 'order', cascade: ['persist'])]
-    #[Groups(['order_details:read','orders-queue:read', 'order:write', 'order:write'])]
+    #[Groups(['order_details:read', 'orders-queue:read', 'order:write', 'order:write'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProducts.orderProductQueues.status' => 'exact'])]
     private $orderProducts;
 
@@ -639,5 +642,16 @@ class Order
     {
         $this->device = $device;
         return $this;
+    }
+
+    public function setExtraData($extraData): self
+    {
+        $this->extraData = $extraData;
+        return $this;
+    }
+
+    public function getExtraData()
+    {
+        return $this->extraData;
     }
 }

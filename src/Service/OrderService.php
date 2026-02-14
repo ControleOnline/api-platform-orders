@@ -20,8 +20,8 @@ class OrderService
         private Security $security,
         private PeopleService $peopleService,
         private StatusService $statusService,
-        private Food99Service $food99Service,
-        private iFoodService $iFoodService,
+        //private Food99Service $food99Service,
+        //private iFoodService $iFoodService,
         RequestStack $requestStack
     ) {
         $this->request  = $requestStack->getCurrentRequest();
@@ -126,10 +126,10 @@ class OrderService
 
     public function postUpdate(Order $order)
     {
-        if ($order->getApp() == '99Food')
-            $this->food99Service->changeStatus($order);
+        //if ($order->getApp() == '99Food')
+        //    $this->food99Service->changeStatus($order);
 
-        if ($order->getApp() == 'iFood')
-            $this->iFoodService->changeStatus($order);
+        //if ($order->getApp() == 'iFood')
+        //    $this->iFoodService->changeStatus($order);
     }
 }

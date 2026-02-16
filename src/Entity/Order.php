@@ -30,6 +30,7 @@ use stdClass;
     operations: [
         new Get(
             security: 'is_granted(\'ROLE_CLIENT\')',
+            normalizationContext: ['groups' => ['order_details:read']],
         ),
         new GetCollection(
             security: 'is_granted(\'PUBLIC_ACCESS\')',
@@ -77,7 +78,7 @@ use stdClass;
 
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
-    normalizationContext: ['groups' => ['order_details:read']],
+    normalizationContext: ['groups' => ['order:read']],
     denormalizationContext: ['groups' => ['order:write']],
     // AleMac // 06/12/2025 // ordenação padrão alterada para alterDate
     order: ['alterDate' => 'DESC', 'id', 'orderDate', 'provider', 'app', 'orderType', 'status', 'client']

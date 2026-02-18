@@ -155,6 +155,7 @@ class Order
     private $alterDate;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['status.realStatus' => 'exact'])]
     #[ORM\JoinColumn(name: 'status_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: Status::class)]
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]

@@ -134,7 +134,7 @@ class OrderPrintService
             'device' => $device->getId()
         ]);
 
-        $printForm = ($device_configs->getConfigs(true)['print-mode'] ?? 'order') == 'form';
+        $printForm = ($device_configs?->getConfigs(true)['print-mode'] ?? 'order') == 'form';
 
         $this->printService->addLine("PEDIDO #" . $order->getId());
         $this->printService->addLine($order->getOrderDate()->format('d/m/Y H:i'));

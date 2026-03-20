@@ -36,6 +36,10 @@ class PrintOrderAction
             $device = $this->entityManager->getRepository(Device::class)->findOneBy([
                 'device' => $data['device']
             ]);
+            
+            if (!$device) {
+                return new JsonResponse(['error' => 'Device not found'], 404);
+            }
 
             $printData = $this->print->generatePrintData($order, $device);
             return new JsonResponse($this->hydratorService->item(Spool::class, $printData->getId(), "spool_item:read"), Response::HTTP_OK);

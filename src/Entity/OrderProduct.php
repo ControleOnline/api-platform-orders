@@ -100,12 +100,12 @@ class OrderProduct
 
     #[ORM\ManyToOne(targetEntity: self::class, inversedBy: 'orderProductComponents')]
     #[ORM\JoinColumn(name: 'order_product_id', nullable: true)]
-    #[Groups(['order_product:write','order_product:read'])]
+    #[Groups(['order_product:write', 'order_product:read'])]
     private $orderProduct;
 
     #[ORM\ManyToOne(targetEntity: ProductGroup::class)]
     #[ORM\JoinColumn(nullable: true)]
-    #[Groups(['order_product:write','orders-queue:read', 'order_product:read'])]
+    #[Groups(['order_product:write', 'orders-queue:read', 'order_product:read'])]
     private $productGroup;
 
     #[ORM\OneToMany(targetEntity: self::class, mappedBy: 'orderProduct')]
@@ -113,7 +113,7 @@ class OrderProduct
     private $orderProductComponents;
 
     #[ORM\OneToMany(targetEntity: OrderProductQueue::class, mappedBy: 'order_product')]
-    #[Groups(['order_product:read', 'orders-queue:read','order_details:read'])]
+    #[Groups(['order_product:read', 'orders-queue:read', 'order_details:read'])]
     private $orderProductQueues;
 
     #[ORM\Column(type: 'float')]
@@ -127,6 +127,10 @@ class OrderProduct
     #[ORM\Column(type: 'float')]
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
     private $total = 0;
+
+    #[ORM\Column(name: 'comment', type: 'string',  nullable: true)]
+    #[Groups(['product:read', 'orders-queue:read', 'product:write'])]
+    private $comment;
 
     public function __construct()
     {
@@ -300,6 +304,18 @@ class OrderProduct
     public function setTotal($total): self
     {
         $this->total = $total;
+        return $this;
+    }
+
+    public function getComment()
+    {
+        return $this->comment;
+    }
+
+    public function setComment($comment): self
+    {
+        $this->comment = $comment;
+
         return $this;
     }
 }

@@ -42,6 +42,18 @@ class PrintOrderAction
             }
 
             $printData = $this->print->generatePrintData($order, $device);
+
+            /*
+             * Preview temporário do payload montado para impressão.
+             * Descomente o return abaixo para a API devolver o conteúdo bruto
+             * salvo no spool, em vez do JSON padrão da entidade.
+             *
+             * return new JsonResponse(
+             *     json_decode($printData->getFile()->getContent(true), true),
+             *     Response::HTTP_OK
+             * );
+             */
+
             return new JsonResponse($this->hydratorService->item(Spool::class, $printData->getId(), "spool_item:read"), Response::HTTP_OK);
         } catch (Exception $e) {
             return new JsonResponse($this->hydratorService->error($e));

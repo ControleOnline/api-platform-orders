@@ -76,7 +76,7 @@ class DiscoveryCart
                     $order = new Order();
                     $order->setStatus($status);
                     $order->setClient($client);
-                    $order->setOrderType('order');
+                    $order->setOrderType('sale');
                     $order->setApp('SHOP');
                     $order->setProvider($provider);                    
                     $this->manager->persist($order);

@@ -169,7 +169,7 @@ class Order
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
     #[ORM\Column(name: 'app', type: 'string', nullable: true)]
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
-    private $app = 'Manual';
+    private $app = 'POS';
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['otherInformations' => 'exact'])]
     #[ORM\Column(name: 'other_informations', type: 'json', nullable: true)]

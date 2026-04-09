@@ -42,21 +42,7 @@ class PrintOrderAction
             }
 
             $printData = $this->print->generatePrintData($order, $device);
-
-            // ALEMAC // 03/04/2026
-            //\\//\\ ATENÇÃO //\\//\\
-            // Altere para true quando quiser mostrar o preview temporário no retorno da API.
-            $preview = true;
-
-            $response = [
-                'spool' => $this->hydratorService->item(Spool::class, $printData->getId(), "spool_item:read"),
-            ];
-
-            if ($preview) {
-                $response['preview'] = json_decode($printData->getFile()->getContent(true), true);
-            }
-
-            return new JsonResponse($response, Response::HTTP_OK);
+            return new JsonResponse($this->hydratorService->item(Spool::class, $printData->getId(), "spool_item:read"), Response::HTTP_OK);
         } catch (Exception $e) {
             return new JsonResponse($this->hydratorService->error($e));
         }

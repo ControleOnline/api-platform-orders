@@ -2,9 +2,10 @@
 
 namespace ControleOnline\Service;
 
-use ControleOnline\Entity\ExtraFields;
+use ControleOnline\Entity\DeviceConfig;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
+use ControleOnline\Service\Client\WebsocketClient;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
 use Doctrine\ORM\QueryBuilder;
@@ -21,6 +22,7 @@ class OrderService
         private Security $security,
         private PeopleService $peopleService,
         private StatusService $statusService,
+        private WebsocketClient $websocketClient,
         RequestStack $requestStack
     ) {
         $this->request  = $requestStack->getCurrentRequest();
@@ -123,5 +125,46 @@ class OrderService
         }
     }
 
+    public function postPersist(Order $order): void
+    {
+        $provider = $order->getProvider();
+        if (!$provider) {
+            return;
+        }
+
+        $this->pushToCompanyDevices($provider, [[
+            'store' => 'orders',
+            'event' => 'order.created',
+            'company' => $provider->getId(),
+            'order' => $order->getId(),
+            'sentAt' => date(DATE_ATOM),
+        ]]);
+    }
+
     public function postUpdate(Order $order) {}
+
+    private function pushToCompanyDevices(People $company, array $events): void
+    {
+        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findBy([
+            'people' => $company,
+        ]);
+
+        $payload = json_encode($events, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($payload === false) {
+            return;
+        }
+
+        $sentDevices = [];
+        foreach ($deviceConfigs as $deviceConfig) {
+            $device = $deviceConfig->getDevice();
+            $deviceId = $device->getId();
+
+            if (isset($sentDevices[$deviceId])) {
+                continue;
+            }
+
+            $sentDevices[$deviceId] = true;
+            $this->websocketClient->push($device, $payload);
+        }
+    }
 }

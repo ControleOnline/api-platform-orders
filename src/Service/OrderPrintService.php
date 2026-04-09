@@ -4,7 +4,11 @@ namespace ControleOnline\Service;
 
 use ControleOnline\Entity\Device;
 use ControleOnline\Entity\DeviceConfig;
+use ControleOnline\Entity\Document;
 use ControleOnline\Entity\Order;
+use ControleOnline\Entity\OrderProduct;
+use ControleOnline\Entity\People;
+use ControleOnline\Entity\Phone;
 use ControleOnline\Entity\Spool;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -12,6 +16,7 @@ class OrderPrintService
 {
     private string $defaultGroupName = 'ITENS';
     private string $defaultChildGroupName = 'OBSERVACOES';
+    private int $contentWidth = 40;
     private array $extraDataCache = [];
 
     public function __construct(
@@ -32,9 +37,11 @@ class OrderPrintService
             );
         }
 
-        if ($devices) {
-            $devices = $this->deviceService->findDevices($devices);
+        if (!$devices) {
+            return;
         }
+
+        $devices = $this->deviceService->findDevices($devices);
 
         foreach ($devices as $device) {
             $this->generatePrintData($order, $device);
@@ -43,10 +50,6 @@ class OrderPrintService
 
     public function generatePrintData(Order $order, Device $device, ?array $aditionalData = []): Spool
     {
-        if (method_exists($this->printService, 'reset')) {
-            $this->printService->reset();
-        }
-
         $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findOneBy([
             'device' => $device->getId(),
         ]);
@@ -54,13 +57,13 @@ class OrderPrintService
         $printMode = $deviceConfigs?->getConfigs(true)['print-mode'] ?? 'order';
         $printForm = $printMode === 'form';
 
-        $this->printProviderHeader($order);
+        $this->printProviderHeader($order->getProvider());
         $this->printOrderHeader($order, $printForm);
         $this->printMarketplaceHeader($order);
         $this->printOrderComments($order, $printForm);
         $this->printSeparator();
 
-        $groups = $this->getProductGroups($order);
+        $groups = $this->getGroups($order);
         $this->printGroups($groups, $printForm);
 
         $this->printFooter($order, $printForm);
@@ -72,19 +75,23 @@ class OrderPrintService
         );
     }
 
-    private function printProviderHeader(Order $order): void
+    private function printProviderHeader(?People $provider): void
     {
-        $provider = $order->getProvider();
-        if (!$provider) {
+        if ($provider === null) {
             return;
         }
 
         $providerName = $this->resolvePeopleName($provider);
+        $providerAlias = trim($provider->getAlias());
         $providerDocument = $this->resolvePeopleDocument($provider);
         $providerPhone = $this->resolvePeoplePhone($provider);
 
         if ($providerName !== '') {
-            $this->printService->addLine($this->upper($providerName));
+            $this->printService->addLine($providerName);
+        }
+
+        if ($providerAlias !== '' && $providerAlias !== $providerName) {
+            $this->printService->addLine($providerAlias);
         }
 
         if ($providerDocument !== '') {
@@ -100,23 +107,23 @@ class OrderPrintService
 
     private function printOrderHeader(Order $order, bool $printForm): void
     {
-        $app = $this->normalizeText((string) ($order->getApp() ?? 'POS'));
-        $orderType = $this->normalizeText((string) ($order->getOrderType() ?? ''));
-        $clientName = $this->resolvePeopleName($order->getClient());
+        $app = trim((string) $order->getApp());
+        $orderType = trim((string) $order->getOrderType());
+        $clientName = $order->getClient() ? $this->resolvePeopleName($order->getClient()) : 'NAO INFORMADO';
 
         $this->printService->addLine('PEDIDO #' . $order->getId());
         $this->printService->addLine($order->getOrderDate()->format('d/m/Y H:i'));
 
         if ($app !== '') {
-            $this->printService->addLine('APP: ' . $this->upper($app));
+            $this->printService->addLine('APP: ' . strtoupper($app));
         }
 
         if ($orderType !== '') {
-            $this->printService->addLine('TIPO: ' . $this->upper($orderType));
+            $this->printService->addLine('TIPO: ' . strtoupper($orderType));
         }
 
         if (!$printForm) {
-            $this->printService->addLine('CLIENTE: ' . ($clientName ?: 'NAO INFORMADO'));
+            $this->printService->addLine('CLIENTE: ' . $clientName);
         }
     }
 
@@ -158,6 +165,7 @@ class OrderPrintService
         ];
 
         $printed = false;
+
         foreach ($labels as $field => $label) {
             $value = trim((string) ($data[$field] ?? ''));
             if ($value === '') {
@@ -165,7 +173,7 @@ class OrderPrintService
             }
 
             if (in_array($field, ['amount_paid', 'amount_pending'], true) && is_numeric($value)) {
-                $value = 'R$ ' . number_format((float) $value, 2, ',', '.');
+                $value = $this->formatMoney((float) $value);
             }
 
             $this->printWrappedLabelValue($label, $value);
@@ -183,7 +191,7 @@ class OrderPrintService
             return;
         }
 
-        $comments = trim((string) ($order->getComments() ?? ''));
+        $comments = trim((string) $order->getComments());
         if ($comments === '') {
             return;
         }
@@ -193,32 +201,59 @@ class OrderPrintService
         $this->printWrappedBlock('', $comments);
     }
 
-    private function getProductGroups(Order $order): array
+    private function getGroups(Order $order): array
     {
         $groups = [];
+        $sequence = 0;
 
         foreach ($order->getOrderProducts() as $orderProduct) {
             if ($orderProduct->getOrderProduct() !== null) {
                 continue;
             }
 
-            $groupName = $this->resolveParentGroupName($orderProduct);
+            $groupOrder = 9999;
+            $groupName = $this->resolveOrderProductGroupName(
+                $orderProduct,
+                $this->defaultGroupName,
+                $groupOrder
+            );
+
             if (!isset($groups[$groupName])) {
-                $groups[$groupName] = [];
+                $groups[$groupName] = [
+                    'name' => $groupName,
+                    'groupOrder' => $groupOrder,
+                    'sequence' => $sequence++,
+                    'items' => [],
+                ];
             }
 
-            $groups[$groupName][] = $orderProduct;
+            $groups[$groupName]['items'][] = $orderProduct;
         }
 
-        return $groups;
+        return $this->sortGroupedItems($groups);
+    }
+
+    private function sortGroupedItems(array $groups): array
+    {
+        $groupList = array_values($groups);
+
+        usort($groupList, function (array $left, array $right): int {
+            if ($left['groupOrder'] === $right['groupOrder']) {
+                return $left['sequence'] <=> $right['sequence'];
+            }
+
+            return $left['groupOrder'] <=> $right['groupOrder'];
+        });
+
+        return $groupList;
     }
 
     private function printGroups(array $groups, bool $printForm): void
     {
-        foreach ($groups as $groupName => $orderProducts) {
-            $this->printService->addLine($this->upper($groupName));
+        foreach ($groups as $group) {
+            $this->printService->addLine(strtoupper($group['name']));
 
-            foreach ($orderProducts as $orderProduct) {
+            foreach ($group['items'] as $orderProduct) {
                 if ($printForm) {
                     $this->printFormItem($orderProduct);
                     continue;
@@ -231,66 +266,87 @@ class OrderPrintService
         }
     }
 
-    private function printRegularItem(object $orderProduct): void
+    private function printRegularItem(OrderProduct $orderProduct): void
     {
-        $product = $orderProduct->getProduct();
-        $name = $this->normalizeText((string) $product->getProduct());
+        $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
 
         $this->printService->addLine(
-            (int) $orderProduct->getQuantity() . 'x ' . $name,
-            'R$ ' . number_format((float) $orderProduct->getTotal(), 2, ',', '.'),
+            $this->formatQuantity((float) $orderProduct->getQuantity()) . 'x ' . $productName,
+            $this->formatMoney((float) $orderProduct->getTotal()),
             '.'
         );
 
+        $this->printOrderProductComment($orderProduct);
         $this->printChildren($orderProduct->getOrderProductComponents());
         $this->printSeparator();
     }
 
-    private function printFormItem(object $orderProduct): void
+    private function printFormItem(OrderProduct $orderProduct): void
     {
-        $product = $orderProduct->getProduct();
-        $name = $this->normalizeText((string) $product->getProduct());
-        $quantity = max(1, (int) $orderProduct->getQuantity());
+        $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
+        $quantity = (int) max(1, (float) $orderProduct->getQuantity());
 
         for ($i = 0; $i < $quantity; $i++) {
             $this->printService->addLine(
-                '1x ' . $name,
-                'R$ ' . number_format((float) $orderProduct->getPrice(), 2, ',', '.'),
+                '1x ' . $productName,
+                $this->formatMoney((float) $orderProduct->getPrice()),
                 '.'
             );
 
+            $this->printOrderProductComment($orderProduct);
             $this->printChildren($orderProduct->getOrderProductComponents());
             $this->printSeparator();
         }
     }
 
-    private function printChildren(iterable $children): void
+    private function printOrderProductComment(OrderProduct $orderProduct): void
     {
-        $groupedChildren = [];
-
-        foreach ($children as $child) {
-            $groupName = $this->resolveChildGroupName($child);
-            if (!isset($groupedChildren[$groupName])) {
-                $groupedChildren[$groupName] = [];
-            }
-
-            $groupedChildren[$groupName][] = $child;
+        $comment = trim((string) $orderProduct->getComment());
+        if ($comment === '') {
+            return;
         }
 
-        foreach ($groupedChildren as $groupName => $items) {
-            if ($groupName !== $this->defaultChildGroupName) {
-                $this->printService->addLine('  ' . $this->upper($groupName) . ':');
+        $this->printWrappedBlock('   OBS: ', $comment);
+    }
+
+    private function printChildren(iterable $children): void
+    {
+        $groups = [];
+        $sequence = 0;
+
+        foreach ($children as $child) {
+            $groupOrder = 9999;
+            $groupName = $this->resolveOrderProductGroupName(
+                $child,
+                $this->defaultChildGroupName,
+                $groupOrder
+            );
+
+            if (!isset($groups[$groupName])) {
+                $groups[$groupName] = [
+                    'name' => $groupName,
+                    'groupOrder' => $groupOrder,
+                    'sequence' => $sequence++,
+                    'items' => [],
+                ];
             }
 
-            foreach ($items as $item) {
-                $itemName = $this->normalizeText((string) $item->getProduct()->getProduct());
-                $quantity = method_exists($item, 'getQuantity') ? (int) $item->getQuantity() : 1;
+            $groups[$groupName]['items'][] = $child;
+        }
 
-                $prefix = $quantity > 1
-                    ? '   * ' . $quantity . 'x '
-                    : '   * ';
+        $groups = $this->sortGroupedItems($groups);
 
-                $this->printWrappedBlock($prefix, $itemName);
+        foreach ($groups as $group) {
+            if ($group['name'] !== $this->defaultChildGroupName) {
+                $this->printService->addLine('  ' . strtoupper($group['name']) . ':');
+            }
+
+            foreach ($group['items'] as $child) {
+                $line = $this->formatQuantity((float) $child->getQuantity()) . 'x ' .
+                    $this->normalizeText($child->getProduct()->getProduct());
+
+                $this->printWrappedBlock('   * ', $line);
+                $this->printOrderProductComment($child);
             }
         }
     }
@@ -300,7 +356,7 @@ class OrderPrintService
         if (!$printForm) {
             $this->printService->addLine(
                 'TOTAL',
-                'R$ ' . number_format((float) $order->getPrice(), 2, ',', '.'),
+                $this->formatMoney((float) $order->getPrice()),
                 '.'
             );
         }
@@ -311,20 +367,20 @@ class OrderPrintService
     private function getIfoodPrintData(Order $order): array
     {
         return [
-            'code' => $this->getExtraDataValue($order, ['ifood'], 'code'),
-            'merchant_id' => $this->getExtraDataValue($order, ['ifood'], 'merchant_id'),
-            'pickup_code' => $this->getExtraDataValue($order, ['ifood'], 'pickup_code'),
-            'handover_code' => $this->getExtraDataValue($order, ['ifood'], 'handover_code'),
-            'locator' => $this->getExtraDataValue($order, ['ifood'], 'locator'),
-            'virtual_phone' => $this->getExtraDataValue($order, ['ifood'], 'virtual_phone'),
-            'customer_phone' => $this->getExtraDataValue($order, ['ifood'], 'customer_phone'),
-            'selected_payment_label' => $this->getExtraDataValue($order, ['ifood'], 'selected_payment_label'),
-            'amount_paid' => $this->getExtraDataValue($order, ['ifood'], 'amount_paid'),
-            'amount_pending' => $this->getExtraDataValue($order, ['ifood'], 'amount_pending'),
-            'address_display' => $this->getExtraDataValue($order, ['ifood'], 'address_display'),
-            'remark' => $this->getExtraDataValue($order, ['ifood'], 'remark'),
-            'delivered_by' => $this->getExtraDataValue($order, ['ifood'], 'delivered_by'),
-            'delivery_mode' => $this->getExtraDataValue($order, ['ifood'], 'delivery_mode'),
+            'code' => $this->getMarketplaceField($order, ['ifood'], 'code'),
+            'merchant_id' => $this->getMarketplaceField($order, ['ifood'], 'merchant_id'),
+            'pickup_code' => $this->getMarketplaceField($order, ['ifood'], 'pickup_code'),
+            'handover_code' => $this->getMarketplaceField($order, ['ifood'], 'handover_code'),
+            'locator' => $this->getMarketplaceField($order, ['ifood'], 'locator'),
+            'virtual_phone' => $this->getMarketplaceField($order, ['ifood'], 'virtual_phone'),
+            'customer_phone' => $this->getMarketplaceField($order, ['ifood'], 'customer_phone'),
+            'selected_payment_label' => $this->getMarketplaceField($order, ['ifood'], 'selected_payment_label'),
+            'amount_paid' => $this->getMarketplaceField($order, ['ifood'], 'amount_paid'),
+            'amount_pending' => $this->getMarketplaceField($order, ['ifood'], 'amount_pending'),
+            'address_display' => $this->getMarketplaceField($order, ['ifood'], 'address_display'),
+            'remark' => $this->getMarketplaceField($order, ['ifood'], 'remark'),
+            'delivered_by' => $this->getMarketplaceField($order, ['ifood'], 'delivered_by'),
+            'delivery_mode' => $this->getMarketplaceField($order, ['ifood'], 'delivery_mode'),
         ];
     }
 
@@ -333,222 +389,162 @@ class OrderPrintService
         $contexts = ['99', '99food'];
 
         return [
-            'code' => $this->getExtraDataValue($order, $contexts, 'code'),
-            'merchant_id' => $this->getExtraDataValue($order, $contexts, 'merchant_id'),
-            'pickup_code' => $this->getExtraDataValue($order, $contexts, 'pickup_code'),
-            'handover_code' => $this->getExtraDataValue($order, $contexts, 'handover_code'),
-            'locator' => $this->getExtraDataValue($order, $contexts, 'locator'),
-            'virtual_phone' => $this->getExtraDataValue($order, $contexts, 'virtual_phone'),
-            'customer_phone' => $this->getExtraDataValue($order, $contexts, 'customer_phone'),
-            'selected_payment_label' => $this->getExtraDataValue($order, $contexts, 'selected_payment_label'),
-            'amount_paid' => $this->getExtraDataValue($order, $contexts, 'amount_paid'),
-            'amount_pending' => $this->getExtraDataValue($order, $contexts, 'amount_pending'),
-            'address_display' => $this->getExtraDataValue($order, $contexts, 'address_display'),
-            'remark' => $this->getExtraDataValue($order, $contexts, 'remark'),
-            'delivered_by' => $this->getExtraDataValue($order, $contexts, 'delivered_by'),
-            'delivery_mode' => $this->getExtraDataValue($order, $contexts, 'delivery_mode'),
+            'code' => $this->getMarketplaceField($order, $contexts, 'code'),
+            'merchant_id' => $this->getMarketplaceField($order, $contexts, 'merchant_id'),
+            'pickup_code' => $this->getMarketplaceField($order, $contexts, 'pickup_code'),
+            'handover_code' => $this->getMarketplaceField($order, $contexts, 'handover_code'),
+            'locator' => $this->getMarketplaceField($order, $contexts, 'locator'),
+            'virtual_phone' => $this->getMarketplaceField($order, $contexts, 'virtual_phone'),
+            'customer_phone' => $this->getMarketplaceField($order, $contexts, 'customer_phone'),
+            'selected_payment_label' => $this->getMarketplaceField($order, $contexts, 'selected_payment_label'),
+            'amount_paid' => $this->getMarketplaceField($order, $contexts, 'amount_paid'),
+            'amount_pending' => $this->getMarketplaceField($order, $contexts, 'amount_pending'),
+            'address_display' => $this->getMarketplaceField($order, $contexts, 'address_display'),
+            'remark' => $this->getMarketplaceField($order, $contexts, 'remark'),
+            'delivered_by' => $this->getMarketplaceField($order, $contexts, 'delivered_by'),
+            'delivery_mode' => $this->getMarketplaceField($order, $contexts, 'delivery_mode'),
         ];
     }
 
-    private function getExtraDataValue(Order $order, array $contexts, string $fieldName): ?string
+    private function getMarketplaceField(Order $order, array $contexts, string $fieldName): string
     {
-        $map = $this->getOrderExtraDataMap($order);
+        $extraDataMap = $this->getExtraDataMap($order);
 
         foreach ($contexts as $context) {
-            $normalizedContext = strtolower(trim((string) $context));
-            $value = $map[$normalizedContext][$fieldName] ?? null;
-            if ($value !== null && $value !== '') {
+            $normalizedContext = strtolower(trim($context));
+            $value = trim((string) ($extraDataMap[$normalizedContext][$fieldName] ?? ''));
+            if ($value !== '') {
                 return $value;
             }
         }
 
-        $otherInformations = $this->decodeOtherInformations($order);
         foreach ($contexts as $context) {
-            foreach ($otherInformations as $key => $value) {
-                if (strtolower((string) $key) !== strtolower((string) $context)) {
-                    continue;
-                }
-
-                if (is_array($value) && isset($value[$fieldName]) && $value[$fieldName] !== '') {
-                    return (string) $value[$fieldName];
-                }
+            $contextData = $this->getContextFromOtherInformations($order, $context);
+            $value = trim((string) ($contextData[$fieldName] ?? ''));
+            if ($value !== '') {
+                return $value;
             }
         }
 
-        return null;
+        return '';
     }
 
-    private function getOrderExtraDataMap(Order $order): array
+    private function getExtraDataMap(Order $order): array
     {
         $orderId = (int) $order->getId();
+
         if (isset($this->extraDataCache[$orderId])) {
             return $this->extraDataCache[$orderId];
         }
 
         $map = [];
-        foreach ($this->extraDataService->getExtraDataFromEntity($order) as $extraData) {
-            if (!method_exists($extraData, 'getExtraFields') || !method_exists($extraData, 'getValue')) {
+        $extraDataList = $this->extraDataService->getExtraDataFromEntity($order);
+
+        foreach ($extraDataList as $extraData) {
+            $extraFields = $extraData->getExtraFields();
+            if ($extraFields === null) {
                 continue;
             }
 
-            $extraField = $extraData->getExtraFields();
-            if (!$extraField) {
-                continue;
-            }
-
-            $context = '';
-            if (method_exists($extraField, 'getContext')) {
-                $context = trim((string) $extraField->getContext());
-            }
-
-            $name = '';
-            if (method_exists($extraField, 'getName')) {
-                $name = trim((string) $extraField->getName());
-            } elseif (method_exists($extraField, 'getFieldName')) {
-                $name = trim((string) $extraField->getFieldName());
-            }
+            $context = strtolower(trim((string) $extraFields->getContext()));
+            $name = trim((string) $extraFields->getName());
+            $value = trim((string) $extraData->getValue());
 
             if ($context === '' || $name === '') {
                 continue;
             }
 
-            $map[strtolower($context)][$name] = (string) $extraData->getValue();
+            if (!isset($map[$context])) {
+                $map[$context] = [];
+            }
+
+            $map[$context][$name] = $value;
         }
 
         $this->extraDataCache[$orderId] = $map;
+
         return $map;
     }
 
-    private function decodeOtherInformations(Order $order): array
+    private function getContextFromOtherInformations(Order $order, string $context): array
     {
-        try {
-            $value = $order->getOtherInformations(true);
+        $otherInformations = $order->getOtherInformations(true);
+        $otherInformations = json_decode(json_encode($otherInformations), true);
+
+        if (!is_array($otherInformations)) {
+            return [];
+        }
+
+        foreach ($otherInformations as $key => $value) {
+            if (strtolower((string) $key) !== strtolower($context)) {
+                continue;
+            }
 
             if (is_array($value)) {
                 return $value;
             }
-
-            if (is_object($value)) {
-                $decoded = json_decode(json_encode($value), true);
-                return is_array($decoded) ? $decoded : [];
-            }
-
-            if (is_string($value)) {
-                $decoded = json_decode($value, true);
-                return is_array($decoded) ? $decoded : [];
-            }
-        } catch (\Throwable) {
         }
 
         return [];
     }
 
-    private function resolveParentGroupName(object $orderProduct): string
+    private function resolvePeopleName(People $people): string
     {
-        if (method_exists($orderProduct, 'getProductGroup')) {
-            $group = $orderProduct->getProductGroup();
-            if ($group && method_exists($group, 'getProductGroup')) {
-                $name = trim((string) $group->getProductGroup());
-                if ($name !== '') {
-                    return $name;
-                }
-            }
+        $name = trim($people->getName());
+        if ($name !== '') {
+            return $name;
         }
 
-        $product = method_exists($orderProduct, 'getProduct') ? $orderProduct->getProduct() : null;
-        if ($product && method_exists($product, 'getProductGroup')) {
-            $group = $product->getProductGroup();
-            if ($group && method_exists($group, 'getProductGroup')) {
-                $name = trim((string) $group->getProductGroup());
-                if ($name !== '') {
-                    return $name;
-                }
-            }
-        }
-
-        return $this->defaultGroupName;
+        return trim($people->getAlias());
     }
 
-    private function resolveChildGroupName(object $orderProduct): string
+    private function resolvePeopleDocument(People $people): string
     {
-        if (method_exists($orderProduct, 'getProductGroup')) {
-            $group = $orderProduct->getProductGroup();
-            if ($group && method_exists($group, 'getProductGroup')) {
-                $name = trim((string) $group->getProductGroup());
-                if ($name !== '') {
-                    return $name;
-                }
-            }
-        }
+        $document = $people->getOneDocument();
 
-        return $this->defaultChildGroupName;
-    }
-
-    private function resolvePeopleName(object|null $people): string
-    {
-        if (!$people) {
+        if (!$document instanceof Document) {
             return '';
         }
 
-        foreach (['getFantasyName', 'getName', 'getCompanyName', 'getSocialName', 'getAlias'] as $method) {
-            if (method_exists($people, $method)) {
-                $value = trim((string) $people->{$method}());
-                if ($value !== '') {
-                    return $value;
-                }
-            }
-        }
-
-        return '';
+        return trim($document->getDocument());
     }
 
-    private function resolvePeopleDocument(object|null $people): string
+    private function resolvePeoplePhone(People $people): string
     {
-        if (!$people) {
+        $phone = $people->getPhone()->first();
+
+        if ($phone === false) {
             return '';
         }
 
-        foreach (['getDocument', 'getDocumentNumber', 'getCpfCnpj', 'getCpf', 'getCnpj'] as $method) {
-            if (method_exists($people, $method)) {
-                $value = trim((string) $people->{$method}());
-                if ($value !== '') {
-                    return $value;
-                }
-            }
-        }
-
-        return '';
+        return $this->formatPhone($phone);
     }
 
-    private function resolvePeoplePhone(object|null $people): string
+    private function formatPhone(Phone $phone): string
     {
-        if (!$people) {
-            return '';
+        return '+' . $phone->getDdi() . ' (' . $phone->getDdd() . ') ' . $phone->getPhone();
+    }
+
+    private function resolveOrderProductGroupName(
+        OrderProduct $orderProduct,
+        string $fallbackName,
+        int &$groupOrder
+    ): string {
+        $productGroup = $orderProduct->getProductGroup();
+
+        if ($productGroup === null) {
+            $groupOrder = 9999;
+            return $fallbackName;
         }
 
-        foreach (['getPhone', 'getCellphone', 'getMobile', 'getWhatsapp'] as $method) {
-            if (!method_exists($people, $method)) {
-                continue;
-            }
+        $groupOrder = (int) $productGroup->getGroupOrder();
 
-            $value = $people->{$method}();
-
-            if (is_scalar($value)) {
-                $text = trim((string) $value);
-                if ($text !== '') {
-                    return $text;
-                }
-            }
-
-            if (is_object($value) && method_exists($value, 'getPhone')) {
-                $text = trim((string) $value->getPhone());
-                if ($text !== '') {
-                    return $text;
-                }
-            }
+        $groupName = trim($productGroup->getProductGroup());
+        if ($groupName === '') {
+            return $fallbackName;
         }
 
-        return '';
+        return $groupName;
     }
 
     private function printSeparator(): void
@@ -559,91 +555,79 @@ class OrderPrintService
     private function printWrappedLabelValue(string $label, string $value): void
     {
         $prefix = $label . ': ';
-        $continuationPrefix = str_repeat(' ', $this->stringWidth($prefix));
-        $this->printWrappedBlock($prefix, $value, $continuationPrefix);
+        $nextPrefix = str_repeat(' ', strlen($prefix));
+
+        $this->printWrappedBlock($prefix, $value, $nextPrefix);
     }
 
-    private function printWrappedBlock(string $prefix, string $text, ?string $continuationPrefix = null, int $maxWidth = 38): void
+    private function printWrappedBlock(string $firstPrefix, string $text, ?string $nextPrefix = null): void
     {
         $text = $this->normalizeText($text);
-        $continuationPrefix = $continuationPrefix ?? str_repeat(' ', $this->stringWidth($prefix));
+        $nextPrefix = $nextPrefix ?? str_repeat(' ', strlen($firstPrefix));
 
         if ($text === '') {
-            $this->printService->addLine(rtrim($prefix));
+            $this->printService->addLine(rtrim($firstPrefix));
             return;
         }
 
-        $firstWidth = max(8, $maxWidth - $this->stringWidth($prefix));
-        $continuationWidth = max(8, $maxWidth - $this->stringWidth($continuationPrefix));
+        $firstWidth = $this->contentWidth - strlen($firstPrefix);
+        $nextWidth = $this->contentWidth - strlen($nextPrefix);
 
-        $lines = $this->wrapText($text, $firstWidth, $continuationWidth);
+        if ($firstWidth < 5) {
+            $firstWidth = 5;
+        }
+
+        if ($nextWidth < 5) {
+            $nextWidth = 5;
+        }
+
+        $lines = $this->wrapText($text, $firstWidth, $nextWidth);
+
         if (empty($lines)) {
-            $this->printService->addLine(rtrim($prefix));
+            $this->printService->addLine(rtrim($firstPrefix));
             return;
         }
 
         $firstLine = array_shift($lines);
-        $this->printService->addLine($prefix . $firstLine);
+        $this->printService->addLine($firstPrefix . $firstLine);
 
         foreach ($lines as $line) {
-            $this->printService->addLine($continuationPrefix . $line);
+            $this->printService->addLine($nextPrefix . $line);
         }
     }
 
-    private function wrapText(string $text, int $firstWidth, ?int $nextWidth = null): array
+    private function wrapText(string $text, int $firstWidth, int $nextWidth): array
     {
-        $nextWidth ??= $firstWidth;
-        $text = $this->normalizeText($text);
-
-        if ($text === '') {
-            return [];
-        }
-
-        $words = explode(' ', $text);
+        $words = preg_split('/\s+/', $text) ?: [];
         $lines = [];
         $current = '';
-        $currentLimit = $firstWidth;
+        $limit = $firstWidth;
 
         foreach ($words as $word) {
-            if ($this->stringWidth($word) > $currentLimit && $current === '') {
-                $parts = $this->splitLongWord($word, $currentLimit);
-                foreach ($parts as $index => $part) {
-                    $isLastPart = $index === array_key_last($parts);
-                    if ($isLastPart) {
-                        $current = $part;
-                    } else {
-                        $lines[] = $part;
-                        $currentLimit = $nextWidth;
-                    }
-                }
+            if ($word === '') {
                 continue;
             }
 
             $candidate = $current === '' ? $word : $current . ' ' . $word;
-            if ($this->stringWidth($candidate) <= $currentLimit) {
+
+            if (strlen($candidate) <= $limit) {
                 $current = $candidate;
                 continue;
             }
 
             if ($current !== '') {
                 $lines[] = $current;
+                $current = '';
+                $limit = $nextWidth;
             }
 
-            $currentLimit = $nextWidth;
-
-            if ($this->stringWidth($word) > $currentLimit) {
-                $parts = $this->splitLongWord($word, $currentLimit);
-                foreach ($parts as $index => $part) {
-                    $isLastPart = $index === array_key_last($parts);
-                    if ($isLastPart) {
-                        $current = $part;
-                    } else {
-                        $lines[] = $part;
-                    }
-                }
-            } else {
-                $current = $word;
+            while (strlen($word) > $limit) {
+                $lines[] = substr($word, 0, $limit);
+                $word = substr($word, $limit);
+                $limit = $nextWidth;
             }
+
+            $current = $word;
         }
 
         if ($current !== '') {
@@ -653,52 +637,25 @@ class OrderPrintService
         return $lines;
     }
 
-    private function splitLongWord(string $word, int $limit): array
+    private function formatQuantity(float $quantity): string
     {
-        $limit = max(1, $limit);
-        $parts = [];
-        $length = $this->stringWidth($word);
+        $formatted = number_format($quantity, 2, ',', '.');
+        $formatted = rtrim($formatted, '0');
+        $formatted = rtrim($formatted, ',');
 
-        for ($offset = 0; $offset < $length; $offset += $limit) {
-            $parts[] = $this->substring($word, $offset, $limit);
-        }
+        return $formatted === '' ? '0' : $formatted;
+    }
 
-        return $parts;
+    private function formatMoney(float $value): string
+    {
+        return 'R$ ' . number_format($value, 2, ',', '.');
     }
 
     private function normalizeText(string $text): string
     {
         $text = str_replace(["\r", "\n", "\t"], ' ', $text);
         $text = preg_replace('/\s+/', ' ', $text) ?? $text;
+
         return trim($text);
-    }
-
-    private function upper(string $text): string
-    {
-        return function_exists('mb_strtoupper')
-            ? mb_strtoupper($text, 'UTF-8')
-            : strtoupper($text);
-    }
-
-    private function stringWidth(string $text): int
-    {
-        if (function_exists('mb_strwidth')) {
-            return mb_strwidth($text, 'UTF-8');
-        }
-
-        if (function_exists('mb_strlen')) {
-            return mb_strlen($text, 'UTF-8');
-        }
-
-        return strlen($text);
-    }
-
-    private function substring(string $text, int $start, int $length): string
-    {
-        if (function_exists('mb_substr')) {
-            return mb_substr($text, $start, $length, 'UTF-8');
-        }
-
-        return substr($text, $start, $length);
     }
 }

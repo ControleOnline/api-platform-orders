@@ -7,6 +7,7 @@ use ControleOnline\Entity\People;
 use ControleOnline\Service\LoggerService;
 use ControleOnline\Service\OrderActionService;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,6 +21,7 @@ class OrderActionController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $manager,
+        private ManagerRegistry $managerRegistry,
         private Security $security,
         private OrderActionService $orderActionService,
         private LoggerService $loggerService,
@@ -138,6 +140,45 @@ class OrderActionController extends AbstractController
         }
     }
 
+    private function refreshOrder(Order $order): Order
+    {
+        try {
+            if (method_exists($this->manager, 'isOpen') && !$this->manager->isOpen()) {
+                $this->managerRegistry->resetManager();
+                $reloadedManager = $this->managerRegistry->getManagerForClass(Order::class);
+                if ($reloadedManager instanceof EntityManagerInterface) {
+                    $reloadedOrder = $reloadedManager->getRepository(Order::class)->find($order->getId());
+                    if ($reloadedOrder instanceof Order && $this->canAccessOrder($reloadedOrder)) {
+                        return $reloadedOrder;
+                    }
+                }
+
+                return $order;
+            }
+
+            $this->manager->refresh($order);
+            return $order;
+        } catch (\Throwable $e) {
+            try {
+                $reloadedManager = $this->managerRegistry->getManagerForClass(Order::class);
+                if ($reloadedManager instanceof EntityManagerInterface) {
+                    $reloadedOrder = $reloadedManager->getRepository(Order::class)->find($order->getId());
+                    if ($reloadedOrder instanceof Order && $this->canAccessOrder($reloadedOrder)) {
+                        return $reloadedOrder;
+                    }
+                }
+            } catch (\Throwable) {
+            }
+
+            $this->loggerService->getLogger('OrderAction')->warning('Order refresh failed after action', [
+                'order_id' => $order->getId(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return $order;
+        }
+    }
+
     private function safeRunOrderAction(string $action, callable $callback, Order $order): array
     {
         try {
@@ -209,6 +250,7 @@ class OrderActionController extends AbstractController
                 $reason !== '' ? $reason : null
             );
         }, $order);
+        $order = $this->refreshOrder($order);
 
         return new JsonResponse([
             'action'       => 'cancel',
@@ -228,6 +270,7 @@ class OrderActionController extends AbstractController
         $result = $this->safeRunOrderAction('confirm', function () use ($order) {
             return $this->orderActionService->confirm($order);
         }, $order);
+        $order = $this->refreshOrder($order);
 
         return new JsonResponse([
             'action'       => 'confirm',
@@ -247,6 +290,7 @@ class OrderActionController extends AbstractController
         $result = $this->safeRunOrderAction('ready', function () use ($order) {
             return $this->orderActionService->ready($order);
         }, $order);
+        $order = $this->refreshOrder($order);
 
         return new JsonResponse([
             'action'       => 'ready',
@@ -284,6 +328,7 @@ class OrderActionController extends AbstractController
                 $deferStatusUpdate
             );
         }, $order);
+        $order = $this->refreshOrder($order);
 
         return new JsonResponse([
             'action'       => 'delivered',

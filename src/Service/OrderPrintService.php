@@ -27,7 +27,7 @@ class OrderPrintService
         private ExtraDataService $extraDataService,
     ) {}
 
-    public function printOrder(Order $order, ?array $devices = []): void
+    public function printOrder(Order $order, ?array $devices = [], ?array $aditionalData = []): void
     {
         if (empty($devices)) {
             $devices = $this->configService->getConfig(
@@ -44,7 +44,7 @@ class OrderPrintService
         $devices = $this->deviceService->findDevices($devices);
 
         foreach ($devices as $device) {
-            $this->generatePrintData($order, $device);
+            $this->generatePrintData($order, $device, $aditionalData);
         }
     }
 

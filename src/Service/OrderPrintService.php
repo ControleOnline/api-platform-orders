@@ -110,12 +110,17 @@ class OrderPrintService
         $app = trim((string) $order->getApp());
         $orderType = trim((string) $order->getOrderType());
         $clientName = $order->getClient() ? $this->resolvePeopleName($order->getClient()) : 'NAO INFORMADO';
+        $platformOrderCode = $this->resolveMarketplaceOrderCode($order);
 
         $this->printService->addLine('PEDIDO #' . $order->getId());
         $this->printService->addLine($order->getOrderDate()->format('d/m/Y H:i'));
 
         if ($app !== '') {
             $this->printService->addLine('APP: ' . strtoupper($app));
+        }
+
+        if ($platformOrderCode !== '') {
+            $this->printService->addLine('PEDIDO APP: ' . $platformOrderCode);
         }
 
         if ($orderType !== '') {
@@ -148,7 +153,6 @@ class OrderPrintService
     private function printMarketplaceBlock(array $data): void
     {
         $labels = [
-            'code' => 'CODIGO',
             'merchant_id' => 'LOJA',
             'pickup_code' => 'CODIGO DE COLETA',
             'handover_code' => 'CODIGO DE ENTREGA',
@@ -404,6 +408,27 @@ class OrderPrintService
             'delivered_by' => $this->getMarketplaceField($order, $contexts, 'delivered_by'),
             'delivery_mode' => $this->getMarketplaceField($order, $contexts, 'delivery_mode'),
         ];
+    }
+
+    private function resolveMarketplaceOrderCode(Order $order): string
+    {
+        $app = strtolower(trim((string) $order->getApp()));
+
+        if ($app === 'ifood') {
+            return trim(
+                $this->getMarketplaceField($order, ['ifood'], 'code')
+                ?: $this->getMarketplaceField($order, ['ifood'], 'id')
+            );
+        }
+
+        if (in_array($app, ['99', '99food', '99 food', 'food99'], true)) {
+            return trim(
+                $this->getMarketplaceField($order, ['99', '99food', 'food99'], 'code')
+                ?: $this->getMarketplaceField($order, ['99', '99food', 'food99'], 'id')
+            );
+        }
+
+        return '';
     }
 
     private function getMarketplaceRemark(Order $order, array $contexts): string

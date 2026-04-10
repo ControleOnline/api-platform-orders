@@ -138,7 +138,7 @@ class OrderPrintService
             return;
         }
 
-        if (in_array($app, ['99', '99food', '99 food'], true)) {
+        if (in_array($app, ['99', '99food', '99 food', 'food99'], true)) {
             $this->printSeparator();
             $this->printService->addLine('DADOS 99');
             $this->printMarketplaceBlock($this->get99PrintData($order));
@@ -378,7 +378,7 @@ class OrderPrintService
             'amount_paid' => $this->getMarketplaceField($order, ['ifood'], 'amount_paid'),
             'amount_pending' => $this->getMarketplaceField($order, ['ifood'], 'amount_pending'),
             'address_display' => $this->getMarketplaceField($order, ['ifood'], 'address_display'),
-            'remark' => $this->getMarketplaceField($order, ['ifood'], 'remark'),
+            'remark' => $this->getMarketplaceRemark($order, ['ifood']),
             'delivered_by' => $this->getMarketplaceField($order, ['ifood'], 'delivered_by'),
             'delivery_mode' => $this->getMarketplaceField($order, ['ifood'], 'delivery_mode'),
         ];
@@ -386,7 +386,7 @@ class OrderPrintService
 
     private function get99PrintData(Order $order): array
     {
-        $contexts = ['99', '99food'];
+        $contexts = ['99', '99food', 'food99'];
 
         return [
             'code' => $this->getMarketplaceField($order, $contexts, 'code'),
@@ -400,10 +400,27 @@ class OrderPrintService
             'amount_paid' => $this->getMarketplaceField($order, $contexts, 'amount_paid'),
             'amount_pending' => $this->getMarketplaceField($order, $contexts, 'amount_pending'),
             'address_display' => $this->getMarketplaceField($order, $contexts, 'address_display'),
-            'remark' => $this->getMarketplaceField($order, $contexts, 'remark'),
+            'remark' => $this->getMarketplaceRemark($order, $contexts),
             'delivered_by' => $this->getMarketplaceField($order, $contexts, 'delivered_by'),
             'delivery_mode' => $this->getMarketplaceField($order, $contexts, 'delivery_mode'),
         ];
+    }
+
+    private function getMarketplaceRemark(Order $order, array $contexts): string
+    {
+        $remark = trim($this->getMarketplaceField($order, $contexts, 'remark'));
+        if ($remark === '') {
+            return '';
+        }
+
+        $comments = trim((string) $order->getComments());
+        if ($comments === '') {
+            return $remark;
+        }
+
+        return $this->normalizeText($remark) === $this->normalizeText($comments)
+            ? ''
+            : $remark;
     }
 
     private function getMarketplaceField(Order $order, array $contexts, string $fieldName): string

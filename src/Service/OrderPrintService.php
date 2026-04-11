@@ -2,6 +2,7 @@
 
 namespace ControleOnline\Service;
 
+use ControleOnline\Entity\Address;
 use ControleOnline\Entity\Device;
 use ControleOnline\Entity\DeviceConfig;
 use ControleOnline\Entity\Document;
@@ -59,6 +60,7 @@ class OrderPrintService
 
         $this->printProviderHeader($order->getProvider());
         $this->printOrderHeader($order, $printForm);
+        $this->printClientAddress($order);
         $this->printMarketplaceHeader($order);
         $this->printOrderComments($order, $printForm);
         $this->printSeparator();
@@ -130,6 +132,20 @@ class OrderPrintService
         if (!$printForm) {
             $this->printService->addLine('CLIENTE: ' . $clientName);
         }
+    }
+
+    private function printClientAddress(Order $order): void
+    {
+        $address = $this->resolveAddressDestinationDisplay($order);
+        $this->printSeparator();
+
+        if ($address === '') {
+            $this->printService->addLine('ENTREGA: RETIRADA');
+            return;
+        }
+
+        $this->printService->addLine('ENDERECO DO CLIENTE');
+        $this->printWrappedBlock('', $address);
     }
 
     private function printMarketplaceHeader(Order $order): void
@@ -365,6 +381,12 @@ class OrderPrintService
             );
         }
 
+        $footerText = $this->resolvePrintFooterText($order->getProvider());
+        if ($footerText !== '') {
+            $this->printSeparator();
+            $this->printWrappedMultilineBlock($footerText);
+        }
+
         $this->printSeparator();
     }
 
@@ -567,6 +589,93 @@ class OrderPrintService
         return '+' . $phone->getDdi() . ' (' . $phone->getDdd() . ') ' . $phone->getPhone();
     }
 
+    private function resolveAddressDestinationDisplay(Order $order): string
+    {
+        $address = $order->getAddressDestination();
+        if (!$address instanceof Address) {
+            return '';
+        }
+
+        return $this->formatAddressDestination($address);
+    }
+
+    private function formatAddressDestination(Address $address): string
+    {
+        $street = $address->getStreet();
+        if ($street === null) {
+            return '';
+        }
+
+        $district = $street->getDistrict();
+        $city = $district?->getCity();
+        $state = $city?->getState();
+        $cep = $street->getCep();
+
+        $streetName = trim((string) $street->getStreet());
+        $streetNumber = trim((string) $address->getNumber());
+        $districtName = trim((string) ($district?->getDistrict() ?? ''));
+        $cityName = trim((string) ($city?->getCity() ?? ''));
+        $stateUf = trim((string) ($state?->getUf() ?? ''));
+        $postalCode = trim((string) ($cep?->getCep() ?? ''));
+        $complement = trim((string) $address->getComplement());
+
+        $parts = [];
+
+        $mainLine = $streetName;
+        if ($streetNumber !== '') {
+            $mainLine .= ', ' . $streetNumber;
+        }
+        if ($districtName !== '') {
+            $mainLine .= ' - ' . $districtName;
+        }
+        if ($mainLine !== '') {
+            $parts[] = $mainLine;
+        }
+
+        $regionLine = $cityName;
+        if ($stateUf !== '') {
+            $regionLine .= $regionLine !== '' ? '/' . $stateUf : $stateUf;
+        }
+        if ($postalCode !== '') {
+            $regionLine .= $regionLine !== '' ? ' - CEP ' . $postalCode : 'CEP ' . $postalCode;
+        }
+        if ($regionLine !== '') {
+            $parts[] = $regionLine;
+        }
+
+        if ($complement !== '') {
+            $parts[] = 'COMP: ' . $complement;
+        }
+
+        return $this->normalizeText(implode(' | ', $parts));
+    }
+
+    private function resolvePrintFooterText(?People $provider): string
+    {
+        if (!$provider instanceof People) {
+            return '';
+        }
+
+        $value = $this->configService->getConfig($provider, 'order-print-footer-text');
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                return '';
+            }
+
+            $decoded = json_decode($trimmed, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_string($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return (string) $value;
+    }
+
     private function resolveOrderProductGroupName(
         OrderProduct $orderProduct,
         string $fallbackName,
@@ -600,6 +709,20 @@ class OrderPrintService
         $nextPrefix = str_repeat(' ', strlen($prefix));
 
         $this->printWrappedBlock($prefix, $value, $nextPrefix);
+    }
+
+    private function printWrappedMultilineBlock(string $text): void
+    {
+        $lines = preg_split('/\r\n|\r|\n/', (string) $text) ?: [];
+
+        foreach ($lines as $line) {
+            if (trim((string) $line) === '') {
+                $this->printService->addLine('');
+                continue;
+            }
+
+            $this->printWrappedBlock('', $line);
+        }
     }
 
     private function printWrappedBlock(string $firstPrefix, string $text, ?string $nextPrefix = null): void

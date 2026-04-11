@@ -121,6 +121,38 @@ class OrderPrintService
         );
     }
 
+    public function generateQueueEntryPrintData(
+        Order $order,
+        Device $device,
+        array $orderProductQueueIds,
+        ?array $aditionalData = []
+    ): ?Spool {
+        $queueBuckets = $this->getQueueBuckets($order, [], $orderProductQueueIds);
+        if (empty($queueBuckets)) {
+            return null;
+        }
+
+        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findOneBy([
+            'device' => $device->getId(),
+        ]);
+
+        $printMode = $deviceConfigs?->getConfigs(true)['print-mode'] ?? 'order';
+        $printForm = $printMode === 'form';
+
+        $this->printProviderHeader($order->getProvider());
+        $this->printOrderHeader($order, $printForm);
+        $this->printOrderComments($order, $printForm);
+        $this->printSeparator();
+        $this->printQueueBuckets($queueBuckets, $printForm);
+        $this->printQueueFooter($order, $printForm);
+
+        return $this->printService->generatePrintData(
+            $device,
+            $order->getProvider(),
+            $aditionalData
+        );
+    }
+
     private function printProviderHeader(?People $provider): void
     {
         if ($provider === null) {
@@ -870,10 +902,18 @@ class OrderPrintService
         return $displays;
     }
 
-    private function getQueueBuckets(Order $order, array $allowedQueueIds = []): array
+    private function getQueueBuckets(
+        Order $order,
+        array $allowedQueueIds = [],
+        array $allowedOrderProductQueueIds = []
+    ): array
     {
-        $allowedQueueMap = $this->normalizeAllowedQueueIds($allowedQueueIds);
+        $allowedQueueMap = $this->normalizeAllowedIds($allowedQueueIds);
+        $allowedOrderProductQueueMap = $this->normalizeAllowedIds(
+            $allowedOrderProductQueueIds
+        );
         $shouldFilterByQueue = !empty($allowedQueueMap);
+        $shouldFilterByOrderProductQueue = !empty($allowedOrderProductQueueMap);
         $queueBuckets = [];
         $sequence = 0;
 
@@ -884,7 +924,7 @@ class OrderPrintService
 
             $queueEntries = $orderProduct->getOrderProductQueues();
             if ($queueEntries->isEmpty()) {
-                if ($shouldFilterByQueue) {
+                if ($shouldFilterByQueue || $shouldFilterByOrderProductQueue) {
                     continue;
                 }
 
@@ -901,6 +941,14 @@ class OrderPrintService
             }
 
             foreach ($queueEntries as $queueEntry) {
+                $queueEntryId = $this->normalizeEntityId($queueEntry?->getId()) ?? 0;
+                if (
+                    $shouldFilterByOrderProductQueue &&
+                    !isset($allowedOrderProductQueueMap[$queueEntryId])
+                ) {
+                    continue;
+                }
+
                 $queue = $queueEntry->getQueue();
                 $queueId = $this->normalizeEntityId($queue?->getId()) ?? 0;
 
@@ -964,12 +1012,12 @@ class OrderPrintService
         }
     }
 
-    private function normalizeAllowedQueueIds(array $queueIds): array
+    private function normalizeAllowedIds(array $ids): array
     {
         $normalized = [];
 
-        foreach ($queueIds as $queueId) {
-            $normalizedId = $this->normalizeEntityId($queueId);
+        foreach ($ids as $id) {
+            $normalizedId = $this->normalizeEntityId($id);
             if ($normalizedId === null) {
                 continue;
             }

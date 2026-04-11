@@ -22,6 +22,7 @@ class OrderService
         private Security $security,
         private PeopleService $peopleService,
         private StatusService $statusService,
+        private OrderProductQueueService $orderProductQueueService,
         private WebsocketClient $websocketClient,
         RequestStack $requestStack
     ) {
@@ -141,7 +142,10 @@ class OrderService
         ]]);
     }
 
-    public function postUpdate(Order $order) {}
+    public function postUpdate(Order $order): void
+    {
+        $this->orderProductQueueService->syncByOrderStatus($order);
+    }
 
     private function pushToCompanyDevices(People $company, array $events): void
     {

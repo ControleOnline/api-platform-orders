@@ -5,6 +5,7 @@ namespace ControleOnline\Service;
 use ControleOnline\Entity\Address;
 use ControleOnline\Entity\Device;
 use ControleOnline\Entity\DeviceConfig;
+use ControleOnline\Entity\DisplayQueue;
 use ControleOnline\Entity\Document;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
@@ -17,6 +18,10 @@ class OrderPrintService
 {
     private string $defaultGroupName = 'ITENS';
     private string $defaultChildGroupName = 'OBSERVACOES';
+    private string $defaultQueueName = 'SEM FILA DEFINIDA';
+    private string $displayDeviceType = 'DISPLAY';
+    private string $displayConfigKey = 'display-id';
+    private string $printerConfigKey = 'printer';
     private int $contentWidth = 40;
     private array $extraDataCache = [];
 
@@ -30,22 +35,29 @@ class OrderPrintService
 
     public function printOrder(Order $order, ?array $devices = [], ?array $aditionalData = []): void
     {
-        if (empty($devices)) {
-            $devices = $this->configService->getConfig(
+        $hasExplicitDevices = !empty($devices);
+        $resolvedDevices = [];
+
+        if ($hasExplicitDevices) {
+            $resolvedDevices = $this->deviceService->findDevices($devices);
+        } else {
+            $configuredDevices = $this->configService->getConfig(
                 $order->getProvider(),
                 'order-print-devices',
                 true
-            );
+            ) ?? [];
+
+            if (!empty($configuredDevices)) {
+                $resolvedDevices = $this->deviceService->findDevices($configuredDevices);
+            }
         }
 
-        if (!$devices) {
-            return;
-        }
-
-        $devices = $this->deviceService->findDevices($devices);
-
-        foreach ($devices as $device) {
+        foreach ($resolvedDevices as $device) {
             $this->generatePrintData($order, $device, $aditionalData);
+        }
+
+        if (!$hasExplicitDevices) {
+            $this->printDisplayCopies($order, $aditionalData);
         }
     }
 
@@ -69,6 +81,38 @@ class OrderPrintService
         $this->printGroups($groups, $printForm);
 
         $this->printFooter($order, $printForm);
+
+        return $this->printService->generatePrintData(
+            $device,
+            $order->getProvider(),
+            $aditionalData
+        );
+    }
+
+    public function generateQueuePrintData(
+        Order $order,
+        Device $device,
+        array $queueIds,
+        ?array $aditionalData = []
+    ): ?Spool {
+        $queueBuckets = $this->getQueueBuckets($order, $queueIds);
+        if (empty($queueBuckets)) {
+            return null;
+        }
+
+        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findOneBy([
+            'device' => $device->getId(),
+        ]);
+
+        $printMode = $deviceConfigs?->getConfigs(true)['print-mode'] ?? 'order';
+        $printForm = $printMode === 'form';
+
+        $this->printProviderHeader($order->getProvider());
+        $this->printOrderHeader($order, $printForm);
+        $this->printOrderComments($order, $printForm);
+        $this->printSeparator();
+        $this->printQueueBuckets($queueBuckets, $printForm);
+        $this->printQueueFooter($order, $printForm);
 
         return $this->printService->generatePrintData(
             $device,
@@ -286,6 +330,29 @@ class OrderPrintService
         }
     }
 
+    private function printQueueBuckets(array $queueBuckets, bool $printForm): void
+    {
+        foreach ($queueBuckets as $queueBucket) {
+            $queueName = trim((string) ($queueBucket['name'] ?? ''));
+            if ($queueName === '') {
+                $queueName = $this->defaultQueueName;
+            }
+
+            $this->printService->addLine('FILA: ' . strtoupper($queueName));
+
+            foreach ($queueBucket['items'] as $orderProduct) {
+                if ($printForm) {
+                    $this->printFormItem($orderProduct);
+                    continue;
+                }
+
+                $this->printRegularItem($orderProduct);
+            }
+
+            $this->printService->addLine('', '', ' ');
+        }
+    }
+
     private function printRegularItem(OrderProduct $orderProduct): void
     {
         $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
@@ -387,6 +454,11 @@ class OrderPrintService
             $this->printWrappedMultilineBlock($footerText);
         }
 
+        $this->printSeparator();
+    }
+
+    private function printQueueFooter(Order $order, bool $printForm): void
+    {
         $this->printSeparator();
     }
 
@@ -674,6 +746,266 @@ class OrderPrintService
         }
 
         return (string) $value;
+    }
+
+    private function printDisplayCopies(Order $order, array $aditionalData = []): void
+    {
+        foreach ($this->resolveDisplayPrintTargets($order) as $target) {
+            $this->generateQueuePrintData(
+                $order,
+                $target['device'],
+                $target['queueIds'],
+                $aditionalData
+            );
+        }
+    }
+
+    private function resolveDisplayPrintTargets(Order $order): array
+    {
+        $provider = $order->getProvider();
+        if (!$provider instanceof People) {
+            return [];
+        }
+
+        $orderDisplays = $this->getOrderDisplays($order);
+        if (empty($orderDisplays)) {
+            return [];
+        }
+
+        $targets = [];
+        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findBy([
+            'people' => $provider,
+        ]);
+
+        foreach ($deviceConfigs as $deviceConfig) {
+            $device = $deviceConfig->getDevice();
+            if (!$this->isDisplayDevice($device)) {
+                continue;
+            }
+
+            $configs = $deviceConfig->getConfigs(true);
+            if (!is_array($configs)) {
+                continue;
+            }
+
+            $displayId = $this->normalizeEntityId($configs[$this->displayConfigKey] ?? null);
+            if ($displayId === null || !isset($orderDisplays[$displayId])) {
+                continue;
+            }
+
+            if (trim((string) ($configs[$this->printerConfigKey] ?? '')) === '') {
+                continue;
+            }
+
+            $deviceId = $device->getId();
+            $queueIds = $orderDisplays[$displayId]['queueIds'];
+
+            if (!isset($targets[$deviceId])) {
+                $targets[$deviceId] = [
+                    'device' => $device,
+                    'queueIds' => [],
+                ];
+            }
+
+            $targets[$deviceId]['queueIds'] = array_values(array_unique(array_merge(
+                $targets[$deviceId]['queueIds'],
+                $queueIds
+            )));
+        }
+
+        return array_values($targets);
+    }
+
+    private function getOrderDisplays(Order $order): array
+    {
+        $queueBuckets = $this->getQueueBuckets($order);
+        if (empty($queueBuckets)) {
+            return [];
+        }
+
+        $queues = [];
+        foreach ($queueBuckets as $queueBucket) {
+            $queue = $queueBucket['queue'] ?? null;
+            $queueId = $this->normalizeEntityId($queue?->getId());
+
+            if ($queue === null || $queueId === null || $queueId < 1) {
+                continue;
+            }
+
+            $queues[$queueId] = $queue;
+        }
+
+        if (empty($queues)) {
+            return [];
+        }
+
+        $displayRows = $this->manager->getRepository(DisplayQueue::class)->findBy([
+            'queue' => array_values($queues),
+        ]);
+
+        $displays = [];
+        foreach ($displayRows as $displayRow) {
+            $display = $displayRow->getDisplay();
+            $displayId = $this->normalizeEntityId($display?->getId());
+            $queueId = $this->normalizeEntityId($displayRow->getQueue()?->getId());
+
+            if ($displayId === null || $queueId === null || !isset($queues[$queueId])) {
+                continue;
+            }
+
+            if (!isset($displays[$displayId])) {
+                $displays[$displayId] = [
+                    'display' => $display,
+                    'queueIds' => [],
+                ];
+            }
+
+            $displays[$displayId]['queueIds'][$queueId] = $queueId;
+        }
+
+        foreach ($displays as &$displayData) {
+            $displayData['queueIds'] = array_values($displayData['queueIds']);
+        }
+
+        return $displays;
+    }
+
+    private function getQueueBuckets(Order $order, array $allowedQueueIds = []): array
+    {
+        $allowedQueueMap = $this->normalizeAllowedQueueIds($allowedQueueIds);
+        $shouldFilterByQueue = !empty($allowedQueueMap);
+        $queueBuckets = [];
+        $sequence = 0;
+
+        foreach ($order->getOrderProducts() as $orderProduct) {
+            if ($orderProduct->getOrderProduct() !== null) {
+                continue;
+            }
+
+            $queueEntries = $orderProduct->getOrderProductQueues();
+            if ($queueEntries->isEmpty()) {
+                if ($shouldFilterByQueue) {
+                    continue;
+                }
+
+                $this->addOrderProductToQueueBucket(
+                    $queueBuckets,
+                    'queue-0',
+                    0,
+                    $this->defaultQueueName,
+                    $orderProduct,
+                    $sequence,
+                    null
+                );
+                continue;
+            }
+
+            foreach ($queueEntries as $queueEntry) {
+                $queue = $queueEntry->getQueue();
+                $queueId = $this->normalizeEntityId($queue?->getId()) ?? 0;
+
+                if ($shouldFilterByQueue && !isset($allowedQueueMap[$queueId])) {
+                    continue;
+                }
+
+                $queueName = trim((string) ($queue?->getQueue() ?? ''));
+                if ($queueName === '') {
+                    $queueName = $this->defaultQueueName;
+                }
+
+                $this->addOrderProductToQueueBucket(
+                    $queueBuckets,
+                    'queue-' . $queueId,
+                    $queueId,
+                    $queueName,
+                    $orderProduct,
+                    $sequence,
+                    $queue
+                );
+            }
+        }
+
+        foreach ($queueBuckets as &$queueBucket) {
+            unset($queueBucket['seen']);
+        }
+
+        return array_values($queueBuckets);
+    }
+
+    private function addOrderProductToQueueBucket(
+        array &$queueBuckets,
+        string $bucketKey,
+        int $queueId,
+        string $queueName,
+        OrderProduct $orderProduct,
+        int &$sequence,
+        mixed $queue
+    ): void {
+        if (!isset($queueBuckets[$bucketKey])) {
+            $queueBuckets[$bucketKey] = [
+                'id' => $queueId,
+                'name' => $queueName,
+                'queue' => $queue,
+                'sequence' => $sequence++,
+                'items' => [],
+                'seen' => [],
+            ];
+        }
+
+        $orderProductId = (int) $orderProduct->getId();
+        if ($orderProductId > 0 && isset($queueBuckets[$bucketKey]['seen'][$orderProductId])) {
+            return;
+        }
+
+        $queueBuckets[$bucketKey]['items'][] = $orderProduct;
+
+        if ($orderProductId > 0) {
+            $queueBuckets[$bucketKey]['seen'][$orderProductId] = true;
+        }
+    }
+
+    private function normalizeAllowedQueueIds(array $queueIds): array
+    {
+        $normalized = [];
+
+        foreach ($queueIds as $queueId) {
+            $normalizedId = $this->normalizeEntityId($queueId);
+            if ($normalizedId === null) {
+                continue;
+            }
+
+            $normalized[$normalizedId] = true;
+        }
+
+        return $normalized;
+    }
+
+    private function normalizeEntityId(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+
+        if (is_string($value)) {
+            $digits = preg_replace('/\D+/', '', $value);
+            if ($digits === '') {
+                return null;
+            }
+
+            $normalized = (int) $digits;
+            return $normalized > 0 ? $normalized : null;
+        }
+
+        if (is_object($value) && method_exists($value, 'getId')) {
+            return $this->normalizeEntityId($value->getId());
+        }
+
+        return null;
+    }
+
+    private function isDisplayDevice(?Device $device): bool
+    {
+        return strtoupper(trim((string) $device?->getType())) === $this->displayDeviceType;
     }
 
     private function resolveOrderProductGroupName(

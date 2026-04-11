@@ -16,6 +16,7 @@
         }
     ],
     "require": {
-        "controleonline/common": "*"
+        "controleonline/common": "*",
+        "controleonline/queue": "*"
     }
 }

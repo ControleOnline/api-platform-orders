@@ -108,7 +108,7 @@ class OrderPrintService
         $printForm = $printMode === 'form';
 
         $this->printProviderHeader($order->getProvider());
-        $this->printOrderHeader($order, $printForm);
+        $this->printOrderHeader($order, $printForm, true);
         $this->printOrderComments($order, $printForm);
         $this->printSeparator();
         $this->printQueueBuckets($queueBuckets, $printForm);
@@ -140,7 +140,7 @@ class OrderPrintService
         $printForm = $printMode === 'form';
 
         $this->printProviderHeader($order->getProvider());
-        $this->printOrderHeader($order, $printForm);
+        $this->printOrderHeader($order, $printForm, true);
         $this->printOrderComments($order, $printForm);
         $this->printSeparator();
         $this->printQueueBuckets($queueBuckets, $printForm);
@@ -183,7 +183,11 @@ class OrderPrintService
         $this->printSeparator();
     }
 
-    private function printOrderHeader(Order $order, bool $printForm): void
+    private function printOrderHeader(
+        Order $order,
+        bool $printForm,
+        bool $highlightMarketplaceCode = false
+    ): void
     {
         $app = trim((string) $order->getApp());
         $orderType = trim((string) $order->getOrderType());
@@ -197,7 +201,7 @@ class OrderPrintService
             $this->printService->addLine('APP: ' . strtoupper($app));
         }
 
-        if ($platformOrderCode !== '') {
+        if ($platformOrderCode !== '' && !$highlightMarketplaceCode) {
             $this->printService->addLine('PEDIDO APP: ' . $platformOrderCode);
         }
 
@@ -207,6 +211,10 @@ class OrderPrintService
 
         if (!$printForm) {
             $this->printService->addLine('CLIENTE: ' . $clientName);
+        }
+
+        if ($highlightMarketplaceCode) {
+            $this->printMarketplaceOrderHighlight($order, $platformOrderCode);
         }
     }
 
@@ -373,15 +381,48 @@ class OrderPrintService
             $this->printService->addLine('FILA: ' . strtoupper($queueName));
 
             foreach ($queueBucket['items'] as $orderProduct) {
-                if ($printForm) {
-                    $this->printFormItem($orderProduct);
-                    continue;
-                }
-
-                $this->printRegularItem($orderProduct);
+                $this->printQueueItem($orderProduct, $printForm);
             }
 
             $this->printService->addLine('', '', ' ');
+        }
+    }
+
+    private function printQueueItem(OrderProduct $orderProduct, bool $printForm): void
+    {
+        if ($printForm) {
+            $this->printQueueFormItem($orderProduct);
+            return;
+        }
+
+        $this->printQueueRegularItem($orderProduct);
+    }
+
+    private function printQueueRegularItem(OrderProduct $orderProduct): void
+    {
+        $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
+
+        $this->printService->addLine(
+            $this->formatQuantity((float) $orderProduct->getQuantity()) . 'x ' . $productName
+        );
+
+        $this->printOrderProductDescription($orderProduct);
+        $this->printOrderProductComment($orderProduct);
+        $this->printChildren($orderProduct->getOrderProductComponents(), true);
+        $this->printSeparator();
+    }
+
+    private function printQueueFormItem(OrderProduct $orderProduct): void
+    {
+        $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
+        $quantity = (int) max(1, (float) $orderProduct->getQuantity());
+
+        for ($i = 0; $i < $quantity; $i++) {
+            $this->printService->addLine('1x ' . $productName);
+            $this->printOrderProductDescription($orderProduct);
+            $this->printOrderProductComment($orderProduct);
+            $this->printChildren($orderProduct->getOrderProductComponents(), true);
+            $this->printSeparator();
         }
     }
 
@@ -418,6 +459,22 @@ class OrderPrintService
         }
     }
 
+    private function printOrderProductDescription(OrderProduct $orderProduct): void
+    {
+        $productName = $this->normalizeText(
+            (string) $orderProduct->getProduct()->getProduct()
+        );
+        $description = $this->normalizeText(
+            (string) $orderProduct->getProduct()->getDescription()
+        );
+
+        if ($description === '' || $description === $productName) {
+            return;
+        }
+
+        $this->printWrappedBlock('   DESC: ', $description);
+    }
+
     private function printOrderProductComment(OrderProduct $orderProduct): void
     {
         $comment = trim((string) $orderProduct->getComment());
@@ -428,7 +485,10 @@ class OrderPrintService
         $this->printWrappedBlock('   OBS: ', $comment);
     }
 
-    private function printChildren(iterable $children): void
+    private function printChildren(
+        iterable $children,
+        bool $includeHeader = false
+    ): void
     {
         $groups = [];
         $sequence = 0;
@@ -454,6 +514,14 @@ class OrderPrintService
         }
 
         $groups = $this->sortGroupedItems($groups);
+
+        if (empty($groups)) {
+            return;
+        }
+
+        if ($includeHeader) {
+            $this->printService->addLine('   COMPONENTES:');
+        }
 
         foreach ($groups as $group) {
             if ($group['name'] !== $this->defaultChildGroupName) {
@@ -491,7 +559,36 @@ class OrderPrintService
 
     private function printQueueFooter(Order $order, bool $printForm): void
     {
+        $footerText = $this->resolvePrintFooterText($order->getProvider());
+        if ($footerText !== '') {
+            $this->printSeparator();
+            $this->printWrappedMultilineBlock($footerText);
+        }
+
         $this->printSeparator();
+    }
+
+    private function printMarketplaceOrderHighlight(
+        Order $order,
+        ?string $platformOrderCode = null
+    ): void {
+        $platformOrderCode = trim((string) (
+            $platformOrderCode ?: $this->resolveMarketplaceOrderCode($order)
+        ));
+
+        if ($platformOrderCode === '') {
+            return;
+        }
+
+        $marketplaceLabel = $this->resolveMarketplaceAppLabel($order);
+        $title = $marketplaceLabel !== ''
+            ? 'PEDIDO ' . $marketplaceLabel
+            : 'PEDIDO APP';
+
+        $this->printSeparator('=');
+        $this->printService->addLine($title);
+        $this->printWrappedBlock('', $platformOrderCode);
+        $this->printSeparator('=');
     }
 
     private function getIfoodPrintData(Order $order): array
@@ -555,6 +652,21 @@ class OrderPrintService
         }
 
         return '';
+    }
+
+    private function resolveMarketplaceAppLabel(Order $order): string
+    {
+        $app = strtolower(trim((string) $order->getApp()));
+
+        if ($app === 'ifood') {
+            return 'IFOOD';
+        }
+
+        if (in_array($app, ['99', '99food', '99 food', 'food99'], true)) {
+            return '99';
+        }
+
+        return strtoupper(trim((string) $order->getApp()));
     }
 
     private function getMarketplaceRemark(Order $order, array $contexts): string
@@ -1078,9 +1190,9 @@ class OrderPrintService
         return $groupName;
     }
 
-    private function printSeparator(): void
+    private function printSeparator(string $delimiter = '-'): void
     {
-        $this->printService->addLine('', '', '-');
+        $this->printService->addLine('', '', $delimiter);
     }
 
     private function printWrappedLabelValue(string $label, string $value): void

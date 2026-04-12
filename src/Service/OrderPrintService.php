@@ -9,6 +9,7 @@ use ControleOnline\Entity\DisplayQueue;
 use ControleOnline\Entity\Document;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
+use ControleOnline\Entity\OrderProductQueue;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\Phone;
 use ControleOnline\Entity\Spool;
@@ -22,6 +23,7 @@ class OrderPrintService
     private string $displayDeviceType = 'DISPLAY';
     private string $displayConfigKey = 'display-id';
     private string $printerConfigKey = 'printer';
+    private string $displayAutoPrintProductConfigKey = 'display-auto-print-product';
     private int $contentWidth = 40;
     private array $extraDataCache = [];
 
@@ -198,6 +200,32 @@ class OrderPrintService
             $order->getProvider(),
             $aditionalData
         );
+    }
+
+    public function autoPrintOrderProductQueueEntry(
+        OrderProductQueue $orderProductQueue
+    ): void {
+        $orderProduct = $orderProductQueue->getOrderProduct();
+        $order = $orderProduct?->getOrder();
+        $provider = $order?->getProvider();
+
+        if (
+            !($orderProduct instanceof OrderProduct) ||
+            !($order instanceof Order) ||
+            !($provider instanceof People) ||
+            !$orderProductQueue->getId()
+        ) {
+            return;
+        }
+
+        foreach ($this->resolveAutoPrintDisplayTargets($orderProductQueue) as $target) {
+            $this->generateOrderProductPrintData(
+                $orderProduct,
+                $target['device'],
+                [$orderProductQueue->getId()],
+                ['automaticProductPrint' => true]
+            );
+        }
     }
 
     private function printProviderHeader(?People $provider): void
@@ -1083,6 +1111,83 @@ class OrderPrintService
         return array_values($targets);
     }
 
+    private function resolveAutoPrintDisplayTargets(
+        OrderProductQueue $orderProductQueue
+    ): array {
+        $orderProduct = $orderProductQueue->getOrderProduct();
+        $order = $orderProduct?->getOrder();
+        $provider = $order?->getProvider();
+        $queue = $orderProductQueue->getQueue();
+
+        if (!$provider instanceof People || $queue === null) {
+            return [];
+        }
+
+        $displayRows = $this->manager->getRepository(DisplayQueue::class)->findBy([
+            'queue' => $queue,
+        ]);
+
+        if (empty($displayRows)) {
+            return [];
+        }
+
+        $displayIds = [];
+        foreach ($displayRows as $displayRow) {
+            $displayId = $this->normalizeEntityId($displayRow->getDisplay()?->getId());
+            if ($displayId !== null) {
+                $displayIds[$displayId] = $displayId;
+            }
+        }
+
+        if (empty($displayIds)) {
+            return [];
+        }
+
+        $targets = [];
+        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findBy([
+            'people' => $provider,
+        ]);
+
+        foreach ($deviceConfigs as $deviceConfig) {
+            $device = $deviceConfig->getDevice();
+            if (!$this->isDisplayDevice($device)) {
+                continue;
+            }
+
+            $configs = $deviceConfig->getConfigs(true);
+            if (!is_array($configs)) {
+                continue;
+            }
+
+            $displayId = $this->normalizeEntityId($configs[$this->displayConfigKey] ?? null);
+            if ($displayId === null || !isset($displayIds[$displayId])) {
+                continue;
+            }
+
+            if (!$this->isTruthyConfigValue(
+                $configs[$this->displayAutoPrintProductConfigKey] ?? null
+            )) {
+                continue;
+            }
+
+            if (trim((string) ($configs[$this->printerConfigKey] ?? '')) === '') {
+                continue;
+            }
+
+            $deviceId = $device->getId();
+            if (isset($targets[$deviceId])) {
+                continue;
+            }
+
+            $targets[$deviceId] = [
+                'device' => $device,
+                'displayId' => $displayId,
+            ];
+        }
+
+        return array_values($targets);
+    }
+
     private function getOrderDisplays(Order $order): array
     {
         $queueBuckets = $this->getQueueBuckets($order);
@@ -1349,6 +1454,15 @@ class OrderPrintService
         }
 
         return $normalized;
+    }
+
+    private function isTruthyConfigValue(mixed $value): bool
+    {
+        return in_array(
+            strtolower(trim((string) $value)),
+            ['1', 'true', 'yes', 'on'],
+            true
+        );
     }
 
     private function normalizeEntityId(mixed $value): ?int

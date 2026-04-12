@@ -127,8 +127,8 @@ class OrderPrintService
         array $orderProductQueueIds,
         ?array $aditionalData = []
     ): ?Spool {
-        $queueBuckets = $this->getQueueBuckets($order, [], $orderProductQueueIds);
-        if (empty($queueBuckets)) {
+        $queueEntries = $this->getSelectedQueueEntries($order, $orderProductQueueIds);
+        if (empty($queueEntries)) {
             return null;
         }
 
@@ -141,9 +141,8 @@ class OrderPrintService
 
         $this->printProviderHeader($order->getProvider());
         $this->printOrderHeader($order, $printForm, true);
-        $this->printOrderComments($order, $printForm);
         $this->printSeparator();
-        $this->printQueueBuckets($queueBuckets, $printForm);
+        $this->printQueueEntries($queueEntries, $printForm);
         $this->printQueueFooter($order, $printForm);
 
         return $this->printService->generatePrintData(
@@ -384,6 +383,20 @@ class OrderPrintService
                 $this->printQueueItem($orderProduct, $printForm);
             }
 
+            $this->printService->addLine('', '', ' ');
+        }
+    }
+
+    private function printQueueEntries(array $queueEntries, bool $printForm): void
+    {
+        foreach ($queueEntries as $queueEntry) {
+            $queueName = trim((string) ($queueEntry['queueName'] ?? ''));
+            if ($queueName === '') {
+                $queueName = $this->defaultQueueName;
+            }
+
+            $this->printService->addLine('FILA: ' . strtoupper($queueName));
+            $this->printQueueItem($queueEntry['orderProduct'], $printForm);
             $this->printService->addLine('', '', ' ');
         }
     }
@@ -1090,6 +1103,53 @@ class OrderPrintService
         }
 
         return array_values($queueBuckets);
+    }
+
+    private function getSelectedQueueEntries(
+        Order $order,
+        array $allowedOrderProductQueueIds = []
+    ): array {
+        $allowedOrderProductQueueMap = $this->normalizeAllowedIds(
+            $allowedOrderProductQueueIds
+        );
+
+        if (empty($allowedOrderProductQueueMap)) {
+            return [];
+        }
+
+        $selectedEntries = [];
+
+        foreach ($order->getOrderProducts() as $orderProduct) {
+            if ($orderProduct->getOrderProduct() !== null) {
+                continue;
+            }
+
+            foreach ($orderProduct->getOrderProductQueues() as $queueEntry) {
+                $queueEntryId = $this->normalizeEntityId($queueEntry?->getId());
+                if (
+                    $queueEntryId === null ||
+                    !isset($allowedOrderProductQueueMap[$queueEntryId])
+                ) {
+                    continue;
+                }
+
+                $queue = $queueEntry->getQueue();
+                $queueName = trim((string) ($queue?->getQueue() ?? ''));
+
+                $selectedEntries[$queueEntryId] = [
+                    'id' => $queueEntryId,
+                    'queue' => $queue,
+                    'queueName' => $queueName === ''
+                        ? $this->defaultQueueName
+                        : $queueName,
+                    'orderProduct' => $orderProduct,
+                ];
+            }
+        }
+
+        ksort($selectedEntries);
+
+        return array_values($selectedEntries);
     }
 
     private function addOrderProductToQueueBucket(

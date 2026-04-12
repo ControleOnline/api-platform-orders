@@ -152,6 +152,54 @@ class OrderPrintService
         );
     }
 
+    public function generateOrderProductPrintData(
+        OrderProduct $orderProduct,
+        Device $device,
+        array $orderProductQueueIds = [],
+        ?array $aditionalData = []
+    ): ?Spool {
+        $order = $orderProduct->getOrder();
+        if (!$order instanceof Order) {
+            return null;
+        }
+
+        $selectedQueueEntries = !empty($orderProductQueueIds)
+            ? $this->getSelectedQueueEntriesForOrderProduct(
+                $orderProduct,
+                $orderProductQueueIds
+            )
+            : [];
+
+        if (!empty($orderProductQueueIds) && empty($selectedQueueEntries)) {
+            return null;
+        }
+
+        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findOneBy([
+            'device' => $device->getId(),
+        ]);
+
+        $printMode = $deviceConfigs?->getConfigs(true)['print-mode'] ?? 'order';
+        $printForm = $printMode === 'form';
+
+        $this->printProviderHeader($order->getProvider());
+        $this->printOrderHeader($order, $printForm, true);
+        $this->printSeparator();
+
+        if (!empty($selectedQueueEntries)) {
+            $this->printOrderProductQueueEntries($selectedQueueEntries, $printForm);
+        } else {
+            $this->printStandaloneOrderProduct($orderProduct, $printForm);
+        }
+
+        $this->printQueueFooter($order, $printForm);
+
+        return $this->printService->generatePrintData(
+            $device,
+            $order->getProvider(),
+            $aditionalData
+        );
+    }
+
     private function printProviderHeader(?People $provider): void
     {
         if ($provider === null) {
@@ -401,6 +449,40 @@ class OrderPrintService
         }
     }
 
+    private function printOrderProductQueueEntries(
+        array $queueEntries,
+        bool $printForm
+    ): void {
+        foreach ($queueEntries as $queueEntry) {
+            $queueName = trim((string) ($queueEntry['queueName'] ?? ''));
+            if ($queueName === '') {
+                $queueName = $this->defaultQueueName;
+            }
+
+            $this->printService->addLine('FILA: ' . strtoupper($queueName));
+            $this->printQueueItemWithCut($queueEntry['orderProduct'], $printForm);
+        }
+    }
+
+    private function printStandaloneOrderProduct(
+        OrderProduct $orderProduct,
+        bool $printForm
+    ): void {
+        $queueName = $this->defaultQueueName;
+
+        foreach ($orderProduct->getOrderProductQueues() as $queueEntry) {
+            $queue = $queueEntry->getQueue();
+            $resolvedQueueName = trim((string) ($queue?->getQueue() ?? ''));
+            if ($resolvedQueueName !== '') {
+                $queueName = $resolvedQueueName;
+                break;
+            }
+        }
+
+        $this->printService->addLine('FILA: ' . strtoupper($queueName));
+        $this->printQueueItemWithCut($orderProduct, $printForm);
+    }
+
     private function printQueueItem(OrderProduct $orderProduct, bool $printForm): void
     {
         if ($printForm) {
@@ -409,6 +491,19 @@ class OrderPrintService
         }
 
         $this->printQueueRegularItem($orderProduct);
+    }
+
+    private function printQueueItemWithCut(
+        OrderProduct $orderProduct,
+        bool $printForm
+    ): void {
+        if ($printForm) {
+            $this->printQueueFormItemWithCut($orderProduct);
+            return;
+        }
+
+        $this->printQueueRegularItem($orderProduct);
+        $this->printService->addCutMarker();
     }
 
     private function printQueueRegularItem(OrderProduct $orderProduct): void
@@ -436,6 +531,21 @@ class OrderPrintService
             $this->printOrderProductComment($orderProduct);
             $this->printChildren($orderProduct->getOrderProductComponents(), true);
             $this->printSeparator();
+        }
+    }
+
+    private function printQueueFormItemWithCut(OrderProduct $orderProduct): void
+    {
+        $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
+        $quantity = (int) max(1, (float) $orderProduct->getQuantity());
+
+        for ($i = 0; $i < $quantity; $i++) {
+            $this->printService->addLine('1x ' . $productName);
+            $this->printOrderProductDescription($orderProduct);
+            $this->printOrderProductComment($orderProduct);
+            $this->printChildren($orderProduct->getOrderProductComponents(), true);
+            $this->printSeparator();
+            $this->printService->addCutMarker();
         }
     }
 
@@ -1145,6 +1255,47 @@ class OrderPrintService
                     'orderProduct' => $orderProduct,
                 ];
             }
+        }
+
+        ksort($selectedEntries);
+
+        return array_values($selectedEntries);
+    }
+
+    private function getSelectedQueueEntriesForOrderProduct(
+        OrderProduct $orderProduct,
+        array $allowedOrderProductQueueIds = []
+    ): array {
+        $allowedOrderProductQueueMap = $this->normalizeAllowedIds(
+            $allowedOrderProductQueueIds
+        );
+
+        if (empty($allowedOrderProductQueueMap)) {
+            return [];
+        }
+
+        $selectedEntries = [];
+
+        foreach ($orderProduct->getOrderProductQueues() as $queueEntry) {
+            $queueEntryId = $this->normalizeEntityId($queueEntry?->getId());
+            if (
+                $queueEntryId === null ||
+                !isset($allowedOrderProductQueueMap[$queueEntryId])
+            ) {
+                continue;
+            }
+
+            $queue = $queueEntry->getQueue();
+            $queueName = trim((string) ($queue?->getQueue() ?? ''));
+
+            $selectedEntries[$queueEntryId] = [
+                'id' => $queueEntryId,
+                'queue' => $queue,
+                'queueName' => $queueName === ''
+                    ? $this->defaultQueueName
+                    : $queueName,
+                'orderProduct' => $orderProduct,
+            ];
         }
 
         ksort($selectedEntries);

@@ -45,17 +45,7 @@ class PrintOrderAction
             }
 
             $queueIds = $this->normalizeIds($data['queueIds'] ?? []);
-            $orderProductQueueIds = $this->normalizeIds(
-                $data['orderProductQueueIds'] ?? []
-            );
-
-            if (!empty($orderProductQueueIds)) {
-                $printData = $this->print->generateQueueEntryPrintData(
-                    $order,
-                    $device,
-                    $orderProductQueueIds
-                );
-            } elseif (!empty($queueIds)) {
+            if (!empty($queueIds)) {
                 $printData = $this->print->generateQueuePrintData(
                     $order,
                     $device,

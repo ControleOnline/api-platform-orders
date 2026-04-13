@@ -183,7 +183,7 @@ class OrderPrintService
         $printMode = $deviceConfigs?->getConfigs(true)['print-mode'] ?? 'order';
         $printForm = $printMode === 'form';
 
-        $this->printProviderHeader($order->getProvider());
+        //$this->printProviderHeader($order->getProvider());
         $this->printOrderHeader($order, $printForm, true);
         $this->printSeparator();
 
@@ -262,34 +262,24 @@ class OrderPrintService
         Order $order,
         bool $printForm,
         bool $highlightMarketplaceCode = false
-    ): void
-    {
+    ): void {
         $app = trim((string) $order->getApp());
-        $orderType = trim((string) $order->getOrderType());
         $clientName = $order->getClient() ? $this->resolvePeopleName($order->getClient()) : 'NAO INFORMADO';
         $platformOrderCode = $this->resolveMarketplaceOrderCode($order);
 
-        $this->printService->addLine('PEDIDO #' . $order->getId());
-        $this->printService->addLine($order->getOrderDate()->format('d/m/Y H:i'));
+        // Imrimir o número  do pedido da marketplace em destaque, caso a configuração de destaque esteja habilitada para o dispositivo e o código exista e caso não seja marketplace, imprimir o número do pedido local
 
-        if ($app !== '') {
-            $this->printService->addLine('APP: ' . strtoupper($app));
+        if ($platformOrderCode) {
+            if ($highlightMarketplaceCode) {
+                $this->printMarketplaceOrderHighlight($order, $platformOrderCode);
+            } else {
+                $this->printService->addLine(strtoupper($app) . ' - ' . $platformOrderCode);
+            }
+        } else {
+            $this->printService->addLine('PEDIDO #' . $order->getId());
         }
-
-        if ($platformOrderCode !== '' && !$highlightMarketplaceCode) {
-            $this->printService->addLine('PEDIDO APP: ' . $platformOrderCode);
-        }
-
-        if ($orderType !== '') {
-            $this->printService->addLine('TIPO: ' . strtoupper($orderType));
-        }
-
         if (!$printForm) {
-            $this->printService->addLine('CLIENTE: ' . $clientName);
-        }
-
-        if ($highlightMarketplaceCode) {
-            $this->printMarketplaceOrderHighlight($order, $platformOrderCode);
+            $this->printService->addLine($clientName);
         }
     }
 
@@ -633,8 +623,7 @@ class OrderPrintService
     private function printChildren(
         iterable $children,
         bool $includeHeader = false
-    ): void
-    {
+    ): void {
         $groups = [];
         $sequence = 0;
 
@@ -726,12 +715,9 @@ class OrderPrintService
         }
 
         $marketplaceLabel = $this->resolveMarketplaceAppLabel($order);
-        $title = $marketplaceLabel !== ''
-            ? 'PEDIDO ' . $marketplaceLabel
-            : 'PEDIDO APP';
 
         $this->printSeparator('=');
-        $this->printService->addLine($title);
+        $this->printService->addLine($marketplaceLabel);
         $this->printWrappedBlock('', $platformOrderCode);
         $this->printSeparator('=');
     }
@@ -785,14 +771,14 @@ class OrderPrintService
         if ($app === 'ifood') {
             return trim(
                 $this->getMarketplaceField($order, ['ifood'], 'code')
-                ?: $this->getMarketplaceField($order, ['ifood'], 'id')
+                    ?: $this->getMarketplaceField($order, ['ifood'], 'id')
             );
         }
 
         if (in_array($app, ['99', '99food', '99 food', 'food99'], true)) {
             return trim(
                 $this->getMarketplaceField($order, ['99', '99food', 'food99'], 'code')
-                ?: $this->getMarketplaceField($order, ['99', '99food', 'food99'], 'id')
+                    ?: $this->getMarketplaceField($order, ['99', '99food', 'food99'], 'id')
             );
         }
 
@@ -1240,8 +1226,7 @@ class OrderPrintService
         Order $order,
         array $allowedQueueIds = [],
         array $allowedOrderProductQueueIds = []
-    ): array
-    {
+    ): array {
         $allowedQueueMap = $this->normalizeAllowedIds($allowedQueueIds);
         $allowedOrderProductQueueMap = $this->normalizeAllowedIds(
             $allowedOrderProductQueueIds

@@ -35,9 +35,24 @@ class OrderPrintService
         private ExtraDataService $extraDataService,
     ) {}
 
-    private function resolvePrintMode(Device $device, People $provider): string
+    private function resolveAdditionalDataDeviceType(?array $aditionalData = []): ?string
     {
-        $deviceConfig = $this->deviceService->findDeviceConfig($device, $provider);
+        $candidate = trim((string) (
+            $aditionalData['type'] ??
+            $aditionalData['deviceType'] ??
+            ''
+        ));
+
+        return $candidate !== '' ? strtoupper($candidate) : null;
+    }
+
+    private function resolvePrintMode(
+        Device $device,
+        People $provider,
+        ?string $type = null
+    ): string
+    {
+        $deviceConfig = $this->deviceService->findDeviceConfig($device, $provider, $type);
         $configs = $deviceConfig?->getConfigs(true);
 
         return is_array($configs)
@@ -45,13 +60,56 @@ class OrderPrintService
             : 'order';
     }
 
+    private function resolvePrintTargets(
+        array|string $deviceReferences,
+        People $provider
+    ): array {
+        $references = is_array($deviceReferences) ? $deviceReferences : [$deviceReferences];
+        $targets = [];
+
+        foreach ($references as $reference) {
+            $deviceConfig = $this->deviceService->findDeviceConfigByReference(
+                $reference,
+                $provider
+            );
+
+            if ($deviceConfig instanceof DeviceConfig) {
+                $targetDevice = $deviceConfig->getDevice();
+                $targetType = strtoupper(trim((string) $deviceConfig->getType()));
+                $targetKey = $targetDevice->getId() . '::' . $targetType;
+
+                $targets[$targetKey] = [
+                    'device' => $targetDevice,
+                    'type' => $targetType,
+                ];
+                continue;
+            }
+
+            if ($this->deviceService->isDeviceConfigReference($reference)) {
+                continue;
+            }
+
+            foreach ($this->deviceService->findDevices($reference) as $targetDevice) {
+                $targets[$targetDevice->getId()] = [
+                    'device' => $targetDevice,
+                    'type' => null,
+                ];
+            }
+        }
+
+        return array_values($targets);
+    }
+
     public function printOrder(Order $order, ?array $devices = [], ?array $aditionalData = []): void
     {
         $hasExplicitDevices = !empty($devices);
-        $resolvedDevices = [];
+        $resolvedTargets = [];
 
         if ($hasExplicitDevices) {
-            $resolvedDevices = $this->deviceService->findDevices($devices);
+            $resolvedTargets = $this->resolvePrintTargets(
+                $devices,
+                $order->getProvider()
+            );
         } else {
             $configuredDevices = $this->configService->getConfig(
                 $order->getProvider(),
@@ -60,12 +118,22 @@ class OrderPrintService
             ) ?? [];
 
             if (!empty($configuredDevices)) {
-                $resolvedDevices = $this->deviceService->findDevices($configuredDevices);
+                $resolvedTargets = $this->resolvePrintTargets(
+                    $configuredDevices,
+                    $order->getProvider()
+                );
             }
         }
 
-        foreach ($resolvedDevices as $device) {
-            $this->generatePrintData($order, $device, $aditionalData);
+        foreach ($resolvedTargets as $target) {
+            $this->generatePrintData(
+                $order,
+                $target['device'],
+                array_merge(
+                    $aditionalData,
+                    !empty($target['type']) ? ['type' => $target['type']] : []
+                )
+            );
         }
 
         if (!$hasExplicitDevices) {
@@ -75,7 +143,11 @@ class OrderPrintService
 
     public function generatePrintData(Order $order, Device $device, ?array $aditionalData = []): Spool
     {
-        $printMode = $this->resolvePrintMode($device, $order->getProvider());
+        $printMode = $this->resolvePrintMode(
+            $device,
+            $order->getProvider(),
+            $this->resolveAdditionalDataDeviceType($aditionalData)
+        );
         $printForm = $printMode === 'form';
 
         $this->printProviderHeader($order->getProvider());
@@ -108,7 +180,11 @@ class OrderPrintService
             return null;
         }
 
-        $printMode = $this->resolvePrintMode($device, $order->getProvider());
+        $printMode = $this->resolvePrintMode(
+            $device,
+            $order->getProvider(),
+            $this->resolveAdditionalDataDeviceType($aditionalData)
+        );
         $printForm = $printMode === 'form';
 
         $this->printProviderHeader($order->getProvider());
@@ -136,7 +212,11 @@ class OrderPrintService
             return null;
         }
 
-        $printMode = $this->resolvePrintMode($device, $order->getProvider());
+        $printMode = $this->resolvePrintMode(
+            $device,
+            $order->getProvider(),
+            $this->resolveAdditionalDataDeviceType($aditionalData)
+        );
         $printForm = $printMode === 'form';
 
         $this->printProviderHeader($order->getProvider());
@@ -174,7 +254,11 @@ class OrderPrintService
             return null;
         }
 
-        $printMode = $this->resolvePrintMode($device, $order->getProvider());
+        $printMode = $this->resolvePrintMode(
+            $device,
+            $order->getProvider(),
+            $this->resolveAdditionalDataDeviceType($aditionalData)
+        );
         $printForm = $printMode === 'form';
 
         //$this->printProviderHeader($order->getProvider());
@@ -217,7 +301,10 @@ class OrderPrintService
                 $orderProduct,
                 $target['device'],
                 [$orderProductQueue->getId()],
-                ['automaticProductPrint' => true]
+                [
+                    'automaticProductPrint' => true,
+                    'type' => $target['type'] ?? null,
+                ]
             );
         }
     }
@@ -1024,7 +1111,10 @@ class OrderPrintService
                 $order,
                 $target['device'],
                 $target['queueIds'],
-                $aditionalData
+                array_merge(
+                    $aditionalData,
+                    !empty($target['type']) ? ['type' => $target['type']] : []
+                )
             );
         }
     }
@@ -1072,6 +1162,7 @@ class OrderPrintService
             if (!isset($targets[$deviceId])) {
                 $targets[$deviceId] = [
                     'device' => $device,
+                    'type' => strtoupper(trim((string) $deviceConfig->getType())),
                     'queueIds' => [],
                 ];
             }
@@ -1156,6 +1247,7 @@ class OrderPrintService
             $targets[$deviceId] = [
                 'device' => $device,
                 'displayId' => $displayId,
+                'type' => strtoupper(trim((string) $deviceConfig->getType())),
             ];
         }
 

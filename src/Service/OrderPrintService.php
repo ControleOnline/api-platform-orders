@@ -35,6 +35,16 @@ class OrderPrintService
         private ExtraDataService $extraDataService,
     ) {}
 
+    private function resolvePrintMode(Device $device, People $provider): string
+    {
+        $deviceConfig = $this->deviceService->findDeviceConfig($device, $provider);
+        $configs = $deviceConfig?->getConfigs(true);
+
+        return is_array($configs)
+            ? ($configs['print-mode'] ?? 'order')
+            : 'order';
+    }
+
     public function printOrder(Order $order, ?array $devices = [], ?array $aditionalData = []): void
     {
         $hasExplicitDevices = !empty($devices);
@@ -65,11 +75,7 @@ class OrderPrintService
 
     public function generatePrintData(Order $order, Device $device, ?array $aditionalData = []): Spool
     {
-        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findOneBy([
-            'device' => $device->getId(),
-        ]);
-
-        $printMode = $deviceConfigs?->getConfigs(true)['print-mode'] ?? 'order';
+        $printMode = $this->resolvePrintMode($device, $order->getProvider());
         $printForm = $printMode === 'form';
 
         $this->printProviderHeader($order->getProvider());
@@ -102,11 +108,7 @@ class OrderPrintService
             return null;
         }
 
-        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findOneBy([
-            'device' => $device->getId(),
-        ]);
-
-        $printMode = $deviceConfigs?->getConfigs(true)['print-mode'] ?? 'order';
+        $printMode = $this->resolvePrintMode($device, $order->getProvider());
         $printForm = $printMode === 'form';
 
         $this->printProviderHeader($order->getProvider());
@@ -134,11 +136,7 @@ class OrderPrintService
             return null;
         }
 
-        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findOneBy([
-            'device' => $device->getId(),
-        ]);
-
-        $printMode = $deviceConfigs?->getConfigs(true)['print-mode'] ?? 'order';
+        $printMode = $this->resolvePrintMode($device, $order->getProvider());
         $printForm = $printMode === 'form';
 
         $this->printProviderHeader($order->getProvider());
@@ -176,11 +174,7 @@ class OrderPrintService
             return null;
         }
 
-        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findOneBy([
-            'device' => $device->getId(),
-        ]);
-
-        $printMode = $deviceConfigs?->getConfigs(true)['print-mode'] ?? 'order';
+        $printMode = $this->resolvePrintMode($device, $order->getProvider());
         $printForm = $printMode === 'form';
 
         //$this->printProviderHeader($order->getProvider());
@@ -1054,7 +1048,7 @@ class OrderPrintService
 
         foreach ($deviceConfigs as $deviceConfig) {
             $device = $deviceConfig->getDevice();
-            if (!$this->isDisplayDevice($device)) {
+            if (!$this->isDisplayDevice($deviceConfig)) {
                 continue;
             }
 
@@ -1130,7 +1124,7 @@ class OrderPrintService
 
         foreach ($deviceConfigs as $deviceConfig) {
             $device = $deviceConfig->getDevice();
-            if (!$this->isDisplayDevice($device)) {
+            if (!$this->isDisplayDevice($deviceConfig)) {
                 continue;
             }
 
@@ -1467,9 +1461,9 @@ class OrderPrintService
         return null;
     }
 
-    private function isDisplayDevice(?Device $device): bool
+    private function isDisplayDevice(?DeviceConfig $deviceConfig): bool
     {
-        return strtoupper(trim((string) $device?->getType())) === $this->displayDeviceType;
+        return strtoupper(trim((string) $deviceConfig?->getType())) === $this->displayDeviceType;
     }
 
     private function resolveOrderProductGroupName(

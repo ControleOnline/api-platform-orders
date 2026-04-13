@@ -452,9 +452,6 @@ class OrderPrintService
             if ($queueName === '') {
                 $queueName = $this->defaultQueueName;
             }
-
-            $this->printService->addLine('FILA: ' . strtoupper($queueName));
-
             foreach ($queueBucket['items'] as $orderProduct) {
                 $this->printQueueItem($orderProduct, $printForm);
             }
@@ -471,7 +468,6 @@ class OrderPrintService
                 $queueName = $this->defaultQueueName;
             }
 
-            $this->printService->addLine('FILA: ' . strtoupper($queueName));
             $this->printQueueItem($queueEntry['orderProduct'], $printForm);
             $this->printService->addLine('', '', ' ');
         }
@@ -487,7 +483,6 @@ class OrderPrintService
                 $queueName = $this->defaultQueueName;
             }
 
-            $this->printService->addLine('FILA: ' . strtoupper($queueName));
             $this->printQueueItemWithCut($queueEntry['orderProduct'], $printForm);
         }
     }
@@ -507,7 +502,6 @@ class OrderPrintService
             }
         }
 
-        $this->printService->addLine('FILA: ' . strtoupper($queueName));
         $this->printQueueItemWithCut($orderProduct, $printForm);
     }
 

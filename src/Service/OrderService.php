@@ -3,6 +3,7 @@
 namespace ControleOnline\Service;
 
 use ControleOnline\Entity\DeviceConfig;
+use ControleOnline\Entity\DisplayQueue;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use ControleOnline\Service\Client\WebsocketClient;
@@ -15,6 +16,8 @@ use Doctrine\DBAL\Types\Type;
 
 class OrderService
 {
+    private string $displayDeviceType = 'DISPLAY';
+    private string $displayConfigKey = 'display-id';
     private $request;
 
     public function __construct(
@@ -133,13 +136,38 @@ class OrderService
             return;
         }
 
-        $this->pushToCompanyDevices($provider, [[
+        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findBy([
+            'people' => $provider,
+        ]);
+
+        $baseEvent = [[
             'store' => 'orders',
             'event' => 'order.created',
             'company' => $provider->getId(),
             'order' => $order->getId(),
+            'realStatus' => $this->normalizeStatusValue($order->getStatus()?->getRealStatus()),
             'sentAt' => date(DATE_ATOM),
-        ]]);
+        ]];
+
+        if (!$this->isPreparationOrder($order)) {
+            $this->pushToDeviceConfigs($deviceConfigs, $baseEvent);
+            return;
+        }
+
+        $alertDeviceConfigs = $this->resolvePreparationAlertDeviceConfigs($provider, $order);
+
+        $this->pushToDeviceConfigs(
+            $this->excludeDeviceConfigs($deviceConfigs, $alertDeviceConfigs),
+            $baseEvent
+        );
+
+        $this->pushToDeviceConfigs(
+            $alertDeviceConfigs,
+            [[
+                ...$baseEvent[0],
+                'alertSound' => true,
+            ]]
+        );
     }
 
     public function postUpdate(Order $order): void
@@ -160,9 +188,19 @@ class OrderService
 
     private function pushToCompanyDevices(People $company, array $events): void
     {
-        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findBy([
-            'people' => $company,
-        ]);
+        $this->pushToDeviceConfigs(
+            $this->manager->getRepository(DeviceConfig::class)->findBy([
+                'people' => $company,
+            ]),
+            $events
+        );
+    }
+
+    private function pushToDeviceConfigs(array $deviceConfigs, array $events): void
+    {
+        if (empty($deviceConfigs)) {
+            return;
+        }
 
         $payload = json_encode($events, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if ($payload === false) {
@@ -171,6 +209,10 @@ class OrderService
 
         $sentDevices = [];
         foreach ($deviceConfigs as $deviceConfig) {
+            if (!$deviceConfig instanceof DeviceConfig) {
+                continue;
+            }
+
             $device = $deviceConfig->getDevice();
             $deviceId = $device->getId();
 
@@ -181,5 +223,139 @@ class OrderService
             $sentDevices[$deviceId] = true;
             $this->websocketClient->push($device, $payload);
         }
+    }
+
+    private function isPreparationOrder(Order $order): bool
+    {
+        return $this->normalizeStatusValue($order->getStatus()?->getRealStatus()) === 'open';
+    }
+
+    private function excludeDeviceConfigs(array $deviceConfigs, array $excludedDeviceConfigs): array
+    {
+        if (empty($deviceConfigs) || empty($excludedDeviceConfigs)) {
+            return $deviceConfigs;
+        }
+
+        $excludedDeviceIds = [];
+        foreach ($excludedDeviceConfigs as $deviceConfig) {
+            if (!$deviceConfig instanceof DeviceConfig) {
+                continue;
+            }
+
+            $excludedDeviceIds[$deviceConfig->getDevice()->getId()] = true;
+        }
+
+        return array_values(array_filter(
+            $deviceConfigs,
+            function ($deviceConfig) use ($excludedDeviceIds): bool {
+                if (!$deviceConfig instanceof DeviceConfig) {
+                    return false;
+                }
+
+                return !isset($excludedDeviceIds[$deviceConfig->getDevice()->getId()]);
+            }
+        ));
+    }
+
+    private function resolvePreparationAlertDeviceConfigs(
+        People $company,
+        Order $order
+    ): array {
+        $deviceConfigs = array_values(array_filter(
+            $this->manager->getRepository(DeviceConfig::class)->findBy([
+                'people' => $company,
+            ]),
+            fn($deviceConfig) => $this->isDisplayDeviceConfig($deviceConfig)
+        ));
+
+        if (empty($deviceConfigs)) {
+            return [];
+        }
+
+        $displayIds = $this->resolveOrderDisplayIds($order);
+        if (empty($displayIds)) {
+            return $deviceConfigs;
+        }
+
+        $matchedDeviceConfigs = array_values(array_filter(
+            $deviceConfigs,
+            function (DeviceConfig $deviceConfig) use ($displayIds): bool {
+                $configs = $deviceConfig->getConfigs(true);
+                if (!is_array($configs)) {
+                    return false;
+                }
+
+                $displayId = $this->normalizeEntityId(
+                    $configs[$this->displayConfigKey] ?? null
+                );
+
+                return $displayId !== null && isset($displayIds[$displayId]);
+            }
+        ));
+
+        return !empty($matchedDeviceConfigs) ? $matchedDeviceConfigs : $deviceConfigs;
+    }
+
+    private function resolveOrderDisplayIds(Order $order): array
+    {
+        $queues = [];
+
+        foreach ($order->getOrderProducts() as $orderProduct) {
+            if ($orderProduct->getOrderProduct() !== null) {
+                continue;
+            }
+
+            foreach ($orderProduct->getOrderProductQueues() as $queueEntry) {
+                $queue = $queueEntry->getQueue();
+                $queueId = $this->normalizeEntityId($queue?->getId());
+
+                if ($queue !== null && $queueId !== null) {
+                    $queues[$queueId] = $queue;
+                }
+            }
+        }
+
+        if (empty($queues)) {
+            return [];
+        }
+
+        $displayRows = $this->manager->getRepository(DisplayQueue::class)->findBy([
+            'queue' => array_values($queues),
+        ]);
+
+        $displayIds = [];
+        foreach ($displayRows as $displayRow) {
+            $displayId = $this->normalizeEntityId($displayRow->getDisplay()?->getId());
+            if ($displayId !== null) {
+                $displayIds[$displayId] = true;
+            }
+        }
+
+        return $displayIds;
+    }
+
+    private function isDisplayDeviceConfig(mixed $deviceConfig): bool
+    {
+        return $deviceConfig instanceof DeviceConfig &&
+            strtoupper(trim((string) $deviceConfig->getType())) === $this->displayDeviceType;
+    }
+
+    private function normalizeStatusValue(?string $value): string
+    {
+        return strtolower(trim((string) $value));
+    }
+
+    private function normalizeEntityId(mixed $value): ?int
+    {
+        if (is_object($value) && method_exists($value, 'getId')) {
+            $value = $value->getId();
+        }
+
+        $normalized = preg_replace('/\D+/', '', (string) $value);
+        if ($normalized === null || $normalized === '') {
+            return null;
+        }
+
+        return (int) $normalized;
     }
 }

@@ -127,6 +127,14 @@ class Order
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write',  'invoice:read'])]
     private $client;
 
+    // Registro do documento comercial ligado ao pedido. No CRM esse vínculo
+    // aponta primeiro para a proposta; o contrato final pode surgir depois.
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['contract' => 'exact'])]
+    #[ORM\JoinColumn(name: 'contract_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: Contract::class)]
+    #[Groups(['order:read', 'order_details:read', 'order:write', 'logistic:read'])]
+    private $contract;
+
     #[ApiFilter(DateFilter::class, properties: ['orderDate'])]
     #[ORM\Column(name: 'order_date', type: 'datetime', nullable: false, columnDefinition: 'DATETIME')]
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
@@ -289,6 +297,17 @@ class Order
     public function getClient()
     {
         return $this->client;
+    }
+
+    public function setContract(?Contract $contract = null)
+    {
+        $this->contract = $contract;
+        return $this;
+    }
+
+    public function getContract(): ?Contract
+    {
+        return $this->contract;
     }
 
     public function setProvider(People $provider = null)

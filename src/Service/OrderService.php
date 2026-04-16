@@ -172,6 +172,8 @@ class OrderService
 
     public function postUpdate(Order $order): void
     {
+        $this->orderProductQueueService->syncByOrderStatus($order);
+
         $provider = $order->getProvider();
         if ($provider) {
             $this->pushToCompanyDevices($provider, [[
@@ -179,11 +181,11 @@ class OrderService
                 'event' => 'order.updated',
                 'company' => $provider->getId(),
                 'order' => $order->getId(),
+                'realStatus' => $this->normalizeStatusValue($order->getStatus()?->getRealStatus()),
+                'status' => $this->normalizeStatusValue($order->getStatus()?->getStatus()),
                 'sentAt' => date(DATE_ATOM),
             ]]);
         }
-
-        $this->orderProductQueueService->syncByOrderStatus($order);
     }
 
     private function pushToCompanyDevices(People $company, array $events): void

@@ -87,6 +87,18 @@ class OrderActionService
         return in_array($realStatus, ['canceled', 'cancelled', 'closed'], true);
     }
 
+    private function normalizeStatusValue(mixed $value): string
+    {
+        return strtolower(trim((string) ($value ?? '')));
+    }
+
+    private function isPosOrShopOrder(Order $order): bool
+    {
+        $app = $this->normalizeStatusValue($order->getApp());
+
+        return in_array($app, ['pos', 'shop'], true);
+    }
+
     private function buildTerminalOrderResponse(): array
     {
         return [
@@ -97,14 +109,34 @@ class OrderActionService
 
     public function getCapabilities(Order $order): array
     {
-        $realStatus = $order->getStatus()->getRealStatus();
-        $terminal = in_array($realStatus, ['canceled', 'cancelled', 'closed']);
+        $realStatus = $this->normalizeStatusValue($order->getStatus()?->getRealStatus());
+        $status = $this->normalizeStatusValue($order->getStatus()?->getStatus());
+        $terminal = in_array($realStatus, ['canceled', 'cancelled', 'closed'], true);
+
+        $isInitialPosOrShopState = $this->isPosOrShopOrder($order)
+            && $realStatus === 'open'
+            && in_array($status, ['', 'open', 'paid', 'confirmed'], true);
+        $isPreparingPosOrShopState = $this->isPosOrShopOrder($order)
+            && $realStatus === 'open'
+            && $status === 'preparing';
+        $isReadyPosOrShopState = $this->isPosOrShopOrder($order)
+            && $realStatus === 'pending'
+            && $status === 'ready';
+        $isDeliveringPosOrShopState = $this->isPosOrShopOrder($order)
+            && $realStatus === 'pending'
+            && $status === 'way';
+
+        $canConfirm = !$terminal && (!$this->isPosOrShopOrder($order) || $isInitialPosOrShopState);
+        $canReady = !$terminal && (!$this->isPosOrShopOrder($order) || $isPreparingPosOrShopState);
+        $canDelivered = !$terminal && (!$this->isPosOrShopOrder($order) || $isReadyPosOrShopState || $isDeliveringPosOrShopState);
 
         return [
             'realStatus' => $realStatus,
             'can_cancel' => !$terminal,
-            'can_ready' => !$terminal,
-            'can_delivered' => !$terminal,
+            'can_confirm' => $canConfirm,
+            'can_ready' => $canReady,
+            'can_delivered' => $canDelivered,
+            'is_delivering' => $isDeliveringPosOrShopState,
             'is_terminal' => $terminal,
         ];
     }

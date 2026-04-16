@@ -280,15 +280,45 @@ class OrderPrintService
         );
     }
 
+    public function generateOrderProductQueuePrintData(
+        OrderProductQueue $orderProductQueue,
+        Device $device,
+        ?array $aditionalData = []
+    ): ?Spool {
+        $queueEntry = $this->normalizeQueueEntryForPrint($orderProductQueue);
+        $orderProduct = $orderProductQueue->getOrderProduct();
+        $order = $orderProduct?->getOrder();
+
+        if ($queueEntry === null || !($order instanceof Order)) {
+            return null;
+        }
+
+        $printMode = $this->resolvePrintMode(
+            $device,
+            $order->getProvider(),
+            $this->resolveAdditionalDataDeviceType($aditionalData)
+        );
+        $printForm = $printMode === 'form';
+
+        $this->printOrderHeader($order, $printForm, true);
+        $this->printSeparator();
+        $this->printOrderProductQueueEntries([$queueEntry], $printForm);
+        $this->printQueueFooter($order, $printForm);
+
+        return $this->printService->generatePrintData(
+            $device,
+            $order->getProvider(),
+            $aditionalData
+        );
+    }
+
     public function autoPrintOrderProductQueueEntry(
         OrderProductQueue $orderProductQueue
     ): void {
-        $orderProduct = $orderProductQueue->getOrderProduct();
-        $order = $orderProduct?->getOrder();
+        $order = $orderProductQueue->getOrderProduct()?->getOrder();
         $provider = $order?->getProvider();
 
         if (
-            !($orderProduct instanceof OrderProduct) ||
             !($order instanceof Order) ||
             !($provider instanceof People) ||
             !$orderProductQueue->getId()
@@ -297,10 +327,9 @@ class OrderPrintService
         }
 
         foreach ($this->resolveAutoPrintDisplayTargets($orderProductQueue) as $target) {
-            $this->generateOrderProductPrintData(
-                $orderProduct,
+            $this->generateOrderProductQueuePrintData(
+                $orderProductQueue,
                 $target['device'],
-                [$orderProductQueue->getId()],
                 [
                     'automaticProductPrint' => true,
                     'type' => $target['type'] ?? null,
@@ -539,7 +568,11 @@ class OrderPrintService
                 $queueName = $this->defaultQueueName;
             }
 
-            $this->printQueueItem($queueEntry['orderProduct'], $printForm);
+            $this->printQueueItem(
+                $queueEntry['orderProduct'],
+                $printForm,
+                (float) ($queueEntry['quantity'] ?? 1)
+            );
             $this->printService->addLine('', '', ' ');
         }
     }
@@ -554,7 +587,11 @@ class OrderPrintService
                 $queueName = $this->defaultQueueName;
             }
 
-            $this->printQueueItemWithCut($queueEntry['orderProduct'], $printForm);
+            $this->printQueueItemWithCut(
+                $queueEntry['orderProduct'],
+                $printForm,
+                (float) ($queueEntry['quantity'] ?? 1)
+            );
         }
     }
 
@@ -576,35 +613,44 @@ class OrderPrintService
         $this->printQueueItemWithCut($orderProduct, $printForm);
     }
 
-    private function printQueueItem(OrderProduct $orderProduct, bool $printForm): void
+    private function printQueueItem(
+        OrderProduct $orderProduct,
+        bool $printForm,
+        ?float $quantityOverride = null
+    ): void
     {
         if ($printForm) {
-            $this->printQueueFormItem($orderProduct);
+            $this->printQueueFormItem($orderProduct, $quantityOverride);
             return;
         }
 
-        $this->printQueueRegularItem($orderProduct);
+        $this->printQueueRegularItem($orderProduct, $quantityOverride);
     }
 
     private function printQueueItemWithCut(
         OrderProduct $orderProduct,
-        bool $printForm
+        bool $printForm,
+        ?float $quantityOverride = null
     ): void {
         if ($printForm) {
-            $this->printQueueFormItemWithCut($orderProduct);
+            $this->printQueueFormItemWithCut($orderProduct, $quantityOverride);
             return;
         }
 
-        $this->printQueueRegularItem($orderProduct);
+        $this->printQueueRegularItem($orderProduct, $quantityOverride);
         $this->printService->addCutMarker();
     }
 
-    private function printQueueRegularItem(OrderProduct $orderProduct): void
+    private function printQueueRegularItem(
+        OrderProduct $orderProduct,
+        ?float $quantityOverride = null
+    ): void
     {
         $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
+        $quantity = $quantityOverride ?? (float) $orderProduct->getQuantity();
 
         $this->printService->addLine(
-            $this->formatQuantity((float) $orderProduct->getQuantity()) . 'x ' . $productName
+            $this->formatQueueProductLine($productName, $quantity)
         );
 
         $this->printOrderProductDescription($orderProduct);
@@ -613,13 +659,16 @@ class OrderPrintService
         $this->printSeparator();
     }
 
-    private function printQueueFormItem(OrderProduct $orderProduct): void
+    private function printQueueFormItem(
+        OrderProduct $orderProduct,
+        ?float $quantityOverride = null
+    ): void
     {
         $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
-        $quantity = (int) max(1, (float) $orderProduct->getQuantity());
+        $quantity = (int) max(1, $quantityOverride ?? (float) $orderProduct->getQuantity());
 
         for ($i = 0; $i < $quantity; $i++) {
-            $this->printService->addLine('1x ' . $productName);
+            $this->printService->addLine($this->formatQueueProductLine($productName, 1));
             $this->printOrderProductDescription($orderProduct);
             $this->printOrderProductComment($orderProduct);
             $this->printChildren($orderProduct->getOrderProductComponents(), true);
@@ -627,13 +676,16 @@ class OrderPrintService
         }
     }
 
-    private function printQueueFormItemWithCut(OrderProduct $orderProduct): void
+    private function printQueueFormItemWithCut(
+        OrderProduct $orderProduct,
+        ?float $quantityOverride = null
+    ): void
     {
         $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
-        $quantity = (int) max(1, (float) $orderProduct->getQuantity());
+        $quantity = (int) max(1, $quantityOverride ?? (float) $orderProduct->getQuantity());
 
         for ($i = 0; $i < $quantity; $i++) {
-            $this->printService->addLine('1x ' . $productName);
+            $this->printService->addLine($this->formatQueueProductLine($productName, 1));
             $this->printOrderProductDescription($orderProduct);
             $this->printOrderProductComment($orderProduct);
             $this->printChildren($orderProduct->getOrderProductComponents(), true);
@@ -1413,17 +1465,12 @@ class OrderPrintService
                     continue;
                 }
 
-                $queue = $queueEntry->getQueue();
-                $queueName = trim((string) ($queue?->getQueue() ?? ''));
+                $normalizedQueueEntry = $this->normalizeQueueEntryForPrint($queueEntry);
+                if ($normalizedQueueEntry === null) {
+                    continue;
+                }
 
-                $selectedEntries[$queueEntryId] = [
-                    'id' => $queueEntryId,
-                    'queue' => $queue,
-                    'queueName' => $queueName === ''
-                        ? $this->defaultQueueName
-                        : $queueName,
-                    'orderProduct' => $orderProduct,
-                ];
+                $selectedEntries[$queueEntryId] = $normalizedQueueEntry;
             }
         }
 
@@ -1455,17 +1502,12 @@ class OrderPrintService
                 continue;
             }
 
-            $queue = $queueEntry->getQueue();
-            $queueName = trim((string) ($queue?->getQueue() ?? ''));
+            $normalizedQueueEntry = $this->normalizeQueueEntryForPrint($queueEntry);
+            if ($normalizedQueueEntry === null) {
+                continue;
+            }
 
-            $selectedEntries[$queueEntryId] = [
-                'id' => $queueEntryId,
-                'queue' => $queue,
-                'queueName' => $queueName === ''
-                    ? $this->defaultQueueName
-                    : $queueName,
-                'orderProduct' => $orderProduct,
-            ];
+            $selectedEntries[$queueEntryId] = $normalizedQueueEntry;
         }
 
         ksort($selectedEntries);
@@ -1503,6 +1545,31 @@ class OrderPrintService
         if ($orderProductId > 0) {
             $queueBuckets[$bucketKey]['seen'][$orderProductId] = true;
         }
+    }
+
+    private function normalizeQueueEntryForPrint(
+        OrderProductQueue $queueEntry
+    ): ?array {
+        $queueEntryId = $this->normalizeEntityId($queueEntry->getId());
+        $orderProduct = $queueEntry->getOrderProduct();
+
+        if ($queueEntryId === null || !($orderProduct instanceof OrderProduct)) {
+            return null;
+        }
+
+        $queue = $queueEntry->getQueue();
+        $queueName = trim((string) ($queue?->getQueue() ?? ''));
+
+        return [
+            'id' => $queueEntryId,
+            'queue' => $queue,
+            'queueName' => $queueName === ''
+                ? $this->defaultQueueName
+                : $queueName,
+            'quantity' => 1.0,
+            'orderProduct' => $orderProduct,
+            'orderProductQueue' => $queueEntry,
+        ];
     }
 
     private function normalizeAllowedIds(array $ids): array
@@ -1691,6 +1758,15 @@ class OrderPrintService
         $formatted = rtrim($formatted, ',');
 
         return $formatted === '' ? '0' : $formatted;
+    }
+
+    private function formatQueueProductLine(string $productName, float $quantity): string
+    {
+        if ($quantity < 2) {
+            return $productName;
+        }
+
+        return $this->formatQuantity($quantity) . 'x ' . $productName;
     }
 
     private function formatMoney(float $value): string

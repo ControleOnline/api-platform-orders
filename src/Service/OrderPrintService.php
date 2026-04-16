@@ -796,8 +796,10 @@ class OrderPrintService
             }
 
             foreach ($group['items'] as $child) {
-                $line = $this->formatQuantity((float) $child->getQuantity()) . 'x ' .
-                    $this->normalizeText($child->getProduct()->getProduct());
+                $line = $this->formatChildProductLine(
+                    $this->normalizeText($child->getProduct()->getProduct()),
+                    (float) $child->getQuantity()
+                );
 
                 $this->printWrappedBlock('   * ', $line);
                 $this->printOrderProductComment($child);
@@ -1761,6 +1763,15 @@ class OrderPrintService
     }
 
     private function formatQueueProductLine(string $productName, float $quantity): string
+    {
+        if ($quantity < 2) {
+            return $productName;
+        }
+
+        return $this->formatQuantity($quantity) . 'x ' . $productName;
+    }
+
+    private function formatChildProductLine(string $productName, float $quantity): string
     {
         if ($quantity < 2) {
             return $productName;

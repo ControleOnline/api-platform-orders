@@ -14,6 +14,8 @@ use ControleOnline\Entity\People;
 use ControleOnline\Entity\Phone;
 use ControleOnline\Entity\Spool;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class OrderPrintService
 {
@@ -139,6 +141,32 @@ class OrderPrintService
         if (!$hasExplicitDevices) {
             $this->printDisplayCopies($order, $aditionalData);
         }
+    }
+
+    public function generatePrintDataFromContent(
+        Order $order,
+        ?string $content
+    ): ?Spool
+    {
+        return $this->generatePrintDataFromPayload(
+            $order,
+            $this->decodePayload($content)
+        );
+    }
+
+    public function generatePrintDataFromPayload(
+        Order $order,
+        array $payload
+    ): ?Spool
+    {
+        $device = $this->resolvePayloadDevice($payload);
+        $queueIds = $this->normalizeIds($payload['queueIds'] ?? []);
+
+        if (!empty($queueIds)) {
+            return $this->generateQueuePrintData($order, $device, $queueIds);
+        }
+
+        return $this->generatePrintData($order, $device);
     }
 
     public function generatePrintData(Order $order, Device $device, ?array $aditionalData = []): Spool
@@ -280,6 +308,29 @@ class OrderPrintService
         );
     }
 
+    public function generateOrderProductPrintDataFromContent(
+        OrderProduct $orderProduct,
+        ?string $content
+    ): ?Spool
+    {
+        return $this->generateOrderProductPrintDataFromPayload(
+            $orderProduct,
+            $this->decodePayload($content)
+        );
+    }
+
+    public function generateOrderProductPrintDataFromPayload(
+        OrderProduct $orderProduct,
+        array $payload
+    ): ?Spool
+    {
+        return $this->generateOrderProductPrintData(
+            $orderProduct,
+            $this->resolvePayloadDevice($payload),
+            $this->normalizeIds($payload['orderProductQueueIds'] ?? [])
+        );
+    }
+
     public function generateOrderProductQueuePrintData(
         OrderProductQueue $orderProductQueue,
         Device $device,
@@ -310,6 +361,64 @@ class OrderPrintService
             $order->getProvider(),
             $aditionalData
         );
+    }
+
+    public function generateOrderProductQueuePrintDataFromContent(
+        OrderProductQueue $orderProductQueue,
+        ?string $content
+    ): ?Spool
+    {
+        return $this->generateOrderProductQueuePrintData(
+            $orderProductQueue,
+            $this->resolvePayloadDevice($this->decodePayload($content))
+        );
+    }
+
+    private function resolvePayloadDevice(array $payload): Device
+    {
+        $deviceReference = trim((string) ($payload['device'] ?? ''));
+        if ($deviceReference === '') {
+            throw new BadRequestHttpException('Device not informed');
+        }
+
+        $device = $this->deviceService->resolveDeviceReference($deviceReference);
+        if (!$device instanceof Device) {
+            throw new NotFoundHttpException('Device not found');
+        }
+
+        return $device;
+    }
+
+    private function normalizeIds(mixed $value): array
+    {
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $value = $decoded;
+            } elseif (trim($value) !== '') {
+                $value = [$value];
+            } else {
+                $value = [];
+            }
+        } elseif (!is_array($value)) {
+            $value = $value === null ? [] : [$value];
+        }
+
+        return array_values(array_filter(array_map(
+            static fn($item) => trim((string) $item),
+            $value
+        )));
+    }
+
+    private function decodePayload(?string $content): array
+    {
+        if (!is_string($content) || trim($content) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($content, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     public function autoPrintOrderProductQueueEntry(

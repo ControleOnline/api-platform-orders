@@ -52,6 +52,31 @@ class OrderProductService
         return   $OProduct;
     }
 
+    public function addProductsToOrder(Order $order, array $items): Order
+    {
+        foreach ($items as $item) {
+            $product = $this->findProductReference($item['product'] ?? null);
+            if (!$product instanceof Product) {
+                throw new \InvalidArgumentException('Product not found');
+            }
+
+            $quantity = $item['quantity'] ?? 0;
+            $price = $product->getPrice();
+            $this->addOrderProduct($order, $product, $quantity, $price);
+        }
+
+        $this->manager->flush();
+        $this->orderService->calculateOrderPrice($order);
+        $this->manager->refresh($order);
+
+        return $order;
+    }
+
+    public function findOrderProductById(int $id): ?OrderProduct
+    {
+        return $this->manager->getRepository(OrderProduct::class)->find($id);
+    }
+
     public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity)
     {
         $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
@@ -171,5 +196,17 @@ class OrderProductService
             $this->orderService->calculateGroupProductPrice($order);
             $this->orderService->calculateOrderPrice($order);
         }
+    }
+
+    private function findProductReference(mixed $reference): ?Product
+    {
+        return $this->manager->getRepository(Product::class)->find(
+            $this->normalizeReferenceId($reference)
+        );
+    }
+
+    private function normalizeReferenceId(mixed $reference): int
+    {
+        return (int) preg_replace('/\D+/', '', (string) $reference);
     }
 }

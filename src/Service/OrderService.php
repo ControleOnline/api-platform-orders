@@ -105,6 +105,11 @@ class OrderService
         return $order;
     }
 
+    public function findOrderById(int $orderId): ?Order
+    {
+        return $this->manager->getRepository(Order::class)->find($orderId);
+    }
+
     public function securityFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
     {
         $companies   = $this->peopleService->getMyCompanies();

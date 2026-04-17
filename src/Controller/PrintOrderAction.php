@@ -2,58 +2,39 @@
 
 namespace ControleOnline\Controller;
 
-use ControleOnline\Entity\Device;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Doctrine\ORM\EntityManagerInterface;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\Spool;
 use ControleOnline\Service\HydratorService;
 use ControleOnline\Service\OrderPrintService;
+use ControleOnline\Service\OrderService;
 use Exception;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class PrintOrderAction
 {
     public function __construct(
-        private EntityManagerInterface $entityManager,
         private OrderPrintService $print,
-        private HydratorService $hydratorService
+        private HydratorService $hydratorService,
+        private OrderService $orderService
 
     ) {}
 
     public function __invoke(Request $request, int $id): JsonResponse
     {
         try {
-            $order = $this->entityManager->getRepository(Order::class)->find($id);
+            $order = $this->orderService->findOrderById($id);
             if (!$order) {
                 return new JsonResponse(['error' => 'Order not found'], 404);
             }
 
-            $data = json_decode($request->getContent(), true) ?? [];
-            $deviceId = trim((string) ($data['device'] ?? ''));
-            if ($deviceId === '') {
-                return new JsonResponse(['error' => 'Device not informed'], 400);
-            }
-
-            $device = $this->entityManager->getRepository(Device::class)->findOneBy([
-                'device' => $deviceId
-            ]);
-
-            if (!$device) {
-                return new JsonResponse(['error' => 'Device not found'], 404);
-            }
-
-            $queueIds = $this->normalizeIds($data['queueIds'] ?? []);
-            if (!empty($queueIds)) {
-                $printData = $this->print->generateQueuePrintData(
-                    $order,
-                    $device,
-                    $queueIds
-                );
-            } else {
-                $printData = $this->print->generatePrintData($order, $device);
-            }
+            $printData = $this->print->generatePrintDataFromContent(
+                $order,
+                $request->getContent()
+            );
 
             if (!$printData) {
                 return new JsonResponse(
@@ -63,29 +44,12 @@ class PrintOrderAction
             }
 
             return new JsonResponse($this->hydratorService->item(Spool::class, $printData->getId(), "spool_item:read"), Response::HTTP_OK);
+        } catch (BadRequestHttpException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (NotFoundHttpException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 404);
         } catch (Exception $e) {
             return new JsonResponse($this->hydratorService->error($e));
         }
-    }
-
-    private function normalizeIds(mixed $value): array
-    {
-        if (is_string($value)) {
-            $decoded = json_decode($value, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                $value = $decoded;
-            } elseif (trim($value) !== '') {
-                $value = [$value];
-            } else {
-                $value = [];
-            }
-        } elseif (!is_array($value)) {
-            $value = $value === null ? [] : [$value];
-        }
-
-        return array_values(array_filter(array_map(
-            static fn($item) => trim((string) $item),
-            $value
-        )));
     }
 }

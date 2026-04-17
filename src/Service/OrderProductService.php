@@ -72,6 +72,13 @@ class OrderProductService
         return $order;
     }
 
+    public function addProductsToOrderFromContent(
+        Order $order,
+        ?string $content
+    ): Order {
+        return $this->addProductsToOrder($order, $this->decodePayload($content));
+    }
+
     public function findOrderProductById(int $id): ?OrderProduct
     {
         return $this->manager->getRepository(OrderProduct::class)->find($id);
@@ -208,5 +215,16 @@ class OrderProductService
     private function normalizeReferenceId(mixed $reference): int
     {
         return (int) preg_replace('/\D+/', '', (string) $reference);
+    }
+
+    private function decodePayload(?string $content): array
+    {
+        if (!is_string($content) || trim($content) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($content, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 }

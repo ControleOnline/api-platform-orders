@@ -29,9 +29,9 @@ class AddProductsOrderAction
             if (!$order)
                 return new JsonResponse(['error' => 'Order not found'], 404);
 
-            $this->orderProductService->addProductsToOrder(
+            $this->orderProductService->addProductsToOrderFromContent(
                 $order,
-                json_decode($request->getContent(), true) ?? []
+                $request->getContent()
             );
 
             return new JsonResponse($this->hydratorService->item(Order::class, $order->getId(), "order:write"), Response::HTTP_OK);

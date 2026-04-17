@@ -2,7 +2,6 @@
 
 namespace ControleOnline\Controller;
 
-use ControleOnline\Entity\OrderInvoice;
 use ControleOnline\Service\OrderInvoiceService;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -15,8 +14,8 @@ class CreateOrderInvoiceController
         Request $request
     ) {
         try {
-            $orderInvoice = $this->orderInvoiceService->createFromPayload(
-                json_decode($request->getContent(), true) ?? []
+            $orderInvoice = $this->orderInvoiceService->createFromContent(
+                $request->getContent()
             );
         } catch (\InvalidArgumentException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], 400);

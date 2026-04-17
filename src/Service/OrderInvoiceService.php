@@ -51,6 +51,11 @@ class OrderInvoiceService
         return $orderInvoice;
     }
 
+    public function createFromContent(?string $content): OrderInvoice
+    {
+        return $this->createFromPayload($this->decodePayload($content));
+    }
+
     private function findPeopleReference(mixed $reference): ?People
     {
         return $this->manager->getRepository(People::class)->find(
@@ -82,5 +87,16 @@ class OrderInvoiceService
     private function normalizeReferenceId(mixed $reference): int
     {
         return (int) filter_var((string) $reference, FILTER_SANITIZE_NUMBER_INT);
+    }
+
+    private function decodePayload(?string $content): array
+    {
+        if (!is_string($content) || trim($content) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($content, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 }

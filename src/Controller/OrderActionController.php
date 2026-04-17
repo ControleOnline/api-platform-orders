@@ -6,6 +6,7 @@ use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use ControleOnline\Service\LoggerService;
 use ControleOnline\Service\OrderActionService;
+use ControleOnline\Service\RequestPayloadService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -25,6 +26,7 @@ class OrderActionController extends AbstractController
         private Security $security,
         private OrderActionService $orderActionService,
         private LoggerService $loggerService,
+        private RequestPayloadService $requestPayloadService,
     ) {}
 
     private function getAuthenticatedPeople(): ?People
@@ -86,8 +88,8 @@ class OrderActionController extends AbstractController
 
     private function resolveOrder(string|int $orderId): ?Order
     {
-        $id = (int) preg_replace('/\D+/', '', (string) $orderId);
-        if ($id <= 0) {
+        $id = $this->requestPayloadService->normalizeOptionalNumericId($orderId);
+        if (!$id) {
             return null;
         }
 
@@ -110,12 +112,7 @@ class OrderActionController extends AbstractController
             return [];
         }
 
-        $json = json_decode($content, true);
-        if (json_last_error() !== JSON_ERROR_NONE || !is_array($json)) {
-            throw new \InvalidArgumentException('JSON inválido');
-        }
-
-        return $json;
+        return $this->requestPayloadService->decodeJsonContent($content);
     }
 
     private function orderNotFound(): JsonResponse
@@ -246,7 +243,7 @@ class OrderActionController extends AbstractController
         $result = $this->safeRunOrderAction('cancel', function () use ($order, $reasonId, $reason) {
             return $this->orderActionService->cancel(
                 $order,
-                $reasonId !== null && $reasonId !== '' ? (int) preg_replace('/\D+/', '', (string) $reasonId) : null,
+                $this->requestPayloadService->normalizeOptionalNumericId($reasonId),
                 $reason !== '' ? $reason : null
             );
         }, $order);

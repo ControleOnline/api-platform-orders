@@ -12,10 +12,16 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInt
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Doctrine\DBAL\Types\Type;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 
 class OrderService
 {
+    private const MARKETPLACE_APPS = [
+        'ifood',
+        'food99',
+    ];
+
     private string $displayDeviceType = 'DISPLAY';
     private string $displayConfigKey = 'display-id';
     private $request;
@@ -108,6 +114,29 @@ class OrderService
     public function findOrderById(int $orderId): ?Order
     {
         return $this->manager->getRepository(Order::class)->find($orderId);
+    }
+
+    public function isMarketplaceIntegrationOrder(Order $order): bool
+    {
+        return in_array(
+            $this->normalizeStatusValue($order->getApp()),
+            self::MARKETPLACE_APPS,
+            true
+        );
+    }
+
+    public function preUpdate(Order $order): void
+    {
+        if (
+            !$this->isMarketplaceIntegrationOrder($order)
+            || !$this->isDirectOrderResourceEditRequest()
+        ) {
+            return;
+        }
+
+        throw new BadRequestHttpException(
+            'Pedidos de integracao nao podem ser editados diretamente. Use as acoes do pedido para alterar status.'
+        );
     }
 
     public function securityFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
@@ -364,5 +393,19 @@ class OrderService
         }
 
         return (int) $normalized;
+    }
+
+    private function isDirectOrderResourceEditRequest(): bool
+    {
+        if (!$this->request) {
+            return false;
+        }
+
+        $method = strtoupper((string) $this->request->getMethod());
+        if (!in_array($method, ['PUT', 'PATCH'], true)) {
+            return false;
+        }
+
+        return (bool) preg_match('#^/orders/\d+$#', (string) $this->request->getPathInfo());
     }
 }

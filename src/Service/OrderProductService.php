@@ -12,6 +12,7 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInt
 as Security;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 
 class OrderProductService
@@ -84,6 +85,16 @@ class OrderProductService
         return $this->manager->getRepository(OrderProduct::class)->find($id);
     }
 
+    public function prePersist(OrderProduct $orderProduct): void
+    {
+        $this->guardMarketplaceOrderProductMutation($orderProduct);
+    }
+
+    public function preUpdate(OrderProduct $orderProduct): void
+    {
+        $this->guardMarketplaceOrderProductMutation($orderProduct);
+    }
+
     public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity)
     {
         $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
@@ -151,6 +162,7 @@ class OrderProductService
 
     public function preRemove(OrderProduct $orderProduct)
     {
+        $this->guardMarketplaceOrderProductMutation($orderProduct);
 
         if (!self::$mainProduct) return;
         self::$mainProduct = false;
@@ -226,5 +238,38 @@ class OrderProductService
         $decoded = json_decode($content, true);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    private function guardMarketplaceOrderProductMutation(OrderProduct $orderProduct): void
+    {
+        $order = $orderProduct->getOrder();
+        if (
+            !$order instanceof Order
+            || !$this->orderService->isMarketplaceIntegrationOrder($order)
+            || !$this->isOrderProductMutationRequest()
+        ) {
+            return;
+        }
+
+        throw new BadRequestHttpException(
+            'Itens de pedidos de integracao nao podem ser editados diretamente.'
+        );
+    }
+
+    private function isOrderProductMutationRequest(): bool
+    {
+        if (!$this->request) {
+            return false;
+        }
+
+        $method = strtoupper((string) $this->request->getMethod());
+        if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            return false;
+        }
+
+        $path = (string) $this->request->getPathInfo();
+
+        return (bool) preg_match('#^/order_products(?:/\d+)?$#', $path)
+            || (bool) preg_match('#^/orders/\d+/add-products$#', $path);
     }
 }

@@ -102,30 +102,14 @@ class OrderPrintService
         return array_values($targets);
     }
 
-    public function printOrder(Order $order, ?array $devices = [], ?array $aditionalData = []): void
+    public function printConferenceCopies(
+        Order $order,
+        ?array $devices = [],
+        ?array $aditionalData = []
+    ): int
     {
-        $hasExplicitDevices = !empty($devices);
-        $resolvedTargets = [];
-
-        if ($hasExplicitDevices) {
-            $resolvedTargets = $this->resolvePrintTargets(
-                $devices,
-                $order->getProvider()
-            );
-        } else {
-            $configuredDevices = $this->configService->getConfig(
-                $order->getProvider(),
-                'order-print-devices',
-                true
-            ) ?? [];
-
-            if (!empty($configuredDevices)) {
-                $resolvedTargets = $this->resolvePrintTargets(
-                    $configuredDevices,
-                    $order->getProvider()
-                );
-            }
-        }
+        $resolvedTargets = $this->resolveConferencePrintTargets($order, $devices);
+        $printedCount = 0;
 
         foreach ($resolvedTargets as $target) {
             $this->generatePrintData(
@@ -136,11 +120,47 @@ class OrderPrintService
                     !empty($target['type']) ? ['type' => $target['type']] : []
                 )
             );
+            $printedCount++;
         }
+
+        return $printedCount;
+    }
+
+    public function printOrder(Order $order, ?array $devices = [], ?array $aditionalData = []): void
+    {
+        $hasExplicitDevices = !empty($devices);
+        $this->printConferenceCopies($order, $devices, $aditionalData);
 
         if (!$hasExplicitDevices) {
             $this->printDisplayCopies($order, $aditionalData);
         }
+    }
+
+    private function resolveConferencePrintTargets(
+        Order $order,
+        ?array $devices = []
+    ): array {
+        if (!empty($devices)) {
+            return $this->resolvePrintTargets(
+                $devices,
+                $order->getProvider()
+            );
+        }
+
+        $configuredDevices = $this->configService->getConfig(
+            $order->getProvider(),
+            'order-print-devices',
+            true
+        ) ?? [];
+
+        if (empty($configuredDevices)) {
+            return [];
+        }
+
+        return $this->resolvePrintTargets(
+            $configuredDevices,
+            $order->getProvider()
+        );
     }
 
     public function generatePrintDataFromContent(
@@ -423,7 +443,7 @@ class OrderPrintService
 
     public function autoPrintOrderProductQueueEntry(
         OrderProductQueue $orderProductQueue
-    ): void {
+    ): int {
         $order = $orderProductQueue->getOrderProduct()?->getOrder();
         $provider = $order?->getProvider();
 
@@ -432,11 +452,12 @@ class OrderPrintService
             !($provider instanceof People) ||
             !$orderProductQueue->getId()
         ) {
-            return;
+            return 0;
         }
 
+        $printedCount = 0;
         foreach ($this->resolveAutoPrintDisplayTargets($orderProductQueue) as $target) {
-            $this->generateOrderProductQueuePrintData(
+            $printData = $this->generateOrderProductQueuePrintData(
                 $orderProductQueue,
                 $target['device'],
                 [
@@ -444,7 +465,13 @@ class OrderPrintService
                     'type' => $target['type'] ?? null,
                 ]
             );
+
+            if ($printData instanceof Spool) {
+                $printedCount++;
+            }
         }
+
+        return $printedCount;
     }
 
     private function printProviderHeader(?People $provider): void

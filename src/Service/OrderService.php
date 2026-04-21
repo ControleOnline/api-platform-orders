@@ -17,9 +17,16 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 class OrderService
 {
+    public const ORDER_TYPE_QUOTE = 'quote';
+    public const ORDER_TYPE_SALE = 'sale';
+
     private const MARKETPLACE_APPS = [
         'ifood',
         'food99',
+    ];
+    private const DRAFT_ORDER_APPS = [
+        'pos',
+        'shop',
     ];
 
     private string $displayDeviceType = 'DISPLAY';
@@ -91,18 +98,18 @@ class OrderService
 
     public function createOrder(People $receiver, People $payer, $app)
     {
-
-        $status = $this->statusService->discoveryStatus(
-            'pending',
-            'waiting payment',
-            'order'
-        );
+        $startsAsQuote = $this->shouldStartAsQuote($app);
+        $status = $startsAsQuote
+            ? $this->statusService->discoveryStatus('open', 'open', 'order')
+            : $this->statusService->discoveryStatus('pending', 'waiting payment', 'order');
 
         $order = new Order();
         $order->setProvider($receiver);
         $order->setClient($payer);
         $order->setPayer($payer);
-        $order->setOrderType('sale');
+        $order->setOrderType(
+            $startsAsQuote ? self::ORDER_TYPE_QUOTE : self::ORDER_TYPE_SALE
+        );
         $order->setStatus($status);
         $order->setApp($app);
 
@@ -123,6 +130,56 @@ class OrderService
             self::MARKETPLACE_APPS,
             true
         );
+    }
+
+    public function shouldStartAsQuote(?string $app): bool
+    {
+        return in_array(
+            $this->normalizeStatusValue($app),
+            self::DRAFT_ORDER_APPS,
+            true
+        );
+    }
+
+    public function isProductionOrder(Order $order): bool
+    {
+        return $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_SALE;
+    }
+
+    public function normalizeDraftCartOrder(Order $order): bool
+    {
+        if (
+            !$this->shouldStartAsQuote($order->getApp())
+            || $this->hasClosedInvoices($order)
+            || $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_QUOTE
+        ) {
+            return false;
+        }
+
+        $order->setOrderType(self::ORDER_TYPE_QUOTE);
+        $this->applyQueueStateForOrder($order);
+        return true;
+    }
+
+    public function convertDraftOrderToSale(Order $order): bool
+    {
+        if ($this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_SALE) {
+            return false;
+        }
+
+        $order->setOrderType(self::ORDER_TYPE_SALE);
+
+        foreach ($order->getOrderProducts() as $orderProduct) {
+            $product = $orderProduct->getProduct();
+            if ($product === null || $orderProduct->getOutInventory()) {
+                continue;
+            }
+
+            $orderProduct->setOutInventory($product->getDefaultOutInventory());
+            $this->manager->persist($orderProduct);
+        }
+
+        return true;
     }
 
     public function preUpdate(Order $order): void
@@ -206,7 +263,7 @@ class OrderService
 
     public function postUpdate(Order $order): void
     {
-        $this->orderProductQueueService->syncByOrderStatus($order);
+        $this->applyQueueStateForOrder($order);
 
         $provider = $order->getProvider();
         if ($provider) {
@@ -263,7 +320,25 @@ class OrderService
 
     private function isPreparationOrder(Order $order): bool
     {
-        return $this->normalizeStatusValue($order->getStatus()?->getRealStatus()) === 'open';
+        return $this->normalizeStatusValue($order->getStatus()?->getRealStatus()) === 'open'
+            && $this->isProductionOrder($order);
+    }
+
+    private function applyQueueStateForOrder(Order $order): void
+    {
+        $this->orderProductQueueService->syncByOrderStatus($order);
+    }
+
+    private function hasClosedInvoices(Order $order): bool
+    {
+        foreach ($order->getInvoice() as $orderInvoice) {
+            $invoice = $orderInvoice->getInvoice();
+            if ($this->normalizeStatusValue($invoice?->getStatus()?->getRealStatus()) === 'closed') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function excludeDeviceConfigs(array $deviceConfigs, array $excludedDeviceConfigs): array

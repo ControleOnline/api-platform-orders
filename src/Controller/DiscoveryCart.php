@@ -10,6 +10,7 @@ use ControleOnline\Entity\People;
 use ControleOnline\Entity\PeopleLink;
 use Symfony\Component\HttpFoundation\Response;
 use ControleOnline\Service\HydratorService;
+use ControleOnline\Service\OrderService;
 use ControleOnline\Service\StatusService;
 use Exception;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface
@@ -20,6 +21,7 @@ class DiscoveryCart
     public function __construct(
         private HydratorService $hydratorService,
         private EntityManagerInterface $manager,
+        private OrderService $orderService,
         private StatusService $statusService,
         private Security $security
     ) {}
@@ -69,16 +71,30 @@ class DiscoveryCart
                 $order = $this->manager->getRepository(Order::class)->findOneBy([
                     'client' => $client,
                     'provider' => $provider,
-                    'status' => $status
+                    'status' => $status,
+                    'app' => 'SHOP',
+                    'orderType' => OrderService::ORDER_TYPE_QUOTE,
                 ]);
+
+                if (!$order) {
+                    $order = $this->manager->getRepository(Order::class)->findOneBy([
+                        'client' => $client,
+                        'provider' => $provider,
+                        'status' => $status,
+                        'app' => 'SHOP',
+                    ]);
+                }
 
                 if (!$order) {
                     $order = new Order();
                     $order->setStatus($status);
                     $order->setClient($client);
-                    $order->setOrderType('sale');
+                    $order->setOrderType(OrderService::ORDER_TYPE_QUOTE);
                     $order->setApp('SHOP');
-                    $order->setProvider($provider);                    
+                    $order->setProvider($provider);
+                    $this->manager->persist($order);
+                    $this->manager->flush();
+                } elseif ($this->orderService->normalizeDraftCartOrder($order)) {
                     $this->manager->persist($order);
                     $this->manager->flush();
                 }

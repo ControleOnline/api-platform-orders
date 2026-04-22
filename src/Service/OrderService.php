@@ -17,8 +17,9 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 class OrderService
 {
-    public const ORDER_TYPE_QUOTE = 'quote';
-    public const ORDER_TYPE_SALE = 'sale';
+    public const ORDER_TYPE_CART = Order::ORDER_TYPE_CART;
+    public const ORDER_TYPE_QUOTE = Order::ORDER_TYPE_QUOTE;
+    public const ORDER_TYPE_SALE = Order::ORDER_TYPE_SALE;
 
     private const DRAFT_ORDER_APPS = [
         'pos',
@@ -94,8 +95,8 @@ class OrderService
 
     public function createOrder(People $receiver, People $payer, $app)
     {
-        $startsAsQuote = $this->shouldStartAsQuote($app);
-        $status = $startsAsQuote
+        $startsAsCart = $this->shouldStartAsCart($app);
+        $status = $startsAsCart
             ? $this->statusService->discoveryStatus('open', 'open', 'order')
             : $this->statusService->discoveryStatus('pending', 'waiting payment', 'order');
 
@@ -104,7 +105,7 @@ class OrderService
         $order->setClient($payer);
         $order->setPayer($payer);
         $order->setOrderType(
-            $startsAsQuote ? self::ORDER_TYPE_QUOTE : self::ORDER_TYPE_SALE
+            $startsAsCart ? self::ORDER_TYPE_CART : self::ORDER_TYPE_SALE
         );
         $order->setStatus($status);
         $order->setApp($app);
@@ -124,7 +125,7 @@ class OrderService
         return $this->isMarketplaceApp($order->getApp());
     }
 
-    public function shouldStartAsQuote(?string $app): bool
+    public function shouldStartAsCart(?string $app): bool
     {
         return in_array(
             $this->normalizeStatusValue($app),
@@ -141,14 +142,14 @@ class OrderService
     public function normalizeDraftCartOrder(Order $order): bool
     {
         if (
-            !$this->shouldStartAsQuote($order->getApp())
+            !$this->shouldStartAsCart($order->getApp())
             || $this->hasClosedInvoices($order)
-            || $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_QUOTE
+            || $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_CART
         ) {
             return false;
         }
 
-        $order->setOrderType(self::ORDER_TYPE_QUOTE);
+        $order->setOrderType(self::ORDER_TYPE_CART);
         $this->applyQueueStateForOrder($order);
         return true;
     }

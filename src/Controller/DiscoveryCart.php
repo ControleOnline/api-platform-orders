@@ -73,7 +73,7 @@ class DiscoveryCart
                     'provider' => $provider,
                     'status' => $status,
                     'app' => 'SHOP',
-                    'orderType' => OrderService::ORDER_TYPE_QUOTE,
+                    'orderType' => OrderService::ORDER_TYPE_CART,
                 ]);
 
                 if (!$order) {
@@ -89,7 +89,7 @@ class DiscoveryCart
                     $order = new Order();
                     $order->setStatus($status);
                     $order->setClient($client);
-                    $order->setOrderType(OrderService::ORDER_TYPE_QUOTE);
+                    $order->setOrderType(OrderService::ORDER_TYPE_CART);
                     $order->setApp('SHOP');
                     $order->setProvider($provider);
                     $this->manager->persist($order);

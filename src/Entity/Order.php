@@ -113,6 +113,10 @@ class Order
 {
     public const APP_IFOOD = 'iFood';
     public const APP_FOOD99 = 'Food99';
+    public const ORDER_TYPE_CART = 'cart';
+    public const ORDER_TYPE_QUOTE = 'quote';
+    public const ORDER_TYPE_SALE = 'sale';
+    public const ORDER_TYPE_PURCHASE = 'purchase';
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
     #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
@@ -564,7 +568,7 @@ class Order
 
     public function justOpened(): bool
     {
-        return $this->getStatus()->getStatus() == 'quote';
+        return $this->getStatus()?->getStatus() === 'open';
     }
 
     public function getOneInvoice()

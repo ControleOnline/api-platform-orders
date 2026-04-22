@@ -129,6 +129,7 @@ class OrderActionController extends AbstractController
             return $this->orderActionService->getCapabilities($order);
         } catch (\Throwable $e) {
             $this->loggerService->getLogger('OrderAction')->error('Order capabilities resolution failed', [
+                'logEntity' => $order,
                 'order_id' => $order->getId(),
                 'error' => $e->getMessage(),
             ]);
@@ -168,6 +169,7 @@ class OrderActionController extends AbstractController
             }
 
             $this->loggerService->getLogger('OrderAction')->warning('Order refresh failed after action', [
+                'logEntity' => $order,
                 'order_id' => $order->getId(),
                 'error' => $e->getMessage(),
             ]);
@@ -186,6 +188,7 @@ class OrderActionController extends AbstractController
             ];
         } catch (\Throwable $e) {
             $this->loggerService->getLogger('OrderAction')->error('Order action execution failed', [
+                'logEntity' => $order,
                 'order_id' => $order->getId(),
                 'action' => $action,
                 'error' => $e->getMessage(),

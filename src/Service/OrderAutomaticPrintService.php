@@ -100,6 +100,7 @@ class OrderAutomaticPrintService
     private function buildOrderContext(Order $order): array
     {
         return [
+            'logEntity' => $order,
             'order' => $order->getId(),
             'provider' => $order->getProvider()?->getId(),
             'app' => $order->getApp(),

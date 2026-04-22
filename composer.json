@@ -18,5 +18,8 @@
     "require": {
         "controleonline/common": "*",
         "controleonline/queue": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.1"
     }
 }

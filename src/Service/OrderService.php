@@ -210,6 +210,11 @@ class OrderService
             $queryBuilder->andWhere(sprintf('%s.client IN(:client)', $rootAlias));
             $queryBuilder->setParameter('client', preg_replace("/[^0-9]/", "", $client));
         }
+
+        if ($this->isOrdersQueueRequest()) {
+            $queryBuilder->andWhere(sprintf('%s.orderType = :displayOrderType', $rootAlias));
+            $queryBuilder->setParameter('displayOrderType', self::ORDER_TYPE_SALE);
+        }
     }
 
     public function postPersist(Order $order): void
@@ -484,5 +489,14 @@ class OrderService
         }
 
         return (bool) preg_match('#^/orders/\d+$#', (string) $this->request->getPathInfo());
+    }
+
+    private function isOrdersQueueRequest(): bool
+    {
+        if (!$this->request) {
+            return false;
+        }
+
+        return (string) $this->request->getPathInfo() === '/orders-queue';
     }
 }

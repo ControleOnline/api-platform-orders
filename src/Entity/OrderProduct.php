@@ -18,6 +18,7 @@ use ControleOnline\Entity\Product;
 use ControleOnline\Entity\Inventory;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\OrderProductQueue;
+use ControleOnline\Controller\OrderProductCollectionController;
 use ControleOnline\Controller\PrintOrderProductAction;
 use ControleOnline\Repository\OrderProductRepository;
 use Symfony\Component\Serializer\Annotation\MaxDepth;
@@ -35,7 +36,10 @@ use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
     normalizationContext: ['groups' => ['order_product:read']],
     denormalizationContext: ['groups' => ['order_product:write']],
     operations: [
-        new GetCollection(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')"),
+        new GetCollection(
+            security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')",
+            controller: OrderProductCollectionController::class
+        ),
         new Get(security: "is_granted('ROLE_CLIENT')"),
         new Post(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')"),
         new Post(

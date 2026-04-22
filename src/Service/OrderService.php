@@ -20,10 +20,6 @@ class OrderService
     public const ORDER_TYPE_QUOTE = 'quote';
     public const ORDER_TYPE_SALE = 'sale';
 
-    private const MARKETPLACE_APPS = [
-        'ifood',
-        'food99',
-    ];
     private const DRAFT_ORDER_APPS = [
         'pos',
         'shop',
@@ -125,11 +121,7 @@ class OrderService
 
     public function isMarketplaceIntegrationOrder(Order $order): bool
     {
-        return in_array(
-            $this->normalizeStatusValue($order->getApp()),
-            self::MARKETPLACE_APPS,
-            true
-        );
+        return $this->isMarketplaceApp($order->getApp());
     }
 
     public function shouldStartAsQuote(?string $app): bool
@@ -322,6 +314,16 @@ class OrderService
     {
         return $this->normalizeStatusValue($order->getStatus()?->getRealStatus()) === 'open'
             && $this->isProductionOrder($order);
+    }
+
+    private function isMarketplaceApp(?string $app): bool
+    {
+        $normalizedApp = $this->normalizeStatusValue($app);
+
+        return in_array($normalizedApp, [
+            $this->normalizeStatusValue(Order::APP_IFOOD),
+            $this->normalizeStatusValue(Order::APP_FOOD99),
+        ], true);
     }
 
     private function applyQueueStateForOrder(Order $order): void

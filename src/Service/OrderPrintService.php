@@ -547,17 +547,17 @@ class OrderPrintService
     {
         $app = strtolower(trim((string) $order->getApp()));
 
-        if ($app === 'ifood') {
+        if ($this->isIfoodMarketplaceApp($app)) {
             $this->printSeparator();
             $this->printService->addLine('DADOS IFOOD');
             $this->printMarketplaceBlock($this->getIfoodPrintData($order));
             return;
         }
 
-        if (in_array($app, ['99', '99food', '99 food', 'food99'], true)) {
+        if ($this->isFood99MarketplaceApp($app)) {
             $this->printSeparator();
             $this->printService->addLine('DADOS 99');
-            $this->printMarketplaceBlock($this->get99PrintData($order));
+            $this->printMarketplaceBlock($this->getFood99PrintData($order));
         }
     }
 
@@ -996,26 +996,26 @@ class OrderPrintService
     private function getIfoodPrintData(Order $order): array
     {
         return [
-            'code' => $this->getMarketplaceField($order, ['ifood'], 'code'),
-            'merchant_id' => $this->getMarketplaceField($order, ['ifood'], 'merchant_id'),
-            'pickup_code' => $this->getMarketplaceField($order, ['ifood'], 'pickup_code'),
-            'handover_code' => $this->getMarketplaceField($order, ['ifood'], 'handover_code'),
-            'locator' => $this->getMarketplaceField($order, ['ifood'], 'locator'),
-            'virtual_phone' => $this->getMarketplaceField($order, ['ifood'], 'virtual_phone'),
-            'customer_phone' => $this->getMarketplaceField($order, ['ifood'], 'customer_phone'),
-            'selected_payment_label' => $this->getMarketplaceField($order, ['ifood'], 'selected_payment_label'),
-            'amount_paid' => $this->getMarketplaceField($order, ['ifood'], 'amount_paid'),
-            'amount_pending' => $this->getMarketplaceField($order, ['ifood'], 'amount_pending'),
-            'address_display' => $this->getMarketplaceField($order, ['ifood'], 'address_display'),
-            'remark' => $this->getMarketplaceRemark($order, ['ifood']),
-            'delivered_by' => $this->getMarketplaceField($order, ['ifood'], 'delivered_by'),
-            'delivery_mode' => $this->getMarketplaceField($order, ['ifood'], 'delivery_mode'),
+            'code' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'code'),
+            'merchant_id' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'merchant_id'),
+            'pickup_code' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'pickup_code'),
+            'handover_code' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'handover_code'),
+            'locator' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'locator'),
+            'virtual_phone' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'virtual_phone'),
+            'customer_phone' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'customer_phone'),
+            'selected_payment_label' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'selected_payment_label'),
+            'amount_paid' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'amount_paid'),
+            'amount_pending' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'amount_pending'),
+            'address_display' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'address_display'),
+            'remark' => $this->getMarketplaceRemark($order, [Order::APP_IFOOD]),
+            'delivered_by' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'delivered_by'),
+            'delivery_mode' => $this->getMarketplaceField($order, [Order::APP_IFOOD], 'delivery_mode'),
         ];
     }
 
-    private function get99PrintData(Order $order): array
+    private function getFood99PrintData(Order $order): array
     {
-        $contexts = ['99', '99food', 'food99'];
+        $contexts = [Order::APP_FOOD99];
 
         return [
             'code' => $this->getMarketplaceField($order, $contexts, 'code'),
@@ -1039,17 +1039,17 @@ class OrderPrintService
     {
         $app = strtolower(trim((string) $order->getApp()));
 
-        if ($app === 'ifood') {
+        if ($this->isIfoodMarketplaceApp($app)) {
             return trim(
-                $this->getMarketplaceField($order, ['ifood'], 'code')
-                    ?: $this->getMarketplaceField($order, ['ifood'], 'id')
+                $this->getMarketplaceField($order, [Order::APP_IFOOD], 'code')
+                    ?: $this->getMarketplaceField($order, [Order::APP_IFOOD], 'id')
             );
         }
 
-        if (in_array($app, ['99', '99food', '99 food', 'food99'], true)) {
+        if ($this->isFood99MarketplaceApp($app)) {
             return trim(
-                $this->getMarketplaceField($order, ['99', '99food', 'food99'], 'code')
-                    ?: $this->getMarketplaceField($order, ['99', '99food', 'food99'], 'id')
+                $this->getMarketplaceField($order, [Order::APP_FOOD99], 'code')
+                    ?: $this->getMarketplaceField($order, [Order::APP_FOOD99], 'id')
             );
         }
 
@@ -1060,15 +1060,25 @@ class OrderPrintService
     {
         $app = strtolower(trim((string) $order->getApp()));
 
-        if ($app === 'ifood') {
+        if ($this->isIfoodMarketplaceApp($app)) {
             return 'IFOOD';
         }
 
-        if (in_array($app, ['99', '99food', '99 food', 'food99'], true)) {
+        if ($this->isFood99MarketplaceApp($app)) {
             return '99';
         }
 
         return strtoupper(trim((string) $order->getApp()));
+    }
+
+    private function isIfoodMarketplaceApp(string $app): bool
+    {
+        return $app === strtolower(Order::APP_IFOOD);
+    }
+
+    private function isFood99MarketplaceApp(string $app): bool
+    {
+        return $app === strtolower(Order::APP_FOOD99);
     }
 
     private function getMarketplaceRemark(Order $order, array $contexts): string

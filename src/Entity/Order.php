@@ -111,6 +111,9 @@ use stdClass;
 #[ORM\Entity(repositoryClass: OrderRepository::class)]
 class Order
 {
+    public const APP_IFOOD = 'iFood';
+    public const APP_FOOD99 = 'Food99';
+
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
     #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
     #[ORM\Id]

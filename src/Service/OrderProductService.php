@@ -118,6 +118,65 @@ class OrderProductService
         $this->orderProductQueueService->addProductToQueue($OProduct);
     }
 
+    private function removeOrderProductBranch(OrderProduct $orderProduct): void
+    {
+        foreach ($orderProduct->getOrderProductComponents()->toArray() as $childOrderProduct) {
+            $this->removeOrderProductBranch($childOrderProduct);
+        }
+
+        foreach ($orderProduct->getOrderProductQueues()->toArray() as $orderProductQueue) {
+            $orderProduct->removeOrderProductQueue($orderProductQueue);
+            $this->manager->remove($orderProductQueue);
+        }
+
+        $parentOrderProduct = $orderProduct->getOrderProduct();
+        if ($parentOrderProduct instanceof OrderProduct) {
+            $parentOrderProduct->removeOrderProductComponent($orderProduct);
+        }
+
+        $this->manager->remove($orderProduct);
+    }
+
+    private function replaceSubproducts(OrderProduct $orderProduct, array $subProducts): void
+    {
+        $existingSubproducts = $this->manager->getRepository(OrderProduct::class)->findBy([
+            'orderProduct' => $orderProduct,
+        ]);
+
+        foreach ($existingSubproducts as $existingSubproduct) {
+            $this->removeOrderProductBranch($existingSubproduct);
+        }
+
+        $this->manager->flush();
+        $this->manager->refresh($orderProduct);
+
+        $normalizedSubProducts = [];
+        foreach ($subProducts as $subproduct) {
+            $productId = $this->normalizeReferenceId($subproduct['product'] ?? null);
+            $productGroupId = $this->normalizeReferenceId($subproduct['productGroup'] ?? null);
+            $quantity = (float) ($subproduct['quantity'] ?? 0);
+
+            if ($productId <= 0 || $productGroupId <= 0 || $quantity <= 0) {
+                continue;
+            }
+
+            $normalizedSubProducts[sprintf('%d:%d', $productGroupId, $productId)] = [
+                'product' => $productId,
+                'productGroup' => $productGroupId,
+                'quantity' => $quantity,
+            ];
+        }
+
+        foreach ($normalizedSubProducts as $subproduct) {
+            $product = $this->manager->getRepository(Product::class)->find($subproduct['product']);
+            $productGroup =  $this->manager->getRepository(ProductGroup::class)->find($subproduct['productGroup']);
+            if (!$product instanceof Product || !$productGroup instanceof ProductGroup) {
+                continue;
+            }
+            $this->addSubproduct($orderProduct, $product, $productGroup, $subproduct['quantity']);
+        }
+    }
+
     private function checkInventory(OrderProduct &$orderProduct)
     {
         $order = $orderProduct->getOrder();
@@ -135,12 +194,10 @@ class OrderProductService
         $json = json_decode($this->request->getContent(), true);
 
         if (isset($json['sub_products'])) {
-            $subProducts = $json['sub_products'];
-            foreach ($subProducts as $subproduct) {
-                $product = $this->manager->getRepository(Product::class)->find($subproduct['product']);
-                $productGroup =  $this->manager->getRepository(ProductGroup::class)->find($subproduct['productGroup']);
-                $this->addSubproduct($orderProduct, $product, $productGroup, $subproduct['quantity']);
-            }
+            $this->replaceSubproducts(
+                $orderProduct,
+                is_array($json['sub_products']) ? $json['sub_products'] : []
+            );
         }
     }
 

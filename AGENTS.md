@@ -16,5 +16,5 @@
 - O recurso `/orders-queue`, consumido por displays/KDS, deve expor apenas pedidos de venda (`orderType = sale`). Rascunhos e carrinhos (`cart`) nao pertencem a essa visao operacional.
 - A colecao de `OrderProduct` precisa responder no payload padrao interno (`member`, `totalItems`, `search`, `@context`, `@id`, `@type`) mesmo quando a leitura vier do fluxo padrao da API Platform. Nao empurrar fallback de formato para o frontend.
 - `OrderProduct` deve continuar exposto como entidade da API Platform. Nao usar controller dedicada apenas para reformatar colecao; essa adaptacao pertence a normalizers/infra comum.
-- `GET /orders/{id}` precisa expor os vinculos de agrupamento dos itens customizaveis (`orderProduct`, `parentProduct` e `productGroup`) no mesmo nivel funcional usado por `/orders-queue`, para o renderer compartilhado encaixar filhos dentro do item pai em qualquer tela.
-- Ao ajustar esse payload, prefira o vinculo direto do item filho para o item pai (`orderProduct`) e mantenha o serializer seguro. Nao introduzir serializacao pesada ou ciclica so para reconstruir a hierarquia de customizacao.
+- `GET /orders/{id}` deve continuar estavel e enxuto para abrir o detalhe do pedido. Nao expandir nesse payload relacoes de agrupamento (`orderProduct`, `parentProduct`, `productGroup`) se isso aumentar risco de serializacao pesada ou ciclica.
+- Quando a hierarquia completa de customizacao for necessaria no frontend, a fonte rica deve ser a colecao de `OrderProduct`, mantendo o serializer de `Order` seguro e previsivel.

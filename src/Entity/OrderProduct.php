@@ -101,17 +101,17 @@ class OrderProduct
 
     #[ORM\ManyToOne(targetEntity: Product::class)]
     #[ORM\JoinColumn(name: 'parent_product_id', referencedColumnName: 'id', nullable: true)]
-    #[Groups(['order_details:read', 'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product:write', 'order_product:read'])]
     private $parentProduct;
 
     #[ORM\ManyToOne(targetEntity: self::class, inversedBy: 'orderProductComponents')]
     #[ORM\JoinColumn(name: 'order_product_id', nullable: true)]
-    #[Groups(['order_details:read', 'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product:write', 'order_product:read'])]
     private $orderProduct;
 
     #[ORM\ManyToOne(targetEntity: ProductGroup::class)]
     #[ORM\JoinColumn(nullable: true)]
-    #[Groups(['order_details:read', 'order_product:write', 'orders-queue:read', 'order_product:read'])]
+    #[Groups(['order_product:write', 'orders-queue:read', 'order_product:read'])]
     private $productGroup;
 
     #[ORM\OneToMany(targetEntity: self::class, mappedBy: 'orderProduct')]

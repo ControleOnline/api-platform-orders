@@ -137,6 +137,19 @@ class OrderProductService
         $this->manager->remove($orderProduct);
     }
 
+    private function cleanupOrderProductRelationsForRemoval(OrderProduct $orderProduct): void
+    {
+        foreach ($orderProduct->getOrderProductQueues()->toArray() as $orderProductQueue) {
+            $orderProduct->removeOrderProductQueue($orderProductQueue);
+            $this->manager->remove($orderProductQueue);
+        }
+
+        $parentOrderProduct = $orderProduct->getOrderProduct();
+        if ($parentOrderProduct instanceof OrderProduct) {
+            $parentOrderProduct->removeOrderProductComponent($orderProduct);
+        }
+    }
+
     private function replaceSubproducts(OrderProduct $orderProduct, array $subProducts): void
     {
         $existingSubproducts = $this->manager->getRepository(OrderProduct::class)->findBy([
@@ -226,12 +239,16 @@ class OrderProductService
         $order = $orderProduct->getOrder();
         $this->manager->persist($order->setPrice(0));
 
-        $parentProducts = $this->manager->getRepository(OrderProduct::class)->findBy([
-            'parentProduct'  => $orderProduct->getProduct(),
+        $childOrderProducts = $this->manager->getRepository(OrderProduct::class)->findBy([
+            'orderProduct' => $orderProduct,
         ]);
 
-        foreach ($parentProducts as $parentProduct)
-            $this->manager->remove($parentProduct);
+        foreach ($childOrderProducts as $childOrderProduct) {
+            $this->removeOrderProductBranch($childOrderProduct);
+        }
+
+        $this->cleanupOrderProductRelationsForRemoval($orderProduct);
+
         $this->manager->flush();
 
         self::$calculateBefore[] = $order;

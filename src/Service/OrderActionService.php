@@ -14,6 +14,8 @@ class OrderActionService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private StatusService $statusService,
+        private ?iFoodService $iFoodService = null,
+        private ?Food99Service $food99Service = null,
     ) {}
 
     private function normalizeString(mixed $value): string
@@ -99,6 +101,16 @@ class OrderActionService
         return in_array($app, ['pos', 'shop'], true);
     }
 
+    private function isIfoodOrder(Order $order): bool
+    {
+        return $this->normalizeStatusValue($order->getApp()) === strtolower(Order::APP_IFOOD);
+    }
+
+    private function isFood99Order(Order $order): bool
+    {
+        return $this->normalizeStatusValue($order->getApp()) === strtolower(Order::APP_FOOD99);
+    }
+
     private function buildTerminalOrderResponse(): array
     {
         return [
@@ -143,7 +155,21 @@ class OrderActionService
 
     public function getCancelReasons(Order $order): array
     {
-        return ['data' => ['reasons' => []]];
+        if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
+            return [
+                'errno' => 0,
+                'errmsg' => 'ok',
+                'data' => [
+                    'reasons' => $this->iFoodService->getIfoodCancellationReasons($order),
+                ],
+            ];
+        }
+
+        if ($this->isFood99Order($order) && $this->food99Service instanceof Food99Service) {
+            return $this->food99Service->getOrderCancelReasons($order);
+        }
+
+        return ['errno' => 0, 'errmsg' => 'ok', 'data' => ['reasons' => []]];
     }
 
     public function confirm(Order $order): array
@@ -157,7 +183,7 @@ class OrderActionService
         return $this->aplicarStatusLocal($order, 'open', 'preparing');
     }
 
-    public function cancel(Order $order, ?int $reasonId = null, ?string $reason = null): array
+    public function cancel(Order $order, mixed $reasonId = null, ?string $reason = null): array
     {
         if ($this->isTerminalOrder($order)) {
             return $this->buildTerminalOrderResponse();

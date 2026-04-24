@@ -240,13 +240,17 @@ class OrderActionController extends AbstractController
             return new JsonResponse(['error' => 'JSON inválido'], Response::HTTP_BAD_REQUEST);
         }
 
-        $reasonId = $payload['reason_id'] ?? $payload['reasonId'] ?? null;
+        $reasonId = $payload['reason_id']
+            ?? $payload['reasonId']
+            ?? $payload['cancellation_code']
+            ?? $payload['cancellationCode']
+            ?? null;
         $reason   = trim((string) ($payload['reason'] ?? ''));
 
         $result = $this->safeRunOrderAction('cancel', function () use ($order, $reasonId, $reason) {
             return $this->orderActionService->cancel(
                 $order,
-                $this->requestPayloadService->normalizeOptionalNumericId($reasonId),
+                $reasonId,
                 $reason !== '' ? $reason : null
             );
         }, $order);

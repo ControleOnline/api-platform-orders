@@ -14,6 +14,7 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
 use ControleOnline\Controller\AddProductsOrderAction;
+use ControleOnline\Controller\AutoConferencePrintOrderAction;
 use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Controller\DiscoveryCart;
 use ControleOnline\Controller\PrintOrderAction;
@@ -67,6 +68,13 @@ use stdClass;
             controller: PrintOrderAction::class,
             denormalizationContext: ['groups' => ['print:write']],
             normalizationContext: ['groups' => ['print:read']],
+        ),
+        new Post(
+            security: 'is_granted(\'ROLE_CLIENT\')',
+            uriTemplate: '/orders/{id}/conference-print',
+            controller: AutoConferencePrintOrderAction::class,
+            denormalizationContext: ['groups' => ['print:write']],
+            normalizationContext: ['groups' => ['order:read']],
         ),
         new Put(
             security: 'is_granted(\'ROLE_CLIENT\')',

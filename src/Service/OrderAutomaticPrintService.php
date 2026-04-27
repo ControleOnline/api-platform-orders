@@ -3,7 +3,6 @@
 namespace ControleOnline\Service;
 
 use ControleOnline\Entity\Order;
-use ControleOnline\Entity\OrderProductQueue;
 
 class OrderAutomaticPrintService
 {
@@ -40,22 +39,6 @@ class OrderAutomaticPrintService
             );
         }
 
-        foreach ($this->resolveOrderQueueEntries($order) as $orderProductQueue) {
-            try {
-                $preparationPrinted += $this->orderPrintService->autoPrintOrderProductQueueEntry(
-                    $orderProductQueue
-                );
-            } catch (\Throwable $exception) {
-                self::$logger?->error(
-                    'Automatic preparation print failed',
-                    array_merge($this->buildOrderContext($order), $context, [
-                        'orderProductQueue' => $orderProductQueue->getId(),
-                        'message' => $exception->getMessage(),
-                    ])
-                );
-            }
-        }
-
         self::$logger?->info(
             'Completed order automatic print dispatch finished',
             array_merge($this->buildOrderContext($order), $context, [
@@ -68,33 +51,6 @@ class OrderAutomaticPrintService
             'conferencePrinted' => $conferencePrinted,
             'preparationPrinted' => $preparationPrinted,
         ];
-    }
-
-    /**
-     * @return OrderProductQueue[]
-     */
-    private function resolveOrderQueueEntries(Order $order): array
-    {
-        $queueEntries = [];
-
-        foreach ($order->getOrderProducts() as $orderProduct) {
-            foreach ($orderProduct->getOrderProductQueues() as $orderProductQueue) {
-                if (!$orderProductQueue instanceof OrderProductQueue) {
-                    continue;
-                }
-
-                $queueEntryId = (int) ($orderProductQueue->getId() ?? 0);
-                if ($queueEntryId <= 0) {
-                    continue;
-                }
-
-                $queueEntries[$queueEntryId] = $orderProductQueue;
-            }
-        }
-
-        ksort($queueEntries);
-
-        return array_values($queueEntries);
     }
 
     private function buildOrderContext(Order $order): array

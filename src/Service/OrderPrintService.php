@@ -25,7 +25,6 @@ class OrderPrintService
     private string $displayDeviceType = 'DISPLAY';
     private string $displayConfigKey = 'display-id';
     private string $printerConfigKey = 'printer';
-    private string $displayAutoPrintProductConfigKey = 'display-auto-print-product';
     private int $contentWidth = 40;
     private array $extraDataCache = [];
 
@@ -439,39 +438,6 @@ class OrderPrintService
         $decoded = json_decode($content, true);
 
         return is_array($decoded) ? $decoded : [];
-    }
-
-    public function autoPrintOrderProductQueueEntry(
-        OrderProductQueue $orderProductQueue
-    ): int {
-        $order = $orderProductQueue->getOrderProduct()?->getOrder();
-        $provider = $order?->getProvider();
-
-        if (
-            !($order instanceof Order) ||
-            !($provider instanceof People) ||
-            !$orderProductQueue->getId()
-        ) {
-            return 0;
-        }
-
-        $printedCount = 0;
-        foreach ($this->resolveAutoPrintDisplayTargets($orderProductQueue) as $target) {
-            $printData = $this->generateOrderProductQueuePrintData(
-                $orderProductQueue,
-                $target['device'],
-                [
-                    'automaticProductPrint' => true,
-                    'type' => $target['type'] ?? null,
-                ]
-            );
-
-            if ($printData instanceof Spool) {
-                $printedCount++;
-            }
-        }
-
-        return $printedCount;
     }
 
     private function printProviderHeader(?People $provider): void
@@ -1371,84 +1337,6 @@ class OrderPrintService
                 $targets[$deviceId]['queueIds'],
                 $queueIds
             )));
-        }
-
-        return array_values($targets);
-    }
-
-    private function resolveAutoPrintDisplayTargets(
-        OrderProductQueue $orderProductQueue
-    ): array {
-        $orderProduct = $orderProductQueue->getOrderProduct();
-        $order = $orderProduct?->getOrder();
-        $provider = $order?->getProvider();
-        $queue = $orderProductQueue->getQueue();
-
-        if (!$provider instanceof People || $queue === null) {
-            return [];
-        }
-
-        $displayRows = $this->manager->getRepository(DisplayQueue::class)->findBy([
-            'queue' => $queue,
-        ]);
-
-        if (empty($displayRows)) {
-            return [];
-        }
-
-        $displayIds = [];
-        foreach ($displayRows as $displayRow) {
-            $displayId = $this->normalizeEntityId($displayRow->getDisplay()?->getId());
-            if ($displayId !== null) {
-                $displayIds[$displayId] = $displayId;
-            }
-        }
-
-        if (empty($displayIds)) {
-            return [];
-        }
-
-        $targets = [];
-        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findBy([
-            'people' => $provider,
-        ]);
-
-        foreach ($deviceConfigs as $deviceConfig) {
-            $device = $deviceConfig->getDevice();
-            if (!$this->isDisplayDevice($deviceConfig)) {
-                continue;
-            }
-
-            $configs = $deviceConfig->getConfigs(true);
-            if (!is_array($configs)) {
-                continue;
-            }
-
-            $displayId = $this->normalizeEntityId($configs[$this->displayConfigKey] ?? null);
-            if ($displayId === null || !isset($displayIds[$displayId])) {
-                continue;
-            }
-
-            if (!$this->isTruthyConfigValue(
-                $configs[$this->displayAutoPrintProductConfigKey] ?? null
-            )) {
-                continue;
-            }
-
-            if (trim((string) ($configs[$this->printerConfigKey] ?? '')) === '') {
-                continue;
-            }
-
-            $deviceId = $device->getId();
-            if (isset($targets[$deviceId])) {
-                continue;
-            }
-
-            $targets[$deviceId] = [
-                'device' => $device,
-                'displayId' => $displayId,
-                'type' => strtoupper(trim((string) $deviceConfig->getType())),
-            ];
         }
 
         return array_values($targets);

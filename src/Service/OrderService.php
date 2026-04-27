@@ -213,8 +213,13 @@ class OrderService
         }
 
         if ($this->isOrdersQueueRequest()) {
+            // A fila operacional so pode expor pedidos de venda.
             $queryBuilder->andWhere(sprintf('%s.orderType = :displayOrderType', $rootAlias));
             $queryBuilder->setParameter('displayOrderType', self::ORDER_TYPE_SALE);
+
+            // Garante que o pedido ja tenha ao menos um item realmente enfileirado.
+            $queryBuilder->innerJoin(sprintf('%s.orderProducts', $rootAlias), 'queuedOrderProducts');
+            $queryBuilder->innerJoin('queuedOrderProducts.orderProductQueues', 'queuedOrderProductQueues');
         }
     }
 
@@ -498,6 +503,10 @@ class OrderService
             return false;
         }
 
-        return (string) $this->request->getPathInfo() === '/orders-queue';
+        // A rota pode chegar com prefixos como /api e com extensoes do formato.
+        return (bool) preg_match(
+            '#(?:^|/)orders-queue(?:\.[^/]+)?$#',
+            (string) $this->request->getPathInfo()
+        );
     }
 }

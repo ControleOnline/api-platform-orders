@@ -119,6 +119,7 @@ class OrderServiceTest extends TestCase
 
         $whereClauses = [];
         $parameters = [];
+        $joins = [];
 
         $queryBuilder
             ->expects(self::exactly(2))
@@ -136,12 +137,22 @@ class OrderServiceTest extends TestCase
                 return $queryBuilder;
             });
 
+        $queryBuilder
+            ->expects(self::exactly(2))
+            ->method('innerJoin')
+            ->willReturnCallback(function (string $join, string $alias) use (&$joins, $queryBuilder) {
+                $joins[] = [$join, $alias];
+                return $queryBuilder;
+            });
+
         $service->securityFilter($queryBuilder, null, null, 'orders');
 
         self::assertContains('orders.client IN(:companies) OR orders.provider IN(:companies)', $whereClauses);
         self::assertContains('orders.orderType = :displayOrderType', $whereClauses);
         self::assertSame([101, 202], $parameters['companies']);
         self::assertSame(OrderService::ORDER_TYPE_SALE, $parameters['displayOrderType']);
+        self::assertContains(['orders.orderProducts', 'queuedOrderProducts'], $joins);
+        self::assertContains(['queuedOrderProducts.orderProductQueues', 'queuedOrderProductQueues'], $joins);
     }
 
     public function testSecurityFilterKeepsRegularOrdersCollectionFlexible(): void
@@ -172,6 +183,36 @@ class OrderServiceTest extends TestCase
 
         self::assertContains('orders.client IN(:companies) OR orders.provider IN(:companies)', $whereClauses);
         self::assertArrayNotHasKey('displayOrderType', $parameters);
+    }
+
+    public function testSecurityFilterRecognizesOrdersQueueWithApiPrefix(): void
+    {
+        $service = $this->buildService('/api/orders-queue.jsonld');
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+
+        $parameters = [];
+
+        $queryBuilder
+            ->expects(self::exactly(2))
+            ->method('andWhere')
+            ->willReturnSelf();
+
+        $queryBuilder
+            ->expects(self::exactly(2))
+            ->method('setParameter')
+            ->willReturnCallback(function (string $name, mixed $value) use (&$parameters, $queryBuilder) {
+                $parameters[$name] = $value;
+                return $queryBuilder;
+            });
+
+        $queryBuilder
+            ->expects(self::exactly(2))
+            ->method('innerJoin')
+            ->willReturnSelf();
+
+        $service->securityFilter($queryBuilder, null, null, 'orders');
+
+        self::assertSame(OrderService::ORDER_TYPE_SALE, $parameters['displayOrderType']);
     }
 
     private function buildService(

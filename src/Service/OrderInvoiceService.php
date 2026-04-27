@@ -19,6 +19,7 @@ class OrderInvoiceService
         private EntityManagerInterface $manager,
         private Security $security,
         private StatusService $statusService,
+        private ?InvoiceService $invoiceService = null,
     ) {}
 
     public function postPersist(OrderInvoice $OrderInvoice) {}
@@ -26,27 +27,26 @@ class OrderInvoiceService
     public function createFromPayload(array $payload): OrderInvoice
     {
         $invoiceData = $payload['invoice'] ?? null;
-        if (!is_array($invoiceData)) {
-            throw new \InvalidArgumentException('Invoice data is required');
+        $order = $this->findOrderReference($payload['order'] ?? null);
+        if (!$order instanceof Order) {
+            throw new \InvalidArgumentException('Order reference is required');
         }
 
-        $invoice = new Invoice();
-        $invoice->setDueDate(new \DateTime($invoiceData['dueDate']));
-        $invoice->setPayer($this->findPeopleReference($invoiceData['payer'] ?? null));
-        $invoice->setReceiver($this->findPeopleReference($invoiceData['receiver'] ?? null));
-        $invoice->setStatus($this->statusService->discoveryStatus('closed', 'paid', 'invoice'));
-        $invoice->setDestinationWallet($this->findWalletReference($invoiceData['destinationWallet'] ?? null));
-        $invoice->setPaymentType($this->findPaymentTypeReference($invoiceData['paymentType'] ?? null));
-        $invoice->setPrice($invoiceData['price'] ?? 0);
-        $this->manager->persist($invoice);
+        $invoice = $this->resolveInvoiceReference($invoiceData);
+        $existingOrderInvoice = $this->findExistingOrderInvoice($order, $invoice);
+        if ($existingOrderInvoice instanceof OrderInvoice) {
+            $this->invoiceService?->payOrder($order);
+            return $existingOrderInvoice;
+        }
 
         $orderInvoice = new OrderInvoice();
-        $orderInvoice->setOrder($this->findOrderReference($payload['order'] ?? null));
-        $orderInvoice->setRealPrice($payload['realPrice'] ?? 0);
+        $orderInvoice->setOrder($order);
+        $orderInvoice->setRealPrice($payload['realPrice'] ?? $invoice->getPrice() ?? 0);
         $orderInvoice->setInvoice($invoice);
 
         $this->manager->persist($orderInvoice);
         $this->manager->flush();
+        $this->invoiceService?->payOrder($order);
 
         return $orderInvoice;
     }
@@ -82,6 +82,44 @@ class OrderInvoiceService
         return $this->manager->getRepository(Order::class)->find(
             $this->normalizeReferenceId($reference)
         );
+    }
+
+    private function findInvoiceReference(mixed $reference): ?Invoice
+    {
+        return $this->manager->getRepository(Invoice::class)->find(
+            $this->normalizeReferenceId($reference)
+        );
+    }
+
+    private function findExistingOrderInvoice(Order $order, Invoice $invoice): ?OrderInvoice
+    {
+        return $this->manager->getRepository(OrderInvoice::class)->findOneBy([
+            'invoice' => $invoice,
+            'order' => $order,
+        ]);
+    }
+
+    private function resolveInvoiceReference(mixed $invoiceData): Invoice
+    {
+        if (is_array($invoiceData)) {
+            $invoice = new Invoice();
+            $invoice->setDueDate(new \DateTime($invoiceData['dueDate']));
+            $invoice->setPayer($this->findPeopleReference($invoiceData['payer'] ?? null));
+            $invoice->setReceiver($this->findPeopleReference($invoiceData['receiver'] ?? null));
+            $invoice->setStatus($this->statusService->discoveryStatus('closed', 'paid', 'invoice'));
+            $invoice->setDestinationWallet($this->findWalletReference($invoiceData['destinationWallet'] ?? null));
+            $invoice->setPaymentType($this->findPaymentTypeReference($invoiceData['paymentType'] ?? null));
+            $invoice->setPrice($invoiceData['price'] ?? 0);
+            $this->manager->persist($invoice);
+            return $invoice;
+        }
+
+        $invoice = $this->findInvoiceReference($invoiceData);
+        if ($invoice instanceof Invoice) {
+            return $invoice;
+        }
+
+        throw new \InvalidArgumentException('Invoice data is required');
     }
 
     private function normalizeReferenceId(mixed $reference): int

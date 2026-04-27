@@ -116,6 +116,8 @@ class Order
     public const ORDER_TYPE_CART = 'cart';
     public const ORDER_TYPE_QUOTE = 'quote';
     public const ORDER_TYPE_SALE = 'sale';
+    public const ORDER_TYPE_TAB = 'tab';
+    public const ORDER_TYPE_TABLE = 'table';
     public const ORDER_TYPE_PURCHASE = 'purchase';
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]

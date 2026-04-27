@@ -20,10 +20,16 @@ class OrderService
     public const ORDER_TYPE_CART = Order::ORDER_TYPE_CART;
     public const ORDER_TYPE_QUOTE = Order::ORDER_TYPE_QUOTE;
     public const ORDER_TYPE_SALE = Order::ORDER_TYPE_SALE;
+    public const ORDER_TYPE_TAB = Order::ORDER_TYPE_TAB;
+    public const ORDER_TYPE_TABLE = Order::ORDER_TYPE_TABLE;
 
     private const DRAFT_ORDER_APPS = [
         'pos',
         'shop',
+    ];
+    private const SETTLEMENT_ORDER_TYPES = [
+        self::ORDER_TYPE_TAB,
+        self::ORDER_TYPE_TABLE,
     ];
 
     private string $displayDeviceType = 'DISPLAY';
@@ -58,6 +64,7 @@ class OrderService
         $statement = $connection->prepare($sql);
         $statement->bindValue(':order_id', $order->getId(), Type::getType('integer'));
         $statement->executeStatement();
+        $this->syncSettlementOrderPrice($order);
 
         return $order;
     }
@@ -137,6 +144,73 @@ class OrderService
     public function isProductionOrder(Order $order): bool
     {
         return $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_SALE;
+    }
+
+    public function isSettlementOrderType(?string $orderType): bool
+    {
+        return in_array(
+            $this->normalizeStatusValue($orderType),
+            self::SETTLEMENT_ORDER_TYPES,
+            true
+        );
+    }
+
+    public function isSettlementOrder(Order $order): bool
+    {
+        return $this->isSettlementOrderType($order->getOrderType());
+    }
+
+    public function resolveFinancialOrder(Order $order): Order
+    {
+        $resolvedOrder = $order;
+        $visitedOrderIds = [];
+
+        while ($resolvedOrder->getMainOrderId()) {
+            $resolvedOrderId = $resolvedOrder->getId();
+            if ($resolvedOrderId && isset($visitedOrderIds[$resolvedOrderId])) {
+                break;
+            }
+
+            if ($resolvedOrderId) {
+                $visitedOrderIds[$resolvedOrderId] = true;
+            }
+
+            $nextOrder = $resolvedOrder->getMainOrder();
+            if (!$nextOrder instanceof Order) {
+                $nextOrder = $this->findOrderById((int) $resolvedOrder->getMainOrderId());
+            }
+
+            if (!$nextOrder instanceof Order) {
+                break;
+            }
+
+            $resolvedOrder = $nextOrder;
+        }
+
+        return $this->isSettlementOrder($resolvedOrder) ? $resolvedOrder : $order;
+    }
+
+    public function syncSettlementOrderPrice(Order $order): void
+    {
+        $settlementOrder = $this->isSettlementOrder($order)
+            ? $order
+            : $this->resolveImmediateMainOrder($order);
+        $visitedOrderIds = [];
+
+        while ($settlementOrder instanceof Order) {
+            $settlementOrderId = $settlementOrder->getId();
+            if (!$settlementOrderId || isset($visitedOrderIds[$settlementOrderId])) {
+                break;
+            }
+
+            $visitedOrderIds[$settlementOrderId] = true;
+
+            if ($this->isSettlementOrder($settlementOrder)) {
+                $this->refreshSettlementOrderPrice($settlementOrder);
+            }
+
+            $settlementOrder = $this->resolveImmediateMainOrder($settlementOrder);
+        }
     }
 
     public function normalizeDraftCartOrder(Order $order): bool
@@ -220,6 +294,7 @@ class OrderService
 
     public function postPersist(Order $order): void
     {
+        $this->syncSettlementOrderPrice($order);
         $provider = $order->getProvider();
         if (!$provider) {
             return;
@@ -261,6 +336,7 @@ class OrderService
 
     public function postUpdate(Order $order): void
     {
+        $this->syncSettlementOrderPrice($order);
         $this->applyQueueStateForOrder($order);
 
         $provider = $order->getProvider();
@@ -347,6 +423,36 @@ class OrderService
         }
 
         return false;
+    }
+
+    private function resolveImmediateMainOrder(Order $order): ?Order
+    {
+        $mainOrder = $order->getMainOrder();
+        if ($mainOrder instanceof Order) {
+            return $mainOrder;
+        }
+
+        if (!$order->getMainOrderId()) {
+            return null;
+        }
+
+        return $this->findOrderById((int) $order->getMainOrderId());
+    }
+
+    private function refreshSettlementOrderPrice(Order $order): void
+    {
+        if (!$this->isSettlementOrder($order) || !$order->getId()) {
+            return;
+        }
+
+        $total = (float) $this->manager->getConnection()->fetchOne(
+            'SELECT IFNULL(SUM(price), 0) FROM orders WHERE main_order_id = :order_id',
+            ['order_id' => (int) $order->getId()]
+        );
+
+        $order->setPrice($total);
+        $this->manager->persist($order);
+        $this->manager->flush();
     }
 
     private function excludeDeviceConfigs(array $deviceConfigs, array $excludedDeviceConfigs): array

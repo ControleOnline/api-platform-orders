@@ -6,6 +6,7 @@ use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use ControleOnline\Service\LoggerService;
 use ControleOnline\Service\OrderActionService;
+use ControleOnline\Service\PeopleService;
 use ControleOnline\Service\RequestPayloadService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
@@ -17,13 +18,14 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
 use Symfony\Component\Security\Http\Attribute\Security as SecurityAttribute;
 
-#[SecurityAttribute("is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')")]
+#[SecurityAttribute("is_granted('ROLE_HUMAN')")]
 class OrderActionController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $manager,
         private ManagerRegistry $managerRegistry,
         private Security $security,
+        private PeopleService $peopleService,
         private OrderActionService $orderActionService,
         private LoggerService $loggerService,
         private RequestPayloadService $requestPayloadService,
@@ -42,20 +44,8 @@ class OrderActionController extends AbstractController
         return $people instanceof People ? $people : null;
     }
 
-    private function isAdminUser(): bool
-    {
-        $user  = $this->security->getToken()?->getUser();
-        $roles = is_object($user) && method_exists($user, 'getRoles') ? (array) $user->getRoles() : [];
-
-        return in_array('ROLE_ADMIN', $roles, true);
-    }
-
     private function canAccessOrder(Order $order): bool
     {
-        if ($this->isAdminUser()) {
-            return true;
-        }
-
         $userPeople = $this->getAuthenticatedPeople();
         if (!$userPeople) {
             return false;
@@ -70,20 +60,7 @@ class OrderActionController extends AbstractController
             return true;
         }
 
-        $sql = <<<SQL
-            SELECT COUNT(1)
-            FROM people_link
-            WHERE company_id = :companyId
-              AND people_id = :peopleId
-              AND enable = 1
-        SQL;
-
-        $count = (int) $this->manager->getConnection()->fetchOne($sql, [
-            'companyId' => $provider->getId(),
-            'peopleId'  => $userPeople->getId(),
-        ]);
-
-        return $count > 0;
+        return $this->peopleService->canAccessCompany($provider, $userPeople);
     }
 
     private function resolveOrder(string|int $orderId): ?Order

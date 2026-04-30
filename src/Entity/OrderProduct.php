@@ -35,16 +35,16 @@ use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
     normalizationContext: ['groups' => ['order_product:read']],
     denormalizationContext: ['groups' => ['order_product:write']],
     operations: [
-        new GetCollection(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')"),
-        new Get(security: "is_granted('ROLE_CLIENT')"),
-        new Post(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')"),
+        new GetCollection(security: "is_granted('ROLE_HUMAN')"),
+        new Get(security: "is_granted('ROLE_HUMAN')"),
+        new Post(security: "is_granted('ROLE_HUMAN')"),
         new Post(
-            security: "is_granted('ROLE_CLIENT')",
+            security: "is_granted('ROLE_HUMAN')",
             uriTemplate: '/order_products/{id}/print',
             controller: PrintOrderProductAction::class
         ),
-        new Put(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')"),
-        new Delete(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')")
+        new Put(security: "is_granted('ROLE_HUMAN')"),
+        new Delete(security: "is_granted('ROLE_HUMAN')")
     ]
 )]
 #[ApiFilter(OrderFilter::class, properties: ['alterDate' => 'DESC', 'id' => 'ASC', 'product.product' => 'ASC'])]

@@ -277,10 +277,11 @@ class OrderProductService
 
     public function  securityFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
     {
-        //$queryBuilder->join(sprintf('%s.order', $rootAlias), 'o');
-        //$queryBuilder->andWhere('o.client IN(:companies) OR o.provider IN(:companies)');
-        //$companies   = $this->peopleService->getMyCompanies();
-        //$queryBuilder->setParameter('companies', $companies);
+        if (!in_array('orders', $queryBuilder->getAllAliases(), true)) {
+            $queryBuilder->innerJoin(sprintf('%s.order', $rootAlias), 'orders');
+        }
+
+        $this->orderService->securityFilter($queryBuilder, $resourceClass, $applyTo, 'orders');
     }
 
     public function __destruct()

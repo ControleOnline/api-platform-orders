@@ -265,9 +265,15 @@ class OrderService
 
     public function securityFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
     {
+        $request = $this->request;
         $companies   = $this->peopleService->getMyCompanies();
 
-        if ($invoice = $this->request->query->get('invoiceId', null)) {
+        if ($companies === []) {
+            $queryBuilder->andWhere('1 = 0');
+            return;
+        }
+
+        if ($invoice = $request?->query->get('invoiceId', null)) {
             $queryBuilder->join(sprintf('%s.invoice', $rootAlias), 'OrderInvoice');
             $queryBuilder->andWhere(sprintf('OrderInvoice.invoice IN(:invoice)', $rootAlias, $rootAlias));
             $queryBuilder->setParameter('invoice', $invoice);
@@ -276,12 +282,12 @@ class OrderService
         $queryBuilder->andWhere(sprintf('%s.client IN(:companies) OR %s.provider IN(:companies)', $rootAlias, $rootAlias));
         $queryBuilder->setParameter('companies', $companies);
 
-        if ($provider = $this->request->query->get('provider', null)) {
+        if ($provider = $request?->query->get('provider', null)) {
             $queryBuilder->andWhere(sprintf('%s.provider IN(:provider)', $rootAlias));
             $queryBuilder->setParameter('provider', preg_replace("/[^0-9]/", "", $provider));
         }
 
-        if ($client = $this->request->query->get('client', null)) {
+        if ($client = $request?->query->get('client', null)) {
             $queryBuilder->andWhere(sprintf('%s.client IN(:client)', $rootAlias));
             $queryBuilder->setParameter('client', preg_replace("/[^0-9]/", "", $client));
         }

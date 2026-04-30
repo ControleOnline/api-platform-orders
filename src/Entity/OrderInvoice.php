@@ -26,11 +26,11 @@ use ControleOnline\Entity\Order;
     normalizationContext: ['groups' => ['order_invoice:read']],
     denormalizationContext: ['groups' => ['order_invoice:write']],
     operations: [
-        new GetCollection(security: "is_granted('ROLE_CLIENT')"),
-        new Get(security: "is_granted('ROLE_CLIENT')"),
+        new GetCollection(security: "is_granted('ROLE_HUMAN')"),
+        new Get(security: "is_granted('ROLE_HUMAN')"),
         new Post(
             controller: CreateOrderInvoiceController::class,
-            security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT')"
+            security: "is_granted('ROLE_HUMAN')"
         ),
     ]
 )]

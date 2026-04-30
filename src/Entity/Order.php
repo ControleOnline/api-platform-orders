@@ -30,7 +30,7 @@ use stdClass;
 #[ApiResource(
     operations: [
         new Get(
-            security: 'is_granted(\'ROLE_CLIENT\')',
+            security: 'is_granted(\'ROLE_HUMAN\')',
             normalizationContext: ['groups' => ['order_details:read']],
         ),
         new GetCollection(
@@ -39,45 +39,45 @@ use stdClass;
             controller: DiscoveryCart::class
         ),
         new GetCollection(
-            security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
+            security: 'is_granted(\'ROLE_HUMAN\')',
             normalizationContext: ['groups' => ['order:read']],
         ),
         new GetCollection(
             uriTemplate: '/orders-queue',
-            security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
+            security: 'is_granted(\'ROLE_HUMAN\')',
             normalizationContext: ['groups' => ['orders-queue:read']],
         ),
         new Post(
-            security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
+            security: 'is_granted(\'ROLE_HUMAN\')',
             validationContext: ['groups' => ['order:write']],
             denormalizationContext: ['groups' => ['order:write']]
         ),
         new Put(
-            security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
+            security: 'is_granted(\'ROLE_HUMAN\')',
             validationContext: ['groups' => ['order:write']],
             denormalizationContext: ['groups' => ['order:write']]
         ),
         new Post(
-            security: 'is_granted(\'ROLE_CLIENT\')',
+            security: 'is_granted(\'ROLE_HUMAN\')',
             uriTemplate: '/orders/{id}/nfe',
             controller: CreateNFeAction::class
         ),
         new Post(
-            security: 'is_granted(\'ROLE_CLIENT\')',
+            security: 'is_granted(\'ROLE_HUMAN\')',
             uriTemplate: '/orders/{id}/print',
             controller: PrintOrderAction::class,
             denormalizationContext: ['groups' => ['print:write']],
             normalizationContext: ['groups' => ['print:read']],
         ),
         new Post(
-            security: 'is_granted(\'ROLE_CLIENT\')',
+            security: 'is_granted(\'ROLE_HUMAN\')',
             uriTemplate: '/orders/{id}/conference-print',
             controller: AutoConferencePrintOrderAction::class,
             denormalizationContext: ['groups' => ['print:write']],
             normalizationContext: ['groups' => ['order:read']],
         ),
         new Put(
-            security: 'is_granted(\'ROLE_CLIENT\')',
+            security: 'is_granted(\'ROLE_HUMAN\')',
             uriTemplate: '/orders/{id}/add-products',
             controller: AddProductsOrderAction::class,
             denormalizationContext: ['groups' => ['order:write']],

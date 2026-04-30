@@ -29,7 +29,8 @@ class OrderProductService
         private OrderService $orderService,
         private RequestStack $requestStack,
         private OrderProductQueueService $orderProductQueueService,
-        private InvoiceService $invoiceService
+        private InvoiceService $invoiceService,
+        private ProposalProductCategoryGuard $proposalProductCategoryGuard
     ) {
         $this->request = $this->requestStack->getCurrentRequest();
     }
@@ -61,6 +62,8 @@ class OrderProductService
                 throw new \InvalidArgumentException('Product not found');
             }
 
+            $this->proposalProductCategoryGuard->assertOrderProductAllowed($order, $product);
+
             $quantity = $item['quantity'] ?? 0;
             $price = $product->getPrice();
             $this->addOrderProduct($order, $product, $quantity, $price);
@@ -88,11 +91,13 @@ class OrderProductService
     public function prePersist(OrderProduct $orderProduct): void
     {
         $this->guardMarketplaceOrderProductMutation($orderProduct);
+        $this->guardProposalProductCategory($orderProduct);
     }
 
     public function preUpdate(OrderProduct $orderProduct): void
     {
         $this->guardMarketplaceOrderProductMutation($orderProduct);
+        $this->guardProposalProductCategory($orderProduct);
     }
 
     public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity)
@@ -346,5 +351,22 @@ class OrderProductService
 
         return (bool) preg_match('#^/order_products(?:/\d+)?$#', $path)
             || (bool) preg_match('#^/orders/\d+/add-products$#', $path);
+    }
+
+    private function guardProposalProductCategory(OrderProduct $orderProduct): void
+    {
+        $order = $orderProduct->getOrder();
+        $product = $orderProduct->getProduct();
+
+        if (
+            !$order instanceof Order
+            || !$product instanceof Product
+            || $orderProduct->getOrderProduct() instanceof OrderProduct
+            || $orderProduct->getParentProduct() instanceof Product
+        ) {
+            return;
+        }
+
+        $this->proposalProductCategoryGuard->assertOrderProductAllowed($order, $product);
     }
 }

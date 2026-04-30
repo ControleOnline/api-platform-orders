@@ -7,6 +7,7 @@
 
 ## Limites
 - `orders` e o dono da regra operacional do pedido.
+- Quando um pedido de venda nascer vinculado a uma proposta (`order.contract`) e o modelo da proposta tiver categoria definida, `orders` deve rejeitar produtos fora dessa categoria tanto em `/orders/{id}/add-products` quanto em mutacoes diretas de `OrderProduct`.
 - `financial` continua dono de `Invoice`, `Wallet` e meios de pagamento.
 - `integration` continua dono de webhooks e gateways externos.
 - Quando um fluxo tocar pedido e pagamento, a regra do pedido fica aqui e a camada financeira/integracao fica nos modulos correspondentes.

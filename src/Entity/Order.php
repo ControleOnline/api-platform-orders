@@ -2,682 +2,424 @@
 
 namespace ControleOnline\Entity;
 
-use Doctrine\ORM\Mapping as ORM;
-use Doctrine\Common\Collections\ArrayCollection;
-use ApiPlatform\Core\Annotation\ApiSubresource;
-use Symfony\Component\Serializer\Annotation\Groups;
-use ApiPlatform\Metadata\ApiFilter;
-use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
-use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
-use ControleOnline\Entity\SalesOrderInvoice;
-use stdClass;
-use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
-use ApiPlatform\Metadata\GetCollection;
-use ApiPlatform\Metadata\Put;
-use ApiPlatform\Metadata\Post;
-use ApiPlatform\Metadata\Get;
-use ApiPlatform\Metadata\ApiResource;
-use ApiPlatform\Metadata\ApiProperty;
+use Symfony\Component\Serializer\Attribute\Groups;
 
-/**
- * SalesOrder
- *
- * @ORM\EntityListeners({App\Listener\LogListener::class})
- * @ORM\Table(name="orders", uniqueConstraints={@ORM\UniqueConstraint(name="discount_id", columns={"discount_coupon_id"})}, indexes={@ORM\Index(name="adress_destination_id", columns={"address_destination_id"}), @ORM\Index(name="notified", columns={"notified"}), @ORM\Index(name="delivery_contact_id", columns={"delivery_contact_id"}), @ORM\Index(name="contract_id", columns={"contract_id"}), @ORM\Index(name="delivery_people_id", columns={"delivery_people_id"}), @ORM\Index(name="status_id", columns={"status_id"}), @ORM\Index(name="order_date", columns={"order_date"}), @ORM\Index(name="provider_id", columns={"provider_id"}), @ORM\Index(name="quote_id", columns={"quote_id", "provider_id"}), @ORM\Index(name="adress_origin_id", columns={"address_origin_id"}), @ORM\Index(name="retrieve_contact_id", columns={"retrieve_contact_id"}), @ORM\Index(name="main_order_id", columns={"main_order_id"}), @ORM\Index(name="retrieve_people_id", columns={"retrieve_people_id"}), @ORM\Index(name="payer_people_id", columns={"payer_people_id"}), @ORM\Index(name="client_id", columns={"client_id"}), @ORM\Index(name="alter_date", columns={"alter_date"}), @ORM\Index(name="IDX_E52FFDEEDB805178", columns={"quote_id"})})
- * @ORM\Entity(repositoryClass="ControleOnline\Repository\OrderRepository")
- */
+use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
+use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
+use ControleOnline\Controller\AddProductsOrderAction;
+use ControleOnline\Controller\AutoConferencePrintOrderAction;
+use ControleOnline\Controller\CreateNFeAction;
+use ControleOnline\Controller\DiscoveryCart;
+use ControleOnline\Controller\PrintOrderAction;
+
+use ControleOnline\Repository\OrderRepository;
+use DateTime;
+use DateTimeInterface;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\ORM\Mapping as ORM;
+use stdClass;
 
 #[ApiResource(
     operations: [
         new Get(
-            security: 'is_granted(\'ROLE_CLIENT\')',
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            normalizationContext: ['groups' => ['order_details:read']],
         ),
         new GetCollection(
-            security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
+            security: 'is_granted(\'PUBLIC_ACCESS\')',
+            uriTemplate: '/cart',
+            controller: DiscoveryCart::class
+        ),
+        new GetCollection(
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            normalizationContext: ['groups' => ['order:read']],
+        ),
+        new GetCollection(
+            uriTemplate: '/orders-queue',
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            normalizationContext: ['groups' => ['orders-queue:read']],
         ),
         new Post(
-            security: 'is_granted(\'ROLE_ADMIN\') or is_granted(\'ROLE_CLIENT\')',
-            validationContext: ['groups' => ['order_write']],
-            denormalizationContext: ['groups' => ['order_write']]
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            validationContext: ['groups' => ['order:write']],
+            denormalizationContext: ['groups' => ['order:write']]
         ),
         new Put(
-            security: 'is_granted(\'ROLE_ADMIN\') or (is_granted(\'ROLE_CLIENT\'))',
-            validationContext: ['groups' => ['order_write']],
-            denormalizationContext: ['groups' => ['order_write']]
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            validationContext: ['groups' => ['order:write']],
+            denormalizationContext: ['groups' => ['order:write']]
         ),
+        new Post(
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            uriTemplate: '/orders/{id}/nfe',
+            controller: CreateNFeAction::class
+        ),
+        new Post(
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            uriTemplate: '/orders/{id}/print',
+            controller: PrintOrderAction::class,
+            denormalizationContext: ['groups' => ['print:write']],
+            normalizationContext: ['groups' => ['print:read']],
+        ),
+        new Post(
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            uriTemplate: '/orders/{id}/conference-print',
+            controller: AutoConferencePrintOrderAction::class,
+            denormalizationContext: ['groups' => ['print:write']],
+            normalizationContext: ['groups' => ['order:read']],
+        ),
+        new Put(
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            uriTemplate: '/orders/{id}/add-products',
+            controller: AddProductsOrderAction::class,
+            denormalizationContext: ['groups' => ['order:write']],
+            normalizationContext: ['groups' => ['order_details:read']],
+        ),
+
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
-    normalizationContext: ['groups' => ['order_read']],
-    denormalizationContext: ['groups' => ['order_write']]
+    normalizationContext: ['groups' => ['order:read']],
+    denormalizationContext: ['groups' => ['order:write']],
+    // AleMac // 06/12/2025 // ordenação padrão alterada para alterDate
+    order: ['alterDate' => 'DESC', 'id', 'orderDate', 'provider', 'app', 'orderType', 'status', 'client']
 )]
-#[ApiFilter(filterClass: OrderFilter::class, properties: ['alterDate' => 'DESC'])]
 
+#[ApiFilter(OrderFilter::class, properties: [
+    'alterDate',
+    'id'
+])]
 
+#[ORM\Table(name: 'orders')]
+#[ORM\Index(name: 'adress_destination_id', columns: ['address_destination_id'])]
+#[ORM\Index(name: 'notified', columns: ['notified'])]
+#[ORM\Index(name: 'delivery_contact_id', columns: ['delivery_contact_id'])]
+#[ORM\Index(name: 'delivery_people_id', columns: ['delivery_people_id'])]
+#[ORM\Index(name: 'status_id', columns: ['status_id'])]
+#[ORM\Index(name: 'order_date', columns: ['order_date'])]
+#[ORM\Index(name: 'provider_id', columns: ['provider_id'])]
+#[ORM\Index(name: 'quote_id', columns: ['quote_id', 'provider_id'])]
+#[ORM\Index(name: 'adress_origin_id', columns: ['address_origin_id'])]
+#[ORM\Index(name: 'retrieve_contact_id', columns: ['retrieve_contact_id'])]
+#[ORM\Index(name: 'main_order_id', columns: ['main_order_id'])]
+#[ORM\Index(name: 'retrieve_people_id', columns: ['retrieve_people_id'])]
+#[ORM\Index(name: 'payer_people_id', columns: ['payer_people_id'])]
+#[ORM\Index(name: 'client_id', columns: ['client_id'])]
+#[ORM\Index(name: 'alter_date', columns: ['alter_date'])]
+#[ORM\Index(name: 'IDX_E52FFDEEDB805178', columns: ['quote_id'])]
+#[ORM\UniqueConstraint(name: 'discount_id', columns: ['discount_coupon_id'])]
+
+#[ORM\Entity(repositoryClass: OrderRepository::class)]
 class Order
 {
-    /**
-     * @var integer
-     *
-     * @ORM\Column(name="id", type="integer", nullable=false)
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="IDENTITY")
-     * @Groups({"order_read","company_expense_read","task_read","coupon_read","logistic_read","order_invoice_read"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
+    public const APP_IFOOD = 'iFood';
+    public const APP_FOOD99 = 'Food99';
+    public const ORDER_TYPE_CART = 'cart';
+    public const ORDER_TYPE_QUOTE = 'quote';
+    public const ORDER_TYPE_SALE = 'sale';
+    public const ORDER_TYPE_TAB = 'tab';
+    public const ORDER_TYPE_TABLE = 'table';
+    public const ORDER_TYPE_PURCHASE = 'purchase';
 
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
+    #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
+    #[ORM\Id]
+    #[ORM\GeneratedValue(strategy: 'IDENTITY')]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'company_expense:read', 'coupon:read', 'logistic:read', 'order_invoice:read'])]
     private $id;
 
-    /**
-     * @var \ControleOnline\Entity\People
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="client_id", referencedColumnName="id")
-     * })
-     * @Groups({"order_read","order_write", "invoice_read", "task_read"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['client' => 'exact'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'company_expense:read', 'coupon:read', 'logistic:read', 'order_invoice:read'])]
+    private $extraData = null;
 
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['client' => 'exact'])]
+    #[ORM\JoinColumn(name: 'client_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write',  'invoice:read'])]
     private $client;
 
-    /**
-     * @var \DateTimeInterface
-     * @ORM\Column(name="order_date", type="datetime",  nullable=false, columnDefinition="DATETIME")
-     * @Groups({"order_read","order_write"})
-     */
-    #[ApiFilter(DateFilter::class, properties: ['orderDate'])]
-
-    private $orderDate;
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\SalesOrderInvoice", mappedBy="order")
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
-
-    private $invoice;
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Task", mappedBy="order")
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['task' => 'exact'])]
-
-    private $task;
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\SalesOrderInvoiceTax", mappedBy="order")
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoiceTax' => 'exact'])]
-
-    private $invoiceTax;
-
-    /**
-     * @ORM\Column(name="alter_date", type="datetime",  nullable=false)
-     * @Groups({"display_read","order_read","order_write"})
-     */
-
-     #[ApiFilter(DateFilter::class, properties: ['alterDate'])]
-
-    private $alterDate;
-
-
-    /**
-     * @var \ControleOnline\Entity\Status
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Status")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="status_id", referencedColumnName="id")
-     * })
-     * @Groups({"display_read","order_read","order_write"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
-
-    private $status;
-
-    /**
-     * @var string
-     *
-     * @ORM\Column(name="order_type", type="string",  nullable=true)
-     * @Groups({"display_read","order_read","order_write"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
-
-    private $orderType = 'Online';
-
-
-    /**
-     * @var string
-     *
-     * @ORM\Column(name="app", type="string",  nullable=true)
-     * @Groups({"display_read","order_read","order_write"}) 
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
-
-    private $app = 'Manual';
-
-    /**
-     * @var string
-     *
-     * @ORM\Column(name="other_informations", type="json",  nullable=true)
-     * @Groups({"order_read","order_write"}) 
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['otherInformations' => 'exact'])]
-
-    private $otherInformations;
-
-    /**
-     * @var \ControleOnline\Entity\SalesOrder
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\SalesOrder")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="main_order_id", referencedColumnName="id")
-     * })
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrder' => 'exact'])]
-
-    private $mainOrder;
-
-
-    /**
-     * @var integer
-     *
-     * @ORM\Column(name="main_order_id", type="integer",  nullable=true)
-     * @Groups({"order_read","order_write"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrderId' => 'exact'])]
-
-    private $mainOrderId;
-
-    /**
-     * @var \ControleOnline\Entity\Contract
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Contract")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="contract_id", referencedColumnName="id")
-     * })
-     * @Groups({"order_read","order_write","task_read","logistic_read"}) 
-     */
+    // Registro do documento comercial ligado ao pedido. No CRM esse vínculo
+    // aponta primeiro para a proposta; o contrato final pode surgir depois.
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['contract' => 'exact'])]
-
+    #[ORM\JoinColumn(name: 'contract_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: Contract::class)]
+    #[Groups(['order:read', 'order_details:read', 'order:write', 'logistic:read'])]
     private $contract;
 
-    /**
-     * @var \ControleOnline\Entity\People
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="payer_people_id", referencedColumnName="id")
-     * })
-     * @Groups({"order_read","order_write","task_read","invoice_read"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['payer' => 'exact'])]
+    #[ApiFilter(DateFilter::class, properties: ['orderDate'])]
+    #[ORM\Column(name: 'order_date', type: 'datetime', nullable: false, columnDefinition: 'DATETIME')]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    private $orderDate;
 
+    #[ORM\OneToMany(targetEntity: OrderProduct::class, mappedBy: 'order', cascade: ['persist'])]
+    #[Groups(['order_details:read', 'orders-queue:read', 'order:write', 'order:write'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProducts.orderProductQueues.status' => 'exact'])]
+    private $orderProducts;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoice' => 'exact'])]
+    #[ORM\OneToMany(targetEntity: OrderInvoice::class, mappedBy: 'order')]
+    private $invoice;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['task' => 'exact'])]
+    #[ORM\OneToMany(targetEntity: Task::class, mappedBy: 'order')]
+    private $task;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['invoiceTax' => 'exact'])]
+    #[ORM\OneToMany(targetEntity: OrderInvoiceTax::class, mappedBy: 'order')]
+    private $invoiceTax;
+
+    #[ApiFilter(DateFilter::class, properties: ['alterDate'])]
+    #[ORM\Column(name: 'alter_date', type: 'datetime', nullable: false)]
+    #[Groups(['display:read', 'order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    private $alterDate;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['status.realStatus' => 'exact'])]
+    #[ORM\JoinColumn(name: 'status_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: Status::class)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    private $status;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
+    #[ORM\Column(name: 'order_type', type: 'string', nullable: true)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    private $orderType;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
+    #[ORM\Column(name: 'app', type: 'string', nullable: true)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    private $app = 'POS';
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['otherInformations' => 'exact'])]
+    #[ORM\Column(name: 'other_informations', type: 'json', nullable: true)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    private $otherInformations;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrder' => 'exact'])]
+    #[ORM\JoinColumn(name: 'main_order_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: self::class)]
+    private $mainOrder;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrderId' => 'exact'])]
+    #[ORM\Column(name: 'main_order_id', type: 'integer', nullable: true)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    private $mainOrderId;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['payer' => 'exact'])]
+    #[ORM\JoinColumn(name: 'payer_people_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write',  'invoice:read'])]
     private $payer;
 
-    /**
-     * @var \ControleOnline\Entity\People
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="provider_id", referencedColumnName="id")
-     * })
-     * @Groups({"order_read","order_write","invoice_read", "task_read"})
-     */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['provider' => 'exact'])]
-
+    #[ORM\JoinColumn(name: 'provider_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write',  'invoice:read'])]
     private $provider;
 
-    /**
-     * @var \ControleOnline\Entity\Quotation
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Quotation")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="quote_id", referencedColumnName="id")
-     * })
-     * @Groups({"order_read","order_write"})
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['quote' => 'exact'])]
-
-    private $quote;
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Quotation", mappedBy="order")
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['quotes' => 'exact'])]
-
-    private $quotes;
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\Retrieve", mappedBy="order")
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['retrieves' => 'exact'])]
-
-    private $retrieves;
-
-    /**
-     * @var \ControleOnline\Entity\Address
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Address")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="address_origin_id", referencedColumnName="id")
-     * })
-     */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['addressOrigin' => 'exact'])]
-
+    #[ORM\JoinColumn(name: 'address_origin_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[Groups(['order_details:read', 'order:write', 'order:write'])]
     private $addressOrigin;
 
-    /**
-     * @var \ControleOnline\Entity\Address
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Address")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="address_destination_id", referencedColumnName="id")
-     * })
-     */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['addressDestination' => 'exact'])]
-
+    #[ORM\JoinColumn(name: 'address_destination_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[Groups(['order_details:read', 'order:write', 'order:write'])]
     private $addressDestination;
 
-    /**
-     * @var \ControleOnline\Entity\People
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="retrieve_contact_id", referencedColumnName="id")
-     * })
-     */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['retrieveContact' => 'exact'])]
-
+    #[ORM\JoinColumn(name: 'retrieve_contact_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: People::class)]
     private $retrieveContact;
 
-    /**
-     * @var \ControleOnline\Entity\People
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="delivery_contact_id", referencedColumnName="id")
-     * })
-     */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['deliveryContact' => 'exact'])]
-
+    #[ORM\JoinColumn(name: 'delivery_contact_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: People::class)]
     private $deliveryContact;
 
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderPackage", mappedBy="order")
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderPackage' => 'exact'])]
-
-    private $orderPackage;
-
-    /**
-     * @var float
-     *
-     * @ORM\Column(name="price", type="float",  nullable=false)
-     * @Groups({"order_read","order_write"})
-     */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['price' => 'exact'])]
-
+    #[ORM\Column(name: 'price', type: 'float', nullable: false)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $price = 0;
 
-
-
-    /**
-     * @var string
-     *
-     * @ORM\Column(name="comments", type="string",  nullable=true)
-     * @Groups({"order_read","order_write"})
-     */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['comments' => 'exact'])]
-
+    #[ORM\Column(name: 'comments', type: 'string', nullable: true)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $comments;
 
-    /**
-     * @var boolean
-     *
-     * @ORM\Column(name="notified", type="boolean")
-     */
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['notified' => 'exact'])]
-
+    #[ORM\Column(name: 'notified', type: 'boolean')]
     private $notified = false;
 
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderTracking", mappedBy="order")
-     * @ApiSubresource()
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['tracking' => 'exact'])]
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['user' => 'exact'])]
+    #[ORM\JoinColumn(nullable: true)]
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
+    private $user;
 
-    private $tracking;
-
-
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderQueue", mappedBy="order")
-     * @Groups({"order_read","order_write"}) 
-     */
-    #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderQueue' => 'exact'])]
-
-    private $orderQueue;
-
-
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['device' => 'exact', 'device.device' => 'exact'])]
+    #[ORM\JoinColumn(name: 'device_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: Device::class)]
+    #[Groups(['device_config:read', 'device:read', 'device_config:write'])]
+    private $device;
 
     public function __construct()
     {
-        $this->orderDate    = new \DateTime('now');
-        $this->alterDate    = new \DateTime('now');
-        $this->orderPackage = new ArrayCollection();
-        $this->invoiceTax   = new ArrayCollection();
-        $this->invoice      = new ArrayCollection();
-        $this->quotes       = new ArrayCollection();
-        $this->retrieves    = new ArrayCollection();
-        $this->tracking     = new ArrayCollection();
-        $this->task         = new ArrayCollection();
-        $this->orderQueue   = new ArrayCollection();
-        // $this->parkingDate  = new \DateTime('now');
+        $this->orderDate = new DateTime('now');
+        $this->alterDate = new DateTime('now');
+        $this->invoiceTax = new ArrayCollection();
+        $this->invoice = new ArrayCollection();
+        $this->task = new ArrayCollection();
+        $this->orderProducts = new ArrayCollection();
         $this->otherInformations = json_encode(new stdClass());
     }
 
     public function resetId()
     {
-        $this->id          = null;
-        $this->orderDate   = new \DateTime('now');
-        $this->alterDate   = new \DateTime('now');
-        // $this->parkingDate = new \DateTime('now');
+        $this->id = null;
+        $this->orderDate = new DateTime('now');
+        $this->alterDate = new DateTime('now');
     }
 
-    /**
-     * Get id
-     *
-     * @return integer
-     */
     public function getId()
     {
         return $this->id;
     }
 
-    /**
-     * Set status
-     *
-     * @param \ControleOnline\Entity\Status $status
-     * @return Order
-     */
-    public function setStatus(\ControleOnline\Entity\Status $status = null)
+    public function setStatus(Status $status = null)
     {
         $this->status = $status;
-
         return $this;
     }
 
-    /**
-     * Get status
-     *
-     * @return \ControleOnline\Entity\Status
-     */
     public function getStatus()
     {
         return $this->status;
     }
 
-    /**
-     * Set client
-     *
-     * @param \ControleOnline\Entity\People $client
-     * @return Order
-     */
-    public function setClient(\ControleOnline\Entity\People $client = null)
+    public function setClient(People $client = null)
     {
         $this->client = $client;
-
         return $this;
     }
 
-    /**
-     * Get client
-     *
-     * @return \ControleOnline\Entity\People
-     */
     public function getClient()
     {
         return $this->client;
     }
 
-    /**
-     * Set provider
-     *
-     * @param \ControleOnline\Entity\People $provider
-     * @return Order
-     */
-    public function setProvider(\ControleOnline\Entity\People $provider = null)
+    public function setContract(?Contract $contract = null)
     {
-        $this->provider = $provider;
-
+        $this->contract = $contract;
         return $this;
     }
 
-    /**
-     * Get provider
-     *
-     * @return \ControleOnline\Entity\People
-     */
+    public function getContract(): ?Contract
+    {
+        return $this->contract;
+    }
+
+    public function setProvider(People $provider = null)
+    {
+        $this->provider = $provider;
+        return $this;
+    }
+
     public function getProvider()
     {
         return $this->provider;
     }
 
-    /**
-     * Set price
-     *
-     * @param float $price
-     * @return Order
-     */
     public function setPrice($price)
     {
         $this->price = $price;
-
         return $this;
     }
 
-    /**
-     * Get price
-     *
-     * @return float
-     */
     public function getPrice()
     {
         return $this->price;
     }
 
-    /**
-     * Set quote
-     *
-     * @param \ControleOnline\Entity\Quotation $quote
-     * @return Order
-     */
-    public function setQuote(\ControleOnline\Entity\Quotation $quote = null)
-    {
-        $this->quote = $quote;
-
-        return $this;
-    }
-
-    /**
-     * Get quote
-     *
-     * @return \ControleOnline\Entity\Quotation
-     */
-    public function getQuote()
-    {
-        return $this->quote;
-    }
-
-    /**
-     * Set addressOrigin
-     *
-     * @param \ControleOnline\Entity\Address $address_origin
-     * @return Order
-     */
-    public function setAddressOrigin(\ControleOnline\Entity\Address $address_origin = null)
+    public function setAddressOrigin(Address $address_origin = null)
     {
         $this->addressOrigin = $address_origin;
-
         return $this;
     }
 
-    /**
-     * Get addressOrigin
-     *
-     * @return \ControleOnline\Entity\Address
-     */
     public function getAddressOrigin()
     {
         return $this->addressOrigin;
     }
 
-    /**
-     * Set addressDestination
-     *
-     * @param \ControleOnline\Entity\Address $address_destination
-     * @return Order
-     */
-    public function setAddressDestination(\ControleOnline\Entity\Address $address_destination = null)
+    public function setAddressDestination(Address $address_destination = null)
     {
         $this->addressDestination = $address_destination;
-
         return $this;
     }
 
-    /**
-     * Get quote
-     *
-     * @return \ControleOnline\Entity\Address
-     */
     public function getAddressDestination()
     {
         return $this->addressDestination;
     }
 
-    /**
-     * Get retrieveContact
-     *
-     * @return \ControleOnline\Entity\People
-     */
     public function getRetrieveContact()
     {
         return $this->retrieveContact;
     }
 
-    /**
-     * Set retrieveContact
-     *
-     * @param \ControleOnline\Entity\People $retrieve_contact
-     * @return Order
-     */
-    public function setRetrieveContact(\ControleOnline\Entity\People $retrieve_contact = null)
+    public function setRetrieveContact(People $retrieve_contact = null)
     {
         $this->retrieveContact = $retrieve_contact;
-
         return $this;
     }
 
-    /**
-     * Get deliveryContact
-     *
-     * @return \ControleOnline\Entity\People
-     */
     public function getDeliveryContact()
     {
         return $this->deliveryContact;
     }
 
-    /**
-     * Set deliveryContact
-     *
-     * @param \ControleOnline\Entity\People $delivery_contact
-     * @return Order
-     */
-    public function setDeliveryContact(\ControleOnline\Entity\People $delivery_contact = null)
+    public function setDeliveryContact(People $delivery_contact = null)
     {
         $this->deliveryContact = $delivery_contact;
-
         return $this;
     }
 
-    /**
-     * Set payer
-     *
-     * @param \ControleOnline\Entity\People $payer
-     * @return Order
-     */
-    public function setPayer(\ControleOnline\Entity\People $payer = null)
+    public function setPayer(People $payer = null)
     {
         $this->payer = $payer;
-
         return $this;
     }
 
-    /**
-     * Get payer
-     *
-     * @return \ControleOnline\Entity\People
-     */
     public function getPayer()
     {
         return $this->payer;
     }
 
-
-    /**
-     * Set comments
-     *
-     * @param string $comments
-     * @return Order
-     */
     public function setComments($comments)
     {
         $this->comments = $comments;
-
         return $this;
     }
 
-    /**
-     * Get comments
-     *
-     * @return string
-     */
     public function getComments()
     {
         return $this->comments;
     }
 
-    /**
-     * Get otherInformations
-     *
-     * @return stdClass
-     */
     public function getOtherInformations($decode = false)
     {
         return $decode ? (object) json_decode((is_array($this->otherInformations) ? json_encode($this->otherInformations) : $this->otherInformations)) : $this->otherInformations;
     }
 
-    /**
-     * Set comments
-     *
-     * @param string $otherInformations
-     * @return Order
-     */
     public function addOtherInformations($key, $value)
     {
         $otherInformations = $this->getOtherInformations(true);
@@ -686,124 +428,45 @@ class Order
         return $this;
     }
 
-    /**
-     * Set comments
-     *
-     * @param string $otherInformations
-     * @return Order
-     */
     public function setOtherInformations($otherInformations)
     {
         $this->otherInformations = json_encode($otherInformations);
         return $this;
     }
 
-
-    /**
-     * Get orderDate
-     *
-     * @return \DateTimeInterface
-     */
     public function getOrderDate()
     {
         return $this->orderDate;
     }
 
-    /**
-     * Set alter_date
-     *
-     * @param \DateTimeInterface $alter_date
-     */
-    public function setAlterDate(\DateTimeInterface $alter_date = null): self
+    public function setAlterDate(DateTimeInterface $alter_date = null): self
     {
         $this->alterDate = $alter_date;
-
         return $this;
     }
 
-    /**
-     * Get alter_date
-     *
-     */
-    public function getAlterDate(): ?\DateTimeInterface
+    public function getAlterDate(): ?DateTimeInterface
     {
         return $this->alterDate;
     }
 
-    /**
-     * Add orderPackage
-     *
-     * @param \ControleOnline\Entity\OrderPackage $order_package
-     * @return Order
-     */
-    public function addOrderPackage(\ControleOnline\Entity\OrderPackage $order_package)
-    {
-        $this->orderPackage[] = $order_package;
-
-        return $this;
-    }
-
-    /**
-     * Remove orderPackage
-     *
-     * @param \ControleOnline\Entity\OrderPackage $order_package
-     */
-    public function removeOrderPackage(\ControleOnline\Entity\OrderPackage $order_package)
-    {
-        $this->orderPackage->removeElement($order_package);
-    }
-
-    /**
-     * Get orderPackage
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getOrderPackage()
-    {
-        return $this->orderPackage;
-    }
-
-    /**
-     * Add invoiceTax
-     *
-     * @param \ControleOnline\Entity\SalesOrderInvoiceTax $invoice_tax
-     * @return Order
-     */
-    public function addAInvoiceTax(SalesOrderInvoiceTax $invoice_tax)
+    public function addAInvoiceTax(OrderInvoiceTax $invoice_tax)
     {
         $this->invoiceTax[] = $invoice_tax;
-
         return $this;
     }
 
-    /**
-     * Remove invoiceTax
-     *
-     * @param \ControleOnline\Entity\SalesOrderInvoiceTax $invoice_tax
-     */
-    public function removeInvoiceTax(SalesOrderInvoiceTax $invoice_tax)
+    public function removeInvoiceTax(OrderInvoiceTax $invoice_tax)
     {
         $this->invoiceTax->removeElement($invoice_tax);
     }
 
-    /**
-     * Get invoiceTax
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
     public function getInvoiceTax()
     {
         return $this->invoiceTax;
     }
 
-
-
-    /**
-     * Get invoiceTax
-     *
-     * @return \ControleOnline\Entity\SalesInvoiceTax
-     */
-    public function getClientSalesInvoiceTax()
+    public function getClientInvoiceTax()
     {
         foreach ($this->getInvoiceTax() as $invoice) {
             if ($invoice->getInvoiceType() == 55) {
@@ -812,24 +475,6 @@ class Order
         }
     }
 
-    /**
-     * Get invoiceTax
-     *
-     * @return \ControleOnline\Entity\SalesInvoiceTax
-     */
-    public function getClientInvoiceTax()
-    {
-        foreach ($this->getInvoiceTax() as $invoice) {
-            if ($invoice->getInvoiceType() == 55) {
-                return $invoice->getInvoiceTax();
-            }
-        }
-    }
-    /**
-     * Get invoiceTax
-     *
-     * @return \ControleOnline\Entity\SalesInvoiceTax
-     */
     public function getCarrierInvoiceTax()
     {
         foreach ($this->getInvoiceTax() as $invoice) {
@@ -839,233 +484,75 @@ class Order
         }
     }
 
-    /**
-     * Add SalesOrderInvoice
-     *
-     * @param \ControleOnline\Entity\SalesOrderInvoice $invoice
-     * @return People
-     */
-    public function addInvoice(SalesOrderInvoice $invoice)
+    public function addInvoice(OrderInvoice $invoice)
     {
         $this->invoice[] = $invoice;
-
         return $this;
     }
 
-    /**
-     * Remove SalesOrderInvoice
-     *
-     * @param \ControleOnline\Entity\SalesOrderInvoice $invoice
-     */
-    public function removeInvoice(SalesOrderInvoice $invoice)
+    public function removeInvoice(OrderInvoice $invoice)
     {
         $this->invoice->removeElement($invoice);
     }
 
-    /**
-     * Get SalesOrderInvoice
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
     public function getInvoice()
     {
         return $this->invoice;
     }
 
-    /**
-     * Add quotes
-     *
-     * @param \ControleOnline\Entity\Quotation $quotes
-     * @return Order
-     */
-    public function addAQuotes(\ControleOnline\Entity\Quotation $quotes)
-    {
-        $this->quotes[] = $quotes;
-
-        return $this;
-    }
-
-    /**
-     * Remove quotes
-     *
-     * @param \ControleOnline\Entity\Quotation $quotes
-     */
-    public function removeQuotes(\ControleOnline\Entity\Quotation $quotes)
-    {
-        $this->quotes->removeElement($quotes);
-    }
-
-    /**
-     * Get quotes
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getQuotes()
-    {
-        return $this->quotes;
-    }
-
-    /**
-     * Add retrieves
-     *
-     * @param \ControleOnline\Entity\Retrieve $retrieves
-     * @return Order
-     */
-    public function addARetrieves(\ControleOnline\Entity\Retrieve $retrieves)
-    {
-        $this->retrieves[] = $retrieves;
-
-        return $this;
-    }
-
-    /**
-     * Remove retrieves
-     *
-     * @param \ControleOnline\Entity\Retrieve $retrieves
-     */
-    public function removeRetrieves(\ControleOnline\Entity\Retrieve $retrieves)
-    {
-        $this->retrieves->removeElement($retrieves);
-    }
-
-    /**
-     * Get retrieves
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getRetrieves()
-    {
-        return $this->retrieves;
-    }
-
-    /**
-     * Get Notified
-     *
-     * @return boolean
-     */
     public function getNotified()
     {
         return $this->notified;
     }
 
-    /**
-     * Set Notified
-     *
-     * @param boolean $notified
-     * @return People
-     */
     public function setNotified($notified)
     {
         $this->notified = $notified ? 1 : 0;
-
         return $this;
     }
 
-    /**
-     * Set orderType
-     *
-     * @param string $orderType
-     * @return Order
-     */
     public function setOrderType($order_type)
     {
         $this->orderType = $order_type;
-
         return $this;
     }
 
-    /**
-     * Get orderType
-     *
-     * @return string
-     */
     public function getOrderType()
     {
         return $this->orderType;
     }
 
-    /**
-     * Set app
-     *
-     * @param string $app
-     * @return Order
-     */
     public function setApp($app)
     {
         $this->app = $app;
-
         return $this;
     }
 
-    /**
-     * Get app
-     *
-     * @return string
-     */
     public function getApp()
     {
         return $this->app;
     }
 
-
-
-    /**
-     * Set mainOrder
-     *
-     * @param \ControleOnline\Entity\SalesOrder $mainOrder
-     * @return Order
-     */
-    public function setMainOrder(\ControleOnline\Entity\SalesOrder $main_order = null)
+    public function setMainOrder(self $main_order)
     {
         $this->mainOrder = $main_order;
-
         return $this;
     }
 
-    /**
-     * Get mainOrder
-     *
-     * @return \ControleOnline\Entity\SalesOrder
-     */
     public function getMainOrder()
     {
         return $this->mainOrder;
     }
 
-    /**
-     * Set mainOrderId
-     *
-     * @param integer $mainOrderId
-     * @return Order
-     */
     public function setMainOrderId($mainOrderId)
     {
         $this->mainOrderId = $mainOrderId;
-
         return $this;
     }
 
-    /**
-     * Get mainOrderId
-     *
-     * @return integer
-     */
     public function getMainOrderId()
     {
         return $this->mainOrderId;
-    }
-
-    /**
-     * Set contract
-     *
-     * @param \ControleOnline\Entity\Contract $contract
-     * @return SalesOrder
-     */
-    public function setContract($contract)
-    {
-        $this->contract = $contract;
-
-        return $this;
     }
 
     public function getInvoiceByStatus(array $status)
@@ -1077,41 +564,21 @@ class Order
             }
         }
     }
-    /**
-     * Get contract
-     *
-     * @return \ControleOnline\Entity\Contract
-     */
-    public function getContract()
-    {
-        return $this->contract;
-    }
 
     public function canAccess($currentUser): bool
     {
-        if (($provider = $this->getProvider()) === null)
+        if (($provider = $this->getProvider()) === null) {
             return false;
+        }
 
-        return $currentUser->getPeople()->getPeopleCompany()->exists(
-            function ($key, $element) use ($provider) {
-                return $element->getCompany() === $provider;
-            }
+        return $currentUser->getPeople()->getLink()->exists(
+            fn($key, $element) => $element->getCompany() === $provider
         );
     }
 
     public function justOpened(): bool
     {
-        return $this->getStatus()->getStatus() == 'quote';
-    }
-
-    /**
-     * Get tracking
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getTracking()
-    {
-        return $this->tracking;
+        return $this->getStatus()?->getStatus() === 'open';
     }
 
     public function getOneInvoice()
@@ -1120,70 +587,20 @@ class Order
             null : $invoiceOrders->getInvoice();
     }
 
-    /**
-     * Add Task
-     *
-     * @param \ControleOnline\Entity\Task $task
-     * @return SalesOrder
-     */
-    public function addTask(\ControleOnline\Entity\Task $task)
+    public function addTask(Task $task)
     {
         $this->task[] = $task;
-
         return $this;
     }
 
-    /**
-     * Remove Task
-     *
-     * @param \ControleOnline\Entity\Task $task
-     */
-    public function removeTask(\ControleOnline\Entity\Task $task)
+    public function removeTask(Task $task)
     {
         $this->task->removeElement($task);
     }
 
-    /**
-     * Get Task
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
     public function getTask()
     {
         return $this->task;
-    }
-
-    /**
-     * Add OrderQueue
-     *
-     * @param \ControleOnline\Entity\OrderQueue $invoice_tax
-     * @return Order
-     */
-    public function addAOrderQueue(\ControleOnline\Entity\OrderQueue $orderQueue)
-    {
-        $this->orderQueue[] = $orderQueue;
-
-        return $this;
-    }
-
-    /**
-     * Remove OrderQueue
-     *
-     * @param \ControleOnline\Entity\OrderQueue $invoice_tax
-     */
-    public function removeOrderQueue(\ControleOnline\Entity\OrderQueue $orderQueue)
-    {
-        $this->orderQueue->removeElement($orderQueue);
-    }
-
-    /**
-     * Get OrderQueue
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getOrderQueue()
-    {
-        return $this->orderQueue;
     }
 
     public function isOriginAndDestinationTheSame(): ?bool
@@ -1198,8 +615,6 @@ class Order
 
         $origCity = $origin->getStreet()->getDistrict()->getCity();
         $destCity = $destination->getStreet()->getDistrict()->getCity();
-
-        // both objects are the same entity ( = same name and same state)
 
         if ($origCity === $destCity) {
             return true;
@@ -1221,12 +636,60 @@ class Order
         $origState = $origin->getStreet()->getDistrict()->getCity()->getState();
         $destState = $destination->getStreet()->getDistrict()->getCity()->getState();
 
-        // both objects are the same entity ( = same name and same country)
-
         if ($origState === $destState) {
             return true;
         }
 
         return false;
+    }
+
+    public function getOrderProducts()
+    {
+        return $this->orderProducts;
+    }
+
+    public function addOrderProduct(OrderProduct $orderProduct): self
+    {
+        $this->orderProducts[] = $orderProduct;
+        return $this;
+    }
+
+    public function removeOrderProduct(OrderProduct $orderProduct): self
+    {
+        $this->orderProducts->removeElement($orderProduct);
+        return $this;
+    }
+
+    public function getUser()
+    {
+        return $this->user;
+    }
+
+    public function setUser($user): self
+    {
+        $this->user = $user;
+        return $this;
+    }
+
+    public function getDevice()
+    {
+        return $this->device;
+    }
+
+    public function setDevice($device): self
+    {
+        $this->device = $device;
+        return $this;
+    }
+
+    public function setExtraData($extraData): self
+    {
+        $this->extraData = $extraData;
+        return $this;
+    }
+
+    public function getExtraData()
+    {
+        return $this->extraData;
     }
 }

@@ -1,0 +1,19 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - task-*
+
+jobs:
+  phpunit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: phpunit
+      - name: Run proposal product category guard test
+        run: phpunit --bootstrap tests/bootstrap.php tests/Service/ProposalProductCategoryGuardTest.php

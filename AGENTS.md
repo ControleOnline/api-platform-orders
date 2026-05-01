@@ -1,0 +1,25 @@
+## Escopo
+- Modulo central de pedidos de venda.
+- Cobre `Order`, `OrderProduct`, `OrderInvoice`, carrinho, acoes do pedido, descoberta de carrinho e fluxos de impressao ligados ao pedido.
+
+## Quando usar
+- Prompts sobre pedido, item de pedido, checkout operacional, impressao de pedido, acoes de pedido e ciclo de vida comercial do pedido.
+
+## Limites
+- `orders` e o dono da regra operacional do pedido.
+- Quando um pedido de venda nascer vinculado a uma proposta (`order.contract`) e o modelo da proposta tiver categoria definida, `orders` deve rejeitar produtos fora dessa categoria tanto em `/orders/{id}/add-products` quanto em mutacoes diretas de `OrderProduct`.
+- A regra de categoria da proposta nao substitui autorizacao. Toda escrita em `Order` e `OrderProduct`, incluindo `/orders/{id}/add-products` e `POST`/`PUT`/`DELETE` diretos em `OrderProduct`, deve provar que o usuario autenticado pode operar o pedido alvo no contexto da empresa dona do pedido. `ROLE_HUMAN` isolado, `find(id)` direto e filtros apenas de leitura nao bastam para autorizar gravacao.
+- `financial` continua dono de `Invoice`, `Wallet` e meios de pagamento.
+- `integration` continua dono de webhooks e gateways externos.
+- Quando um fluxo tocar pedido e pagamento, a regra do pedido fica aqui e a camada financeira/integracao fica nos modulos correspondentes.
+- Em venda, o rascunho/carrinho canonico do pedido usa `orderType = cart`. `quote` nao deve mais representar carrinho de venda.
+- Em atendimento por `tab/table`, o pedido financeiro raiz continua sendo um `Order` do proprio modulo `orders`. Pedidos filhos e invoices devem convergir para essa raiz, sem contrato paralelo fora de `mainOrderId` e `OrderInvoice`.
+- `ready`, `cancel` e `delivered` devem nascer pelo fluxo principal de acoes do pedido (`OrderActionService`/`OrderActionController`). Nao criar caminhos paralelos de mudanca de status para KDS, marketplace ou device.
+- O nome canonico da integracao da 99 no backend e `Food99` quando o pedido ou contexto precisar identificar a plataforma.
+- O recurso `/orders-queue`, consumido por displays/KDS, deve expor apenas pedidos de venda (`orderType = sale`). Rascunhos e carrinhos (`cart`) nao pertencem a essa visao operacional.
+- A colecao de `OrderProduct` precisa responder no payload padrao interno (`member`, `totalItems`, `search`, `@context`, `@id`, `@type`) mesmo quando a leitura vier do fluxo padrao da API Platform. Nao empurrar fallback de formato para o frontend.
+- `OrderProduct` deve continuar exposto como entidade da API Platform. Nao usar controller dedicada apenas para reformatar colecao; essa adaptacao pertence a normalizers/infra comum.
+- `GET /orders/{id}` deve continuar estavel e enxuto para abrir o detalhe do pedido. Nao expandir nesse payload relacoes de agrupamento (`orderProduct`, `parentProduct`, `productGroup`) se isso aumentar risco de serializacao pesada ou ciclica.
+- Quando a hierarquia completa de customizacao for necessaria no frontend, a fonte rica deve ser a colecao de `OrderProduct`, mantendo o serializer de `Order` seguro e previsivel.
+- Em `PUT /order_products/{id}`, quando vier `sub_products`, o backend deve substituir a colecao atual de componentes do item pai. Nao acumular filhos antigos com novos durante a reabertura da customizacao.
+- Em `DELETE /order_products/{id}`, a remocao de item customizavel deve apagar primeiro a arvore de componentes e filas pelo vinculo `orderProduct`. Nao usar `parentProduct` para decidir quais filhos remover.

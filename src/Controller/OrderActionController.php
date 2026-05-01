@@ -1,0 +1,320 @@
+<?php
+
+namespace ControleOnline\Controller;
+
+use ControleOnline\Entity\Order;
+use ControleOnline\Entity\People;
+use ControleOnline\Service\LoggerService;
+use ControleOnline\Service\OrderActionService;
+use ControleOnline\Service\PeopleService;
+use ControleOnline\Service\RequestPayloadService;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
+use Symfony\Component\Security\Http\Attribute\Security as SecurityAttribute;
+
+#[SecurityAttribute("is_granted('ROLE_HUMAN')")]
+class OrderActionController extends AbstractController
+{
+    public function __construct(
+        private EntityManagerInterface $manager,
+        private ManagerRegistry $managerRegistry,
+        private Security $security,
+        private PeopleService $peopleService,
+        private OrderActionService $orderActionService,
+        private LoggerService $loggerService,
+        private RequestPayloadService $requestPayloadService,
+    ) {}
+
+    private function getAuthenticatedPeople(): ?People
+    {
+        $user = $this->security->getToken()?->getUser();
+
+        if (!is_object($user) || !method_exists($user, 'getPeople')) {
+            return null;
+        }
+
+        $people = $user->getPeople();
+
+        return $people instanceof People ? $people : null;
+    }
+
+    private function canAccessOrder(Order $order): bool
+    {
+        $userPeople = $this->getAuthenticatedPeople();
+        if (!$userPeople) {
+            return false;
+        }
+
+        $provider = $order->getProvider();
+        if (!$provider instanceof People) {
+            return false;
+        }
+
+        if ($userPeople->getId() === $provider->getId()) {
+            return true;
+        }
+
+        return $this->peopleService->canAccessCompany($provider, $userPeople);
+    }
+
+    private function resolveOrder(string|int $orderId): ?Order
+    {
+        $id = $this->requestPayloadService->normalizeOptionalNumericId($orderId);
+        if (!$id) {
+            return null;
+        }
+
+        $order = $this->manager->getRepository(Order::class)->find($id);
+        if (!$order instanceof Order) {
+            return null;
+        }
+
+        if (!$this->canAccessOrder($order)) {
+            return null;
+        }
+
+        return $order;
+    }
+
+    private function parseJsonBody(Request $request): array
+    {
+        $content = trim((string) $request->getContent());
+        if ($content === '') {
+            return [];
+        }
+
+        return $this->requestPayloadService->decodeJsonContent($content);
+    }
+
+    private function orderNotFound(): JsonResponse
+    {
+        return new JsonResponse(
+            ['error' => 'Pedido não encontrado ou acesso negado'],
+            Response::HTTP_FORBIDDEN
+        );
+    }
+
+    private function safeResolveCapabilities(Order $order): array
+    {
+        try {
+            return $this->orderActionService->getCapabilities($order);
+        } catch (\Throwable $e) {
+            $this->loggerService->getLogger('OrderAction')->error('Order capabilities resolution failed', [
+                'logEntity' => $order,
+                'order_id' => $order->getId(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    private function refreshOrder(Order $order): Order
+    {
+        try {
+            if (method_exists($this->manager, 'isOpen') && !$this->manager->isOpen()) {
+                $this->managerRegistry->resetManager();
+                $reloadedManager = $this->managerRegistry->getManagerForClass(Order::class);
+                if ($reloadedManager instanceof EntityManagerInterface) {
+                    $reloadedOrder = $reloadedManager->getRepository(Order::class)->find($order->getId());
+                    if ($reloadedOrder instanceof Order && $this->canAccessOrder($reloadedOrder)) {
+                        return $reloadedOrder;
+                    }
+                }
+
+                return $order;
+            }
+
+            $this->manager->refresh($order);
+            return $order;
+        } catch (\Throwable $e) {
+            try {
+                $reloadedManager = $this->managerRegistry->getManagerForClass(Order::class);
+                if ($reloadedManager instanceof EntityManagerInterface) {
+                    $reloadedOrder = $reloadedManager->getRepository(Order::class)->find($order->getId());
+                    if ($reloadedOrder instanceof Order && $this->canAccessOrder($reloadedOrder)) {
+                        return $reloadedOrder;
+                    }
+                }
+            } catch (\Throwable) {
+            }
+
+            $this->loggerService->getLogger('OrderAction')->warning('Order refresh failed after action', [
+                'logEntity' => $order,
+                'order_id' => $order->getId(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return $order;
+        }
+    }
+
+    private function safeRunOrderAction(string $action, callable $callback, Order $order): array
+    {
+        try {
+            $result = $callback();
+            return is_array($result) ? $result : [
+                'errno' => 1,
+                'errmsg' => 'Resposta invalida ao executar acao.',
+            ];
+        } catch (\Throwable $e) {
+            $this->loggerService->getLogger('OrderAction')->error('Order action execution failed', [
+                'logEntity' => $order,
+                'order_id' => $order->getId(),
+                'action' => $action,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'errno' => 1,
+                'errmsg' => sprintf('Falha ao executar acao %s.', $action),
+            ];
+        }
+    }
+
+    #[Route('/orders/{orderId}/capabilities', name: 'order_action_capabilities', methods: ['GET'])]
+    public function capabilities(string $orderId): JsonResponse
+    {
+        $order = $this->resolveOrder($orderId);
+        if (!$order) {
+            return $this->orderNotFound();
+        }
+
+        return new JsonResponse($this->safeResolveCapabilities($order));
+    }
+
+    #[Route('/orders/{orderId}/cancel-reasons', name: 'order_action_cancel_reasons', methods: ['GET'])]
+    public function cancelReasons(string $orderId): JsonResponse
+    {
+        $order = $this->resolveOrder($orderId);
+        if (!$order) {
+            return $this->orderNotFound();
+        }
+
+        return new JsonResponse([
+            'action' => 'cancel_reasons',
+            'result' => $this->orderActionService->getCancelReasons($order),
+        ]);
+    }
+
+    #[Route('/orders/{orderId}/cancel', name: 'order_action_cancel', methods: ['POST'])]
+    public function cancel(string $orderId, Request $request): JsonResponse
+    {
+        $order = $this->resolveOrder($orderId);
+        if (!$order) {
+            return $this->orderNotFound();
+        }
+
+        try {
+            $payload = $this->parseJsonBody($request);
+        } catch (\InvalidArgumentException) {
+            return new JsonResponse(['error' => 'JSON inválido'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $reasonId = $payload['reason_id']
+            ?? $payload['reasonId']
+            ?? $payload['cancellation_code']
+            ?? $payload['cancellationCode']
+            ?? null;
+        $reason   = trim((string) ($payload['reason'] ?? ''));
+
+        $result = $this->safeRunOrderAction('cancel', function () use ($order, $reasonId, $reason) {
+            return $this->orderActionService->cancel(
+                $order,
+                $reasonId,
+                $reason !== '' ? $reason : null
+            );
+        }, $order);
+        $order = $this->refreshOrder($order);
+
+        return new JsonResponse([
+            'action'       => 'cancel',
+            'result'       => $result,
+            'capabilities' => $this->safeResolveCapabilities($order),
+        ]);
+    }
+
+    #[Route('/orders/{orderId}/confirm', name: 'order_action_confirm', methods: ['POST'])]
+    public function confirm(string $orderId): JsonResponse
+    {
+        $order = $this->resolveOrder($orderId);
+        if (!$order) {
+            return $this->orderNotFound();
+        }
+
+        $result = $this->safeRunOrderAction('confirm', function () use ($order) {
+            return $this->orderActionService->confirm($order);
+        }, $order);
+        $order = $this->refreshOrder($order);
+
+        return new JsonResponse([
+            'action'       => 'confirm',
+            'result'       => $result,
+            'capabilities' => $this->safeResolveCapabilities($order),
+        ]);
+    }
+
+    #[Route('/orders/{orderId}/ready', name: 'order_action_ready', methods: ['POST'])]
+    public function ready(string $orderId): JsonResponse
+    {
+        $order = $this->resolveOrder($orderId);
+        if (!$order) {
+            return $this->orderNotFound();
+        }
+
+        $result = $this->safeRunOrderAction('ready', function () use ($order) {
+            return $this->orderActionService->ready($order);
+        }, $order);
+        $order = $this->refreshOrder($order);
+
+        return new JsonResponse([
+            'action'       => 'ready',
+            'result'       => $result,
+            'capabilities' => $this->safeResolveCapabilities($order),
+        ]);
+    }
+
+    #[Route('/orders/{orderId}/delivered', name: 'order_action_delivered', methods: ['POST'])]
+    public function delivered(string $orderId, Request $request): JsonResponse
+    {
+        $order = $this->resolveOrder($orderId);
+        if (!$order) {
+            return $this->orderNotFound();
+        }
+
+        try {
+            $payload = $this->parseJsonBody($request);
+        } catch (\InvalidArgumentException) {
+            return new JsonResponse(['error' => 'JSON inválido'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $deliveryCode = trim((string) ($payload['delivery_code'] ?? $payload['deliveryCode'] ?? ''));
+        $locator      = trim((string) ($payload['locator'] ?? ''));
+        $deferStatusUpdate = filter_var(
+            $payload['defer_status_update'] ?? $payload['deferStatusUpdate'] ?? false,
+            FILTER_VALIDATE_BOOL
+        );
+
+        $result = $this->safeRunOrderAction('delivered', function () use ($order, $deliveryCode, $locator, $deferStatusUpdate) {
+            return $this->orderActionService->delivered(
+                $order,
+                $deliveryCode !== '' ? $deliveryCode : null,
+                $locator !== '' ? $locator : null,
+                $deferStatusUpdate
+            );
+        }, $order);
+        $order = $this->refreshOrder($order);
+
+        return new JsonResponse([
+            'action'       => 'delivered',
+            'result'       => $result,
+            'capabilities' => $this->safeResolveCapabilities($order),
+        ]);
+    }
+}

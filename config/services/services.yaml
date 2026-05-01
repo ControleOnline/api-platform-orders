@@ -2,9 +2,10 @@ services:
     _defaults:
         autowire: true
         autoconfigure: true
+        public: true 
     ControleOnline\:
         resource: '../../src/*'
-        exclude: '../src/{DependencyInjection,Entity,Resource,Migrations,Library,Tests,Kernel.php}'
+        exclude: '../../src/{DependencyInjection,Entity,Resource,Migrations,Library,Message,Tests,Kernel.php}'
     ControleOnline\Repository\:
         resource: '../../src/Repository'
         tags: ['doctrine.repository_service']
@@ -15,4 +16,4 @@ services:
         resource: '../../src/Command'
         tags: ['console.command']
     ControleOnline\Filter\:
-        resource: '../../src/Filter'            
+        resource: '../../src/Filter'

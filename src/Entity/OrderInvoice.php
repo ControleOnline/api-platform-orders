@@ -23,7 +23,7 @@ use ControleOnline\Entity\Order;
 #[ORM\Entity]
 #[ApiResource(
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
-    normalizationContext: ['groups' => ['order_invoice:read']],
+    normalizationContext: ['groups' => ['order_invoice:read', 'order_invoice_invoice:read']],
     denormalizationContext: ['groups' => ['order_invoice:write']],
     operations: [
         new GetCollection(security: "is_granted('ROLE_HUMAN')"),

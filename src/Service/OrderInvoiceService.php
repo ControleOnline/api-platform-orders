@@ -109,6 +109,8 @@ class OrderInvoiceService
             $invoice->setStatus($this->statusService->discoveryStatus('closed', 'paid', 'invoice'));
             $invoice->setDestinationWallet($this->findWalletReference($invoiceData['destinationWallet'] ?? null));
             $invoice->setPaymentType($this->findPaymentTypeReference($invoiceData['paymentType'] ?? null));
+            $invoice->setInvoiceType($invoiceData['invoiceType'] ?? $invoiceData['type'] ?? null);
+            $invoice->setDescription($invoiceData['description'] ?? null);
             $invoice->setPrice($invoiceData['price'] ?? 0);
             $this->manager->persist($invoice);
             return $invoice;

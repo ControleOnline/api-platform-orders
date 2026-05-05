@@ -189,6 +189,14 @@ class OrderActionService
             return $this->buildTerminalOrderResponse();
         }
 
+        if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
+            return $this->iFoodService->performCancelAction(
+                $order,
+                $reason,
+                $reasonId !== null ? $this->normalizeString($reasonId) : null
+            );
+        }
+
         $this->persistOrderAction($order, 'cancel', [
             'reason_id' => $reasonId,
             'reason' => $reason,

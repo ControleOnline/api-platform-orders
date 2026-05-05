@@ -863,6 +863,10 @@ class OrderPrintService
         $sequence = 0;
 
         foreach ($children as $child) {
+            if (!$child->getShowProductGroupInQueue()) {
+                continue;
+            }
+
             $groupOrder = 9999;
             $groupName = $this->resolveOrderProductGroupName(
                 $child,

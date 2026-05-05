@@ -6,6 +6,7 @@ use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Product;
 use ControleOnline\Entity\ProductGroup;
+use ControleOnline\Entity\ProductGroupParent;
 use ControleOnline\Entity\ProductGroupProduct;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface
@@ -41,6 +42,9 @@ class OrderProductService
         $OProduct->setParentProduct($parentProduct);
         $OProduct->setOrderProduct($orderParentProduct);
         $OProduct->setProductGroup($productGroup);
+        $OProduct->setShowProductGroupInQueue(
+            $this->shouldShowProductGroupInQueue($productGroup, $parentProduct)
+        );
         $OProduct->setQuantity($quantity);
         $OProduct->setProduct($product);
         $OProduct->setPrice($price);
@@ -107,6 +111,9 @@ class OrderProductService
         $OProduct->setParentProduct($orderProduct->getProduct());
         $OProduct->setOrderProduct($orderProduct);
         $OProduct->setProductGroup($productGroup);
+        $OProduct->setShowProductGroupInQueue(
+            $this->shouldShowProductGroupInQueue($productGroup, $orderProduct->getProduct())
+        );
         $OProduct->setQuantity($quantity);
         $OProduct->setProduct($product);
         $OProduct->setPrice($productGroupProduct->getPrice());
@@ -116,6 +123,20 @@ class OrderProductService
         $this->manager->flush();
 
         $this->orderProductQueueService->addProductToQueue($OProduct);
+    }
+
+    private function shouldShowProductGroupInQueue(?ProductGroup $productGroup, ?Product $parentProduct): bool
+    {
+        if (!$productGroup instanceof ProductGroup || !$parentProduct instanceof Product) {
+            return true;
+        }
+
+        $link = $this->manager->getRepository(ProductGroupParent::class)->findOneBy([
+            'productGroup' => $productGroup,
+            'parentProduct' => $parentProduct,
+        ]);
+
+        return !$link instanceof ProductGroupParent || $link->getShowInQueue();
     }
 
     private function removeOrderProductBranch(OrderProduct $orderProduct): void

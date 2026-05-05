@@ -588,7 +588,7 @@ class OrderPrintService
         $sequence = 0;
 
         foreach ($order->getOrderProducts() as $orderProduct) {
-            if ($orderProduct->getOrderProduct() !== null) {
+            if ($orderProduct->getOrderProduct() !== null && $orderProduct->getShowInParentQueue()) {
                 continue;
             }
 
@@ -757,7 +757,7 @@ class OrderPrintService
 
         $this->printOrderProductDescription($orderProduct);
         $this->printOrderProductComment($orderProduct);
-        $this->printChildren($orderProduct->getOrderProductComponents(), true);
+        $this->printChildren($orderProduct->getOrderProductComponents(), true, true);
         $this->printSeparator();
     }
 
@@ -773,7 +773,7 @@ class OrderPrintService
             $this->printService->addLine($this->formatQueueProductLine($productName, 1));
             $this->printOrderProductDescription($orderProduct);
             $this->printOrderProductComment($orderProduct);
-            $this->printChildren($orderProduct->getOrderProductComponents(), true);
+            $this->printChildren($orderProduct->getOrderProductComponents(), true, true);
             $this->printSeparator();
         }
     }
@@ -790,7 +790,7 @@ class OrderPrintService
             $this->printService->addLine($this->formatQueueProductLine($productName, 1));
             $this->printOrderProductDescription($orderProduct);
             $this->printOrderProductComment($orderProduct);
-            $this->printChildren($orderProduct->getOrderProductComponents(), true);
+            $this->printChildren($orderProduct->getOrderProductComponents(), true, true);
             $this->printSeparator();
             $this->printService->addCutMarker();
         }
@@ -857,13 +857,14 @@ class OrderPrintService
 
     private function printChildren(
         iterable $children,
-        bool $includeHeader = false
+        bool $includeHeader = false,
+        bool $filterParentQueueVisibility = false
     ): void {
         $groups = [];
         $sequence = 0;
 
         foreach ($children as $child) {
-            if (!$child->getShowInParentQueue()) {
+            if ($filterParentQueueVisibility && !$child->getShowInParentQueue()) {
                 continue;
             }
 
@@ -1492,7 +1493,7 @@ class OrderPrintService
         $selectedEntries = [];
 
         foreach ($order->getOrderProducts() as $orderProduct) {
-            if ($orderProduct->getOrderProduct() !== null) {
+            if ($orderProduct->getOrderProduct() !== null && $orderProduct->getShowInParentQueue()) {
                 continue;
             }
 

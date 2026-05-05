@@ -109,6 +109,10 @@ class OrderProductService
             'productGroup' => $productGroup
         ]);
 
+        if (!$productGroupProduct instanceof ProductGroupProduct) {
+            throw new BadRequestHttpException('Product group item not found');
+        }
+
         $OProduct = new OrderProduct();
         $OProduct->setOrder($orderProduct->getOrder());
         $OProduct->setParentProduct($orderProduct->getProduct());

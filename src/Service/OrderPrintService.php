@@ -863,7 +863,7 @@ class OrderPrintService
         $sequence = 0;
 
         foreach ($children as $child) {
-            if (!$child->getShowProductGroupInQueue()) {
+            if (!$child->getShowInParentQueue()) {
                 continue;
             }
 

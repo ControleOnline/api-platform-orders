@@ -211,6 +211,10 @@ class OrderActionService
             return $this->buildTerminalOrderResponse();
         }
 
+        if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
+            return $this->iFoodService->performReadyAction($order);
+        }
+
         $this->persistOrderAction($order, 'ready');
 
         return $this->aplicarStatusLocal($order, 'pending', 'ready');
@@ -225,6 +229,10 @@ class OrderActionService
     {
         if ($this->isTerminalOrder($order)) {
             return $this->buildTerminalOrderResponse();
+        }
+
+        if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
+            return $this->iFoodService->performDeliveredAction($order, $deliveryCode, $locator);
         }
 
         $shouldRemoteSync = $deferStatusUpdate

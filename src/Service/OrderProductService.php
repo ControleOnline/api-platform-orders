@@ -43,6 +43,9 @@ class OrderProductService
         $OProduct->setProductGroup($productGroup);
         $OProduct->setQuantity($quantity);
         $OProduct->setProduct($product);
+        $OProduct->setShowInParentQueue(
+            $this->shouldShowInParentQueue($productGroup, $parentProduct, $product)
+        );
         $OProduct->setPrice($price);
         $OProduct->setTotal($price * $quantity);
         $this->checkInventory($OProduct);
@@ -98,15 +101,26 @@ class OrderProductService
     public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity)
     {
         $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
+            'product' => $orderProduct->getProduct(),
+            'productChild' => $product,
+            'productGroup' => $productGroup
+        ]) ?: $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
             'productChild' => $product,
             'productGroup' => $productGroup
         ]);
+
+        if (!$productGroupProduct instanceof ProductGroupProduct) {
+            throw new BadRequestHttpException('Product group item not found');
+        }
 
         $OProduct = new OrderProduct();
         $OProduct->setOrder($orderProduct->getOrder());
         $OProduct->setParentProduct($orderProduct->getProduct());
         $OProduct->setOrderProduct($orderProduct);
         $OProduct->setProductGroup($productGroup);
+        $OProduct->setShowInParentQueue(
+            $productGroupProduct?->getShowInParentQueue() ?? true
+        );
         $OProduct->setQuantity($quantity);
         $OProduct->setProduct($product);
         $OProduct->setPrice($productGroupProduct->getPrice());
@@ -116,6 +130,28 @@ class OrderProductService
         $this->manager->flush();
 
         $this->orderProductQueueService->addProductToQueue($OProduct);
+    }
+
+    private function shouldShowInParentQueue(?ProductGroup $productGroup, ?Product $parentProduct, ?Product $childProduct): bool
+    {
+        if (
+            !$productGroup instanceof ProductGroup ||
+            !$parentProduct instanceof Product ||
+            !$childProduct instanceof Product
+        ) {
+            return true;
+        }
+
+        $link = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
+            'product' => $parentProduct,
+            'productGroup' => $productGroup,
+            'productChild' => $childProduct,
+        ]) ?: $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
+            'productGroup' => $productGroup,
+            'productChild' => $childProduct,
+        ]);
+
+        return !$link instanceof ProductGroupProduct || $link->getShowInParentQueue();
     }
 
     private function removeOrderProductBranch(OrderProduct $orderProduct): void
@@ -257,11 +293,18 @@ class OrderProductService
     private function calculateProductPrice(OrderProduct $orderProduct)
     {
         $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
+            'product' => $orderProduct->getParentProduct(),
+            'productChild' => $orderProduct->getProduct(),
+            'productGroup' => $orderProduct->getProductGroup()
+        ]) ?: $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
             'productChild' => $orderProduct->getProduct(),
             'productGroup' => $orderProduct->getProductGroup()
         ]) ?: $orderProduct->getProduct();
 
         $orderProduct->setPrice($productGroupProduct->getPrice());
+        if ($productGroupProduct instanceof ProductGroupProduct) {
+            $orderProduct->setShowInParentQueue($productGroupProduct->getShowInParentQueue());
+        }
         $orderProduct->setTotal($productGroupProduct->getPrice() * $orderProduct->getQuantity());
         $this->manager->persist($orderProduct);
         $this->manager->flush();

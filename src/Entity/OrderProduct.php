@@ -138,6 +138,10 @@ class OrderProduct
     #[Groups(['product:read', 'orders-queue:read', 'product:write'])]
     private $comment;
 
+    #[ORM\Column(name: 'show_in_parent_queue', type: 'boolean', nullable: false, options: ['default' => '1'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order_product:write', 'order_product:read'])]
+    private $showInParentQueue = true;
+
     public function __construct()
     {
         $this->orderProductQueues = new ArrayCollection();
@@ -323,5 +327,26 @@ class OrderProduct
         $this->comment = $comment;
 
         return $this;
+    }
+
+    public function getShowInParentQueue(): bool
+    {
+        return $this->showInParentQueue;
+    }
+
+    public function setShowInParentQueue(bool $showInParentQueue): self
+    {
+        $this->showInParentQueue = $showInParentQueue;
+        return $this;
+    }
+
+    public function getShowProductGroupInQueue(): bool
+    {
+        return $this->getShowInParentQueue();
+    }
+
+    public function setShowProductGroupInQueue(bool $showProductGroupInQueue): self
+    {
+        return $this->setShowInParentQueue($showProductGroupInQueue);
     }
 }

@@ -189,6 +189,14 @@ class OrderActionService
             return $this->buildTerminalOrderResponse();
         }
 
+        if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
+            return $this->iFoodService->performCancelAction(
+                $order,
+                $reason,
+                $reasonId !== null ? $this->normalizeString($reasonId) : null
+            );
+        }
+
         $this->persistOrderAction($order, 'cancel', [
             'reason_id' => $reasonId,
             'reason' => $reason,
@@ -201,6 +209,10 @@ class OrderActionService
     {
         if ($this->isTerminalOrder($order)) {
             return $this->buildTerminalOrderResponse();
+        }
+
+        if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
+            return $this->iFoodService->performReadyAction($order);
         }
 
         $this->persistOrderAction($order, 'ready');
@@ -217,6 +229,10 @@ class OrderActionService
     {
         if ($this->isTerminalOrder($order)) {
             return $this->buildTerminalOrderResponse();
+        }
+
+        if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
+            return $this->iFoodService->performDeliveredAction($order, $deliveryCode, $locator);
         }
 
         $shouldRemoteSync = $deferStatusUpdate

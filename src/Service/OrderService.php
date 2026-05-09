@@ -22,6 +22,7 @@ class OrderService
     public const ORDER_TYPE_SALE = Order::ORDER_TYPE_SALE;
     public const ORDER_TYPE_TAB = Order::ORDER_TYPE_TAB;
     public const ORDER_TYPE_TABLE = Order::ORDER_TYPE_TABLE;
+    public const ORDER_TYPE_FIDELITY = Order::ORDER_TYPE_FIDELITY;
 
     private const DRAFT_ORDER_APPS = [
         'pos',

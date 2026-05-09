@@ -17,6 +17,7 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 class OrderProductService
 {
+    public const LOYALTY_GIFT_COMMENT = 'Brinde fidelidade';
 
     private $request;
     private static $mainProduct = true;
@@ -292,6 +293,18 @@ class OrderProductService
 
     private function calculateProductPrice(OrderProduct $orderProduct)
     {
+        if ($this->isLoyaltyGiftOrderProduct($orderProduct)) {
+            $orderProduct->setPrice(0);
+            $orderProduct->setTotal(0);
+            $this->manager->persist($orderProduct);
+            $this->manager->flush();
+
+            $this->orderService->calculateGroupProductPrice($orderProduct->getOrder());
+            $this->orderService->calculateOrderPrice($orderProduct->getOrder());
+
+            return $orderProduct;
+        }
+
         $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
             'product' => $orderProduct->getParentProduct(),
             'productChild' => $orderProduct->getProduct(),
@@ -316,6 +329,16 @@ class OrderProductService
         $this->manager->refresh($orderProduct);
 
         return $orderProduct;
+    }
+
+    public function isLoyaltyGiftOrderProduct(OrderProduct $orderProduct): bool
+    {
+        return self::isLoyaltyGiftComment($orderProduct->getComment());
+    }
+
+    public static function isLoyaltyGiftComment(?string $comment): bool
+    {
+        return trim((string) $comment) === self::LOYALTY_GIFT_COMMENT;
     }
 
     public function  securityFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void

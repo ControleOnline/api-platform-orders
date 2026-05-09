@@ -155,6 +155,7 @@ class Order
     public const ORDER_TYPE_TAB = 'tab';
     public const ORDER_TYPE_TABLE = 'table';
     public const ORDER_TYPE_PURCHASE = 'purchase';
+    public const ORDER_TYPE_FIDELITY = 'fidelity';
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['id' => 'exact'])]
     #[ORM\Column(name: 'id', type: 'integer', nullable: false)]

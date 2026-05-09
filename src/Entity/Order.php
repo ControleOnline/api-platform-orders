@@ -18,6 +18,7 @@ use ControleOnline\Controller\AutoConferencePrintOrderAction;
 use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Controller\DiscoveryCart;
 use ControleOnline\Controller\PrintOrderAction;
+use ControleOnline\Filter\CustomOrFilter;
 
 use ControleOnline\Repository\OrderRepository;
 use DateTime;
@@ -93,8 +94,35 @@ use stdClass;
 )]
 
 #[ApiFilter(OrderFilter::class, properties: [
+    'id',
+    'app',
+    'orderType',
+    'client.name',
+    'client.alias',
+    'provider.name',
+    'provider.alias',
+    'status.status',
+    'status.realStatus',
+    'orderDate',
     'alterDate',
-    'id'
+    'price',
+    'comments',
+    'notified',
+    'mainOrderId'
+])]
+#[ApiFilter(CustomOrFilter::class, properties: [
+    'id',
+    'app',
+    'orderType',
+    'comments',
+    'client.name',
+    'client.alias',
+    'provider.name',
+    'provider.alias',
+    'status.status',
+    'status.realStatus',
+    'addressOrigin.nickname',
+    'addressDestination.nickname'
 ])]
 
 #[ORM\Table(name: 'orders')]

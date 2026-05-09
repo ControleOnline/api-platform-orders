@@ -12,11 +12,13 @@ use ControleOnline\Service\StatusService;
 use ControleOnline\Service\Client\WebsocketClient;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\QueryBuilder;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 
+#[AllowMockObjectsWithoutExpectations]
 class OrderServiceTest extends TestCase
 {
     public function testCreateOrderStartsPosFlowAsCart(): void

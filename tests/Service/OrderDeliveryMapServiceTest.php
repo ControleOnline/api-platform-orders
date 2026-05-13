@@ -75,7 +75,7 @@ class OrderDeliveryMapServiceTest extends TestCase
         $order->setApp('Food99');
         $order->setPrice(78.99);
         $order->setClient($this->people(31, 'Paula Cliente', 'Paula'));
-        $order->setStatus($this->status(843, 'way', 'pending', '#0EA5E9'));
+        $order->setStatus($this->orderStatus(843, 'way', 'pending', '#0EA5E9'));
         $order->setAddressDestination($this->address());
         $order->setOtherInformations([
             'order_info' => [
@@ -162,7 +162,7 @@ class OrderDeliveryMapServiceTest extends TestCase
         return $people;
     }
 
-    private function status(int $id, string $status, string $realStatus, string $color): Status
+    private function orderStatus(int $id, string $status, string $realStatus, string $color): Status
     {
         $entityStatus = new Status();
         $this->setEntityId($entityStatus, $id);

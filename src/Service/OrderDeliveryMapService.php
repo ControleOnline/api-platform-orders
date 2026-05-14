@@ -43,7 +43,7 @@ class OrderDeliveryMapService
         $payload = [
             'enabled' => $googleMapsApiKey !== '',
             'googleMapsApiKey' => $googleMapsApiKey,
-            'provider' => $this->normalizePeople($provider),
+            'provider' => $this->normalizeProvider($provider),
             'rules' => [
                 'wayStatuses' => self::WAY_STATUSES,
                 'closedStatus' => self::CLOSED_STATUS,
@@ -257,6 +257,33 @@ class OrderDeliveryMapService
             'latitude' => $this->normalizeCoordinate($address?->getLatitude()),
             'longitude' => $this->normalizeCoordinate($address?->getLongitude()),
         ];
+    }
+
+    private function normalizeProvider(People $provider): array
+    {
+        $normalizedProvider = $this->normalizePeople($provider) ?? [];
+        $normalizedProvider['address'] = $this->normalizeAddress(
+            $this->resolvePrimaryAddress($provider),
+        );
+
+        return $normalizedProvider;
+    }
+
+    private function resolvePrimaryAddress(People $people): ?Address
+    {
+        $addresses = $people->getAddress();
+
+        if (!is_iterable($addresses)) {
+            return null;
+        }
+
+        foreach ($addresses as $address) {
+            if ($address instanceof Address) {
+                return $address;
+            }
+        }
+
+        return null;
     }
 
     private function normalizePeople(?People $people): ?array

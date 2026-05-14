@@ -26,6 +26,7 @@ class OrderDeliveryMapServiceTest extends TestCase
     public function testBuildPayloadReturnsDisabledWhenCompanyHasNoGoogleMapsKey(): void
     {
         $provider = $this->people(77, 'Gyros Franquias', 'Gyros');
+        $provider->getAddress()->add($this->address());
 
         $peopleRepository = $this->createMock(EntityRepository::class);
         $peopleRepository
@@ -61,6 +62,9 @@ class OrderDeliveryMapServiceTest extends TestCase
         self::assertFalse($payload['enabled']);
         self::assertSame('', $payload['googleMapsApiKey']);
         self::assertArrayNotHasKey('date', $payload);
+        self::assertSame('RUA TESTE, 123 - CENTRO - SAO PAULO / SP - 01234567', $payload['provider']['address']['formatted']);
+        self::assertSame(-23.55, $payload['provider']['address']['latitude']);
+        self::assertSame(-46.63, $payload['provider']['address']['longitude']);
         self::assertFalse($payload['rules']['closedDateFilter']);
         self::assertSame([], $payload['deliveries']);
         self::assertSame(0, $payload['totalDeliveries']);

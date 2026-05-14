@@ -24,4 +24,4 @@
 - Em `PUT /order_products/{id}`, quando vier `sub_products`, o backend deve substituir a colecao atual de componentes do item pai. Nao acumular filhos antigos com novos durante a reabertura da customizacao.
 - Em `DELETE /order_products/{id}`, a remocao de item customizavel deve apagar primeiro a arvore de componentes e filas pelo vinculo `orderProduct`. Nao usar `parentProduct` para decidir quais filhos remover.
 - Listagens de `Order` consumidas por `DefaultTable` React precisam de `CustomOrFilter`, `OrderFilter` e `DateFilter` alinhados ao store, com ordenacao de datas pelo valor persistido no backend.
-- Dados agregados para mapa operacional de entregas devem sair do endpoint unico `/orders-delivery-map`, mantendo no backend a regra: status `way`/`away` sem corte diario e `closed` limitado aos 10 mais recentes do dia.
+- Dados agregados para mapa operacional de entregas devem sair do endpoint unico `/orders-delivery-map`, mantendo no backend a regra: status `way`/`away` sem corte diario e `closed` limitado aos 10 pedidos fechados mais recentes, sem filtro de data.

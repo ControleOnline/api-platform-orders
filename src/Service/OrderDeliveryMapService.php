@@ -52,6 +52,7 @@ class OrderDeliveryMapService
                 'wayStatuses' => self::WAY_STATUSES,
                 'closedStatus' => self::CLOSED_STATUS,
                 'closedLimit' => self::CLOSED_LIMIT,
+                'closedDateFilter' => false,
             ],
             'deliveries' => [],
             'totalDeliveries' => 0,
@@ -64,7 +65,7 @@ class OrderDeliveryMapService
         $deliveries = array_values(array_filter(
             array_map(
                 fn(Order $order): array => $this->normalizeDeliveryOrder($order),
-                $this->fetchDeliveryOrders($provider, $reportDate),
+                $this->fetchDeliveryOrders($provider),
             ),
             fn(array $delivery): bool => (string) ($delivery['address']['formatted'] ?? '') !== '',
         ));
@@ -138,7 +139,7 @@ class OrderDeliveryMapService
     /**
      * @return Order[]
      */
-    private function fetchDeliveryOrders(People $provider, DateTimeImmutable $reportDate): array
+    private function fetchDeliveryOrders(People $provider): array
     {
         $ordersById = [];
 
@@ -146,7 +147,7 @@ class OrderDeliveryMapService
             $ordersById[(int) $order->getId()] = $order;
         }
 
-        foreach ($this->fetchClosedOrders($provider, $reportDate) as $order) {
+        foreach ($this->fetchClosedOrders($provider) as $order) {
             $ordersById[(int) $order->getId()] ??= $order;
         }
 
@@ -172,14 +173,11 @@ class OrderDeliveryMapService
     /**
      * @return Order[]
      */
-    private function fetchClosedOrders(People $provider, DateTimeImmutable $reportDate): array
+    private function fetchClosedOrders(People $provider): array
     {
         return $this->createDeliveryOrdersQuery($provider)
             ->andWhere('LOWER(orderStatus.status) = :closedStatus')
-            ->andWhere('deliveryOrder.alterDate BETWEEN :closedAfter AND :closedBefore')
             ->setParameter('closedStatus', self::CLOSED_STATUS)
-            ->setParameter('closedAfter', $reportDate->setTime(0, 0, 0))
-            ->setParameter('closedBefore', $reportDate->setTime(23, 59, 59))
             ->setMaxResults(self::CLOSED_LIMIT)
             ->getQuery()
             ->getResult();

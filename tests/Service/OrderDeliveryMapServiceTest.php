@@ -61,6 +61,7 @@ class OrderDeliveryMapServiceTest extends TestCase
         self::assertFalse($payload['enabled']);
         self::assertSame('', $payload['googleMapsApiKey']);
         self::assertSame('2026-05-13', $payload['date']);
+        self::assertFalse($payload['rules']['closedDateFilter']);
         self::assertSame([], $payload['deliveries']);
         self::assertSame(0, $payload['totalDeliveries']);
     }

@@ -24,10 +24,7 @@ class OrderDeliveryMapController
     public function __invoke(Request $request): JsonResponse
     {
         try {
-            $payload = $this->deliveryMapService->buildPayload(
-                $request->query->get('provider'),
-                $request->query->get('date'),
-            );
+            $payload = $this->deliveryMapService->buildPayload($request->query->get('provider'));
 
             return new JsonResponse(
                 $this->hydratorService->result([$payload]),

@@ -7,9 +7,7 @@ use ControleOnline\Entity\Config;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\Status;
-use DateTimeImmutable;
 use DateTimeInterface;
-use DateTimeZone;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -30,12 +28,11 @@ class OrderDeliveryMapService
     ) {
     }
 
-    public function buildPayload(mixed $providerReference, ?string $date = null): array
+    public function buildPayload(mixed $providerReference): array
     {
         $provider = $this->resolveProvider($providerReference);
         $this->assertCanAccessProvider($provider);
 
-        $reportDate = $this->resolveReportDate($date);
         $googleMapsApiKey = $this->normalizeTextConfig(
             $this->configService->getConfig(
                 $provider,
@@ -47,7 +44,6 @@ class OrderDeliveryMapService
             'enabled' => $googleMapsApiKey !== '',
             'googleMapsApiKey' => $googleMapsApiKey,
             'provider' => $this->normalizePeople($provider),
-            'date' => $reportDate->format('Y-m-d'),
             'rules' => [
                 'wayStatuses' => self::WAY_STATUSES,
                 'closedStatus' => self::CLOSED_STATUS,
@@ -393,22 +389,6 @@ class OrderDeliveryMapService
         }
 
         return is_scalar($decodedValue) ? $this->normalizeText($decodedValue) : $normalizedValue;
-    }
-
-    private function resolveReportDate(?string $date): DateTimeImmutable
-    {
-        $timezone = new DateTimeZone(date_default_timezone_get() ?: 'America/Sao_Paulo');
-        $normalizedDate = $this->normalizeText($date);
-
-        if ($normalizedDate === '') {
-            return new DateTimeImmutable('today', $timezone);
-        }
-
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $normalizedDate)) {
-            throw new BadRequestHttpException('Parametro date deve usar o formato YYYY-MM-DD');
-        }
-
-        return new DateTimeImmutable($normalizedDate . ' 00:00:00', $timezone);
     }
 
     private function formatDateTime(?DateTimeInterface $dateTime): ?string

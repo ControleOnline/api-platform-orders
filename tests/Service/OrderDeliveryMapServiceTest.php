@@ -56,11 +56,11 @@ class OrderDeliveryMapServiceTest extends TestCase
             $peopleService,
         );
 
-        $payload = $service->buildPayload('/people/77', '2026-05-13');
+        $payload = $service->buildPayload('/people/77');
 
         self::assertFalse($payload['enabled']);
         self::assertSame('', $payload['googleMapsApiKey']);
-        self::assertSame('2026-05-13', $payload['date']);
+        self::assertArrayNotHasKey('date', $payload);
         self::assertFalse($payload['rules']['closedDateFilter']);
         self::assertSame([], $payload['deliveries']);
         self::assertSame(0, $payload['totalDeliveries']);

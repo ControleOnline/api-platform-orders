@@ -19,6 +19,7 @@ class OrderService
 {
     public const ORDER_TYPE_CART = Order::ORDER_TYPE_CART;
     public const ORDER_TYPE_QUOTE = Order::ORDER_TYPE_QUOTE;
+    public const ORDER_TYPE_DELIVERY = Order::ORDER_TYPE_DELIVERY;
     public const ORDER_TYPE_SALE = Order::ORDER_TYPE_SALE;
     public const ORDER_TYPE_TAB = Order::ORDER_TYPE_TAB;
     public const ORDER_TYPE_TABLE = Order::ORDER_TYPE_TABLE;

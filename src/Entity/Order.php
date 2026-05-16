@@ -151,6 +151,7 @@ class Order
     public const APP_FOOD99 = 'Food99';
     public const ORDER_TYPE_CART = 'cart';
     public const ORDER_TYPE_QUOTE = 'quote';
+    public const ORDER_TYPE_DELIVERY = 'delivery';
     public const ORDER_TYPE_SALE = 'sale';
     public const ORDER_TYPE_TAB = 'tab';
     public const ORDER_TYPE_TABLE = 'table';

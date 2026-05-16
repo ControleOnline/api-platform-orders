@@ -274,6 +274,12 @@ class Order
     #[ORM\ManyToOne(targetEntity: People::class)]
     private $deliveryContact;
 
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['deliveryPeople' => 'exact'])]
+    #[ORM\JoinColumn(name: 'delivery_people_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'logistic:read'])]
+    private $deliveryPeople;
+
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['price' => 'exact'])]
     #[ORM\Column(name: 'price', type: 'float', nullable: false)]
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read'])]
@@ -419,6 +425,17 @@ class Order
     public function setDeliveryContact(People $delivery_contact = null)
     {
         $this->deliveryContact = $delivery_contact;
+        return $this;
+    }
+
+    public function getDeliveryPeople(): ?People
+    {
+        return $this->deliveryPeople;
+    }
+
+    public function setDeliveryPeople(People $delivery_people = null)
+    {
+        $this->deliveryPeople = $delivery_people;
         return $this;
     }
 

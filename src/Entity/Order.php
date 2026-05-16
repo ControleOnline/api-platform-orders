@@ -277,7 +277,8 @@ class Order
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['deliveryPeople' => 'exact'])]
     #[ORM\JoinColumn(name: 'delivery_people_id', referencedColumnName: 'id', nullable: true)]
     #[ORM\ManyToOne(targetEntity: People::class)]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'logistic:read'])]
+    // Logistics-only relation; keep it out of the common order read groups.
+    #[Groups(['logistic:read'])]
     private $deliveryPeople;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['price' => 'exact'])]

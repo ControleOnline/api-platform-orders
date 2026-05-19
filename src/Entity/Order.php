@@ -46,7 +46,7 @@ use stdClass;
         new GetCollection(
             uriTemplate: '/orders-queue',
             security: 'is_granted(\'ROLE_HUMAN\')',
-            normalizationContext: ['groups' => ['orders-queue:read']],
+            normalizationContext: ['groups' => ['orders-queue:read', 'orders-queue-tree:read']],
         ),
         new Post(
             security: 'is_granted(\'ROLE_HUMAN\')',

@@ -115,7 +115,7 @@ class OrderProduct
     private $productGroup;
 
     #[ORM\OneToMany(targetEntity: self::class, mappedBy: 'orderProduct')]
-    #[Groups(['order_product:write', 'order_product:read'])]
+    #[Groups(['order_product:write', 'order_product:read', 'orders-queue-tree:read'])]
     private $orderProductComponents;
 
     #[ORM\OneToMany(targetEntity: OrderProductQueue::class, mappedBy: 'order_product')]

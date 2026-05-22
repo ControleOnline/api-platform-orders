@@ -27,6 +27,7 @@ class OrderDeliveryMapServiceTest extends TestCase
     {
         $provider = $this->people(77, 'Gyros Franquias', 'Gyros');
         $provider->getAddress()->add($this->address());
+        $requestedKeys = [];
 
         $peopleRepository = $this->createMock(EntityRepository::class);
         $peopleRepository
@@ -37,10 +38,19 @@ class OrderDeliveryMapServiceTest extends TestCase
 
         $configService = $this->createMock(ConfigService::class);
         $configService
-            ->expects(self::once())
             ->method('getConfig')
-            ->with($provider, OrderDeliveryMapService::GOOGLE_MAPS_API_KEY_CONFIG_KEY)
-            ->willReturn(null);
+            ->willReturnCallback(
+                function (People $people, string $key) use (&$requestedKeys): ?string {
+                    $requestedKeys[] = $key;
+
+                    return match ($key) {
+                        OrderDeliveryMapService::GOOGLE_MAPS_WEB_API_KEY_CONFIG_KEY => null,
+                        OrderDeliveryMapService::GOOGLE_MAPS_ANDROID_API_KEY_CONFIG_KEY => null,
+                        'shop-google-maps-api-key' => '"legacy-key"',
+                        default => null,
+                    };
+                },
+            );
 
         $peopleService = $this->createMock(PeopleService::class);
         $peopleService
@@ -59,8 +69,13 @@ class OrderDeliveryMapServiceTest extends TestCase
 
         $payload = $service->buildPayload('/people/77');
 
+        self::assertSame([
+            OrderDeliveryMapService::GOOGLE_MAPS_WEB_API_KEY_CONFIG_KEY,
+            OrderDeliveryMapService::GOOGLE_MAPS_ANDROID_API_KEY_CONFIG_KEY,
+        ], $requestedKeys);
         self::assertFalse($payload['enabled']);
-        self::assertSame('', $payload['googleMapsApiKey']);
+        self::assertSame('', $payload['webGoogleMapsApiKey']);
+        self::assertSame('', $payload['androidGoogleMapsApiKey']);
         self::assertArrayNotHasKey('date', $payload);
         self::assertSame('RUA TESTE, 123 - CENTRO - SAO PAULO / SP - 01234567', $payload['provider']['address']['formatted']);
         self::assertSame(-23.55, $payload['provider']['address']['latitude']);

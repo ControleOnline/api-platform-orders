@@ -14,7 +14,8 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 class OrderDeliveryMapService
 {
-    public const GOOGLE_MAPS_API_KEY_CONFIG_KEY = 'shop-google-maps-api-key';
+    public const GOOGLE_MAPS_WEB_API_KEY_CONFIG_KEY = 'web-google-maps-api-key';
+    public const GOOGLE_MAPS_ANDROID_API_KEY_CONFIG_KEY = 'android-google-maps-api-key';
 
     private const WAY_STATUSES = ['way', 'away'];
     private const CLOSED_STATUS = 'closed';
@@ -33,16 +34,24 @@ class OrderDeliveryMapService
         $provider = $this->resolveProvider($providerReference);
         $this->assertCanAccessProvider($provider);
 
-        $googleMapsApiKey = $this->normalizeTextConfig(
+        $webGoogleMapsApiKey = $this->normalizeTextConfig(
             $this->configService->getConfig(
                 $provider,
-                self::GOOGLE_MAPS_API_KEY_CONFIG_KEY,
+                self::GOOGLE_MAPS_WEB_API_KEY_CONFIG_KEY,
+            ),
+        );
+
+        $androidGoogleMapsApiKey = $this->normalizeTextConfig(
+            $this->configService->getConfig(
+                $provider,
+                self::GOOGLE_MAPS_ANDROID_API_KEY_CONFIG_KEY,
             ),
         );
 
         $payload = [
-            'enabled' => $googleMapsApiKey !== '',
-            'googleMapsApiKey' => $googleMapsApiKey,
+            'enabled' => $webGoogleMapsApiKey !== '' || $androidGoogleMapsApiKey !== '',
+            'webGoogleMapsApiKey' => $webGoogleMapsApiKey,
+            'androidGoogleMapsApiKey' => $androidGoogleMapsApiKey,
             'provider' => $this->normalizeProvider($provider),
             'rules' => [
                 'wayStatuses' => self::WAY_STATUSES,
@@ -54,7 +63,7 @@ class OrderDeliveryMapService
             'totalDeliveries' => 0,
         ];
 
-        if ($googleMapsApiKey === '') {
+        if ($webGoogleMapsApiKey === '' && $androidGoogleMapsApiKey === '') {
             return $payload;
         }
 

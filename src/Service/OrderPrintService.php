@@ -593,22 +593,25 @@ class OrderPrintService
             }
 
             $groupOrder = 9999;
-            $groupName = $this->resolveOrderProductGroupName(
+            $groupPresentation = $this->resolveOrderProductGroupPresentation(
                 $orderProduct,
                 $this->defaultGroupName,
                 $groupOrder
             );
+            $groupKey = $groupPresentation['key'];
 
-            if (!isset($groups[$groupName])) {
-                $groups[$groupName] = [
-                    'name' => $groupName,
+            if (!isset($groups[$groupKey])) {
+                $groups[$groupKey] = [
+                    'name' => $groupPresentation['name'],
                     'groupOrder' => $groupOrder,
                     'sequence' => $sequence++,
+                    'showLabel' => $groupPresentation['showLabel'],
                     'items' => [],
                 ];
             }
 
-            $groups[$groupName]['items'][] = $orderProduct;
+            $groups[$groupKey]['items'][] = $orderProduct;
+            $groups[$groupKey]['showLabel'] = $groups[$groupKey]['showLabel'] || $groupPresentation['showLabel'];
         }
 
         return $this->sortGroupedItems($groups);
@@ -632,7 +635,9 @@ class OrderPrintService
     private function printGroups(array $groups, bool $printForm): void
     {
         foreach ($groups as $group) {
-            $this->printService->addLine(strtoupper($group['name']));
+            if (($group['showLabel'] ?? true) && $group['name'] !== $this->defaultGroupName) {
+                $this->printService->addLine(strtoupper($group['name']));
+            }
 
             foreach ($group['items'] as $orderProduct) {
                 if ($printForm) {
@@ -872,22 +877,25 @@ class OrderPrintService
             }
 
             $groupOrder = 9999;
-            $groupName = $this->resolveOrderProductGroupName(
+            $groupPresentation = $this->resolveOrderProductGroupPresentation(
                 $child,
                 $this->defaultChildGroupName,
                 $groupOrder
             );
+            $groupKey = $groupPresentation['key'];
 
-            if (!isset($groups[$groupName])) {
-                $groups[$groupName] = [
-                    'name' => $groupName,
+            if (!isset($groups[$groupKey])) {
+                $groups[$groupKey] = [
+                    'name' => $groupPresentation['name'],
                     'groupOrder' => $groupOrder,
                     'sequence' => $sequence++,
+                    'showLabel' => $groupPresentation['showLabel'],
                     'items' => [],
                 ];
             }
 
-            $groups[$groupName]['items'][] = $child;
+            $groups[$groupKey]['items'][] = $child;
+            $groups[$groupKey]['showLabel'] = $groups[$groupKey]['showLabel'] || $groupPresentation['showLabel'];
         }
 
         $groups = $this->sortGroupedItems($groups);
@@ -901,7 +909,7 @@ class OrderPrintService
         }
 
         foreach ($groups as $group) {
-            if ($group['name'] !== $this->defaultChildGroupName) {
+            if (($group['showLabel'] ?? true) && $group['name'] !== $this->defaultChildGroupName) {
                 $this->printService->addLine('  ' . strtoupper($group['name']) . ':');
             }
 
@@ -1669,26 +1677,38 @@ class OrderPrintService
         return strtoupper(trim((string) $deviceConfig?->getType())) === $this->displayDeviceType;
     }
 
-    private function resolveOrderProductGroupName(
+    private function resolveOrderProductGroupPresentation(
         OrderProduct $orderProduct,
         string $fallbackName,
         int &$groupOrder
-    ): string {
+    ): array {
         $productGroup = $orderProduct->getProductGroup();
 
         if ($productGroup === null) {
             $groupOrder = 9999;
-            return $fallbackName;
+            return [
+                'key' => $fallbackName,
+                'name' => $fallbackName,
+                'showLabel' => true,
+            ];
         }
 
         $groupOrder = (int) $productGroup->getGroupOrder();
 
         $groupName = trim($productGroup->getProductGroup());
         if ($groupName === '') {
-            return $fallbackName;
+            $groupName = $fallbackName;
         }
 
-        return $groupName;
+        $groupId = $productGroup->getId();
+
+        return [
+            'key' => $groupId !== null
+                ? sprintf('group:%d', (int) $groupId)
+                : $groupName,
+            'name' => $groupName,
+            'showLabel' => $productGroup->getShowInDisplay() !== false,
+        ];
     }
 
     private function printSeparator(string $delimiter = '-'): void

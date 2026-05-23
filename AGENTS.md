@@ -18,6 +18,7 @@
 - O recurso `/orders-queue` pode expor a arvore visual de componentes via group dedicado `orders-queue-tree:read`. Esse group nao deve incluir backrefs ciclicos como `orderProduct`.
 - `orders` e `tv` continuam consumindo a arvore completa de `OrderProduct`; o `showInParentQueue` so decide a hierarquia visual do consumidor, nao a existencia do item na colecao.
 - A visao operacional nao deve sintetizar filhos nem regravar fila para simular ocultacao visual no pai.
+- Na impressao do pedido, `ProductGroup.showInDisplay=false` deve ocultar apenas o titulo do grupo. Os itens e componentes continuam sendo impressos e agrupados.
 - A impressao em papel das filas deve espelhar o display correspondente: itens materializados nao devem exibir `2x`, enquanto itens internos nao materializados so podem exibir prefixo de quantidade acima de 1.
 - Fidelidade do shop usa um pedido raiz `orderType = fidelity`. Pedidos `sale` pagos entram como filhos por `mainOrderId`; quando o cartao atinge a meta, o backend reserva o brinde no proximo `cart` do mesmo cliente/loja com item de preco zero e fecha o cartao quando esse pedido e pago.
 - A colecao de `OrderProduct` precisa responder no payload padrao interno (`member`, `totalItems`, `search`, `@context`, `@id`, `@type`) mesmo quando a leitura vier do fluxo padrao da API Platform. Nao empurrar fallback de formato para o frontend.

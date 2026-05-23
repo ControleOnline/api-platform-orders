@@ -18,9 +18,11 @@ use ControleOnline\Controller\AutoConferencePrintOrderAction;
 use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Controller\DiscoveryCart;
 use ControleOnline\Controller\PrintOrderAction;
+use ControleOnline\Attribute\CollectionSummary;
 use ControleOnline\Filter\CustomOrFilter;
 
 use ControleOnline\Repository\OrderRepository;
+use ControleOnline\Service\OrderReportSummaryResolver;
 use DateTime;
 use DateTimeInterface;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -208,6 +210,15 @@ class Order
     #[ORM\Column(name: 'alter_date', type: 'datetime', nullable: false)]
     #[Groups(['display:read', 'order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read'])]
     private $alterDate;
+
+    #[CollectionSummary(
+        name: 'report',
+        parameter: 'report',
+        parameterValue: '1',
+        groups: ['order:read'],
+        resolver: OrderReportSummaryResolver::class
+    )]
+    private $reportSummary = null;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status.realStatus' => 'exact'])]

@@ -124,9 +124,9 @@ class OrderRepository extends ServiceEntityRepository
         'productId' => (int) ($row['productId'] ?? 0),
         'key' => $productName,
         'label' => $productName,
-      'orders' => (int) ($row['totalOrders'] ?? 0),
-      'units' => (float) ($row['totalUnits'] ?? 0),
-    ];
+        'orders' => (int) ($row['totalOrders'] ?? 0),
+        'units' => (float) ($row['totalUnits'] ?? 0),
+      ];
     }, $rows));
   }
 

@@ -712,13 +712,14 @@ class OrderPrintService
             }
         }
 
-        $this->printQueueItemWithCut($orderProduct, $printForm);
+        $this->printQueueItemWithCut($orderProduct, $printForm, null, true);
     }
 
     private function printQueueItem(
         OrderProduct $orderProduct,
         bool $printForm,
-        ?float $quantityOverride = null
+        ?float $quantityOverride = null,
+        bool $showQuantityPrefix = false
     ): void
     {
         if ($printForm) {
@@ -726,33 +727,35 @@ class OrderPrintService
             return;
         }
 
-        $this->printQueueRegularItem($orderProduct, $quantityOverride);
+        $this->printQueueRegularItem($orderProduct, $quantityOverride, $showQuantityPrefix);
     }
 
     private function printQueueItemWithCut(
         OrderProduct $orderProduct,
         bool $printForm,
-        ?float $quantityOverride = null
+        ?float $quantityOverride = null,
+        bool $showQuantityPrefix = false
     ): void {
         if ($printForm) {
             $this->printQueueFormItemWithCut($orderProduct, $quantityOverride);
             return;
         }
 
-        $this->printQueueRegularItem($orderProduct, $quantityOverride);
+        $this->printQueueRegularItem($orderProduct, $quantityOverride, $showQuantityPrefix);
         $this->printService->addCutMarker();
     }
 
     private function printQueueRegularItem(
         OrderProduct $orderProduct,
-        ?float $quantityOverride = null
+        ?float $quantityOverride = null,
+        bool $showQuantityPrefix = false
     ): void
     {
         $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
         $quantity = $quantityOverride ?? (float) $orderProduct->getQuantity();
 
         $this->printService->addLine(
-            $this->formatQueueProductLine($productName, $quantity)
+            $this->formatQueueProductLine($productName, $quantity, $showQuantityPrefix)
         );
 
         $this->printOrderProductDescription($orderProduct);
@@ -1801,22 +1804,30 @@ class OrderPrintService
         return $formatted === '' ? '0' : $formatted;
     }
 
-    private function formatQueueProductLine(string $productName, float $quantity): string
+    private function formatQueueProductLine(
+        string $productName,
+        float $quantity,
+        bool $showQuantityPrefix = false
+    ): string
     {
-        if ($quantity < 2) {
+        if (!$showQuantityPrefix) {
             return $productName;
         }
 
-        return $this->formatQuantity($quantity) . 'x ' . $productName;
+        if ($quantity > 1) {
+            return $this->formatQuantity($quantity) . 'x ' . $productName;
+        }
+
+        return $productName;
     }
 
     private function formatChildProductLine(string $productName, float $quantity): string
     {
-        if ($quantity < 2) {
-            return $productName;
+        if ($quantity > 1) {
+            return $this->formatQuantity($quantity) . 'x ' . $productName;
         }
 
-        return $this->formatQuantity($quantity) . 'x ' . $productName;
+        return $productName;
     }
 
     private function formatMoney(float $value): string

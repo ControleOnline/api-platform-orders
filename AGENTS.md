@@ -16,6 +16,9 @@
 - O nome canonico da integracao da 99 no backend e `Food99` quando o pedido ou contexto precisar identificar a plataforma.
 - O recurso `/orders-queue`, consumido por displays/KDS, deve expor apenas pedidos de venda (`orderType = sale`). Rascunhos e carrinhos (`cart`) nao pertencem a essa visao operacional.
 - O recurso `/orders-queue` pode expor a arvore visual de componentes via group dedicado `orders-queue-tree:read`. Esse group nao deve incluir backrefs ciclicos como `orderProduct`.
+- `orders` e `tv` continuam consumindo a arvore completa de `OrderProduct`; o `showInParentQueue` so decide a hierarquia visual do consumidor, nao a existencia do item na colecao.
+- A visao operacional nao deve sintetizar filhos nem regravar fila para simular ocultacao visual no pai.
+- A impressao em papel das filas deve espelhar o display correspondente: itens materializados nao devem exibir `2x`, enquanto itens internos nao materializados so podem exibir prefixo de quantidade acima de 1.
 - Fidelidade do shop usa um pedido raiz `orderType = fidelity`. Pedidos `sale` pagos entram como filhos por `mainOrderId`; quando o cartao atinge a meta, o backend reserva o brinde no proximo `cart` do mesmo cliente/loja com item de preco zero e fecha o cartao quando esse pedido e pago.
 - A colecao de `OrderProduct` precisa responder no payload padrao interno (`member`, `totalItems`, `search`, `@context`, `@id`, `@type`) mesmo quando a leitura vier do fluxo padrao da API Platform. Nao empurrar fallback de formato para o frontend.
 - `OrderProduct` deve continuar exposto como entidade da API Platform. Nao usar controller dedicada apenas para reformatar colecao; essa adaptacao pertence a normalizers/infra comum.

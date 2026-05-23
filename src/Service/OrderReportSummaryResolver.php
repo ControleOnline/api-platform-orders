@@ -25,11 +25,23 @@ class OrderReportSummaryResolver implements CollectionSummaryResolverInterface
             return null;
         }
 
+        $insight = strtolower(trim((string) ($context['filters']['insight'] ?? '')));
+
+        if ('' !== $insight) {
+            return [
+                'operationalInsights' => $this->orderRepository->resolveOperationalInsight(
+                    $filteredIdsQueryBuilder,
+                    $insight
+                ),
+            ];
+        }
+
         return [
             'totals' => $this->orderRepository->resolveReportSummaryTotals($filteredIdsQueryBuilder),
             'apps' => $this->orderRepository->resolveReportSummaryApps($filteredIdsQueryBuilder),
             'displays' => $this->orderRepository->resolveReportSummaryDisplays($filteredIdsQueryBuilder),
             'products' => $this->orderRepository->resolveReportTopProducts($filteredIdsQueryBuilder),
+            'operationalInsights' => $this->orderRepository->resolveOperationalInsights($filteredIdsQueryBuilder),
         ];
     }
 }

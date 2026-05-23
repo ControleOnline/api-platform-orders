@@ -24,6 +24,7 @@
 - A colecao de `OrderProduct` precisa responder no payload padrao interno (`member`, `totalItems`, `search`, `@context`, `@id`, `@type`) mesmo quando a leitura vier do fluxo padrao da API Platform. Nao empurrar fallback de formato para o frontend.
 - `OrderProduct` deve continuar exposto como entidade da API Platform. Nao usar controller dedicada apenas para reformatar colecao; essa adaptacao pertence a normalizers/infra comum.
 - `GET /orders/{id}` deve continuar estavel e enxuto para abrir o detalhe do pedido. Nao expandir nesse payload relacoes de agrupamento (`orderProduct`, `parentProduct`, `productGroup`) se isso aumentar risco de serializacao pesada ou ciclica.
+- Consultas agregadas de report e TV devem nascer no `OrderRepository`, nao em services. `OrderReportSummaryResolver` so orquestra o retorno e pode expor blocos extras como `operationalInsights`, mas as queries continuam no dominio de `orders`.
 - `delivery_people_id` e o campo canônico do pedido para o entregador escolhido pela loja e deve ser mantido pela propria regra de `orders`.
 - Em pedidos filhos de logistica `Food99`, `provider` e o motoboy, `payer` e `99 Food`, `client` e a empresa do pedido pai, `deliveryContact` e o cliente do pedido pai, `addressOrigin` deve ser preenchido sempre e o filho nao deve copiar `otherInformations`.
 - Quando a hierarquia completa de customizacao for necessaria no frontend, a fonte rica deve ser a colecao de `OrderProduct`, mantendo o serializer de `Order` seguro e previsivel.

@@ -23,7 +23,7 @@ use PHPUnit\Framework\TestCase;
 #[AllowMockObjectsWithoutExpectations]
 class OrderDeliveryMapServiceTest extends TestCase
 {
-    public function testBuildPayloadReturnsDisabledWhenCompanyHasNoGoogleMapsKey(): void
+    public function testBuildPayloadReturnsDisabledWhenCompanyHasNoGoogleMapsKeys(): void
     {
         $provider = $this->people(77, 'Gyros Franquias', 'Gyros');
         $provider->getAddress()->add($this->address());
@@ -76,6 +76,7 @@ class OrderDeliveryMapServiceTest extends TestCase
         self::assertFalse($payload['enabled']);
         self::assertSame('', $payload['webGoogleMapsApiKey']);
         self::assertSame('', $payload['androidGoogleMapsApiKey']);
+        self::assertArrayNotHasKey('googleMapsApiKey', $payload);
         self::assertArrayNotHasKey('date', $payload);
         self::assertSame('RUA TESTE, 123 - CENTRO - SAO PAULO / SP - 01234567', $payload['provider']['address']['formatted']);
         self::assertSame(-23.55, $payload['provider']['address']['latitude']);

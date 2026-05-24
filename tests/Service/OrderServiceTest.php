@@ -16,6 +16,7 @@ use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 
 #[AllowMockObjectsWithoutExpectations]
@@ -198,6 +199,7 @@ class OrderServiceTest extends TestCase
             $statusService ?? $this->createMock(StatusService::class),
             $orderProductQueueService ?? $this->createMock(OrderProductQueueService::class),
             $this->createMock(WebsocketClient::class),
+            $this->createMock(MessageBusInterface::class),
             $requestStack,
         );
     }

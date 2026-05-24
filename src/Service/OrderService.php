@@ -7,12 +7,14 @@ use ControleOnline\Entity\DisplayQueue;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use ControleOnline\Service\Client\WebsocketClient;
+use ControleOnline\Message\SendManagerOrderPushMessage;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Doctrine\DBAL\Types\Type;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 
 class OrderService
@@ -45,6 +47,7 @@ class OrderService
         private StatusService $statusService,
         private OrderProductQueueService $orderProductQueueService,
         private WebsocketClient $websocketClient,
+        private MessageBusInterface $bus,
         RequestStack $requestStack
     ) {
         $this->request  = $requestStack->getCurrentRequest();
@@ -321,6 +324,12 @@ class OrderService
             'sentAt' => date(DATE_ATOM),
         ]];
 
+        if ($this->shouldDispatchManagerOrderPush($order)) {
+            $this->bus->dispatch(
+                new SendManagerOrderPushMessage((int) $order->getId())
+            );
+        }
+
         if (!$this->isPreparationOrder($order)) {
             $this->pushToDeviceConfigs($deviceConfigs, $baseEvent);
             return;
@@ -404,6 +413,16 @@ class OrderService
     {
         return $this->normalizeStatusValue($order->getStatus()?->getRealStatus()) === 'open'
             && $this->isProductionOrder($order);
+    }
+
+    private function shouldDispatchManagerOrderPush(Order $order): bool
+    {
+        $provider = $order->getProvider();
+        if (!$provider || !$order->getId()) {
+            return false;
+        }
+
+        return $this->normalizeStatusValue($order->getStatus()?->getRealStatus()) === 'open';
     }
 
     private function isMarketplaceApp(?string $app): bool

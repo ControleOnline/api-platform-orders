@@ -14,6 +14,7 @@ class OrderActionService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private StatusService $statusService,
+        private OrderService $orderService,
         private ?iFoodService $iFoodService = null,
         private ?Food99Service $food99Service = null,
     ) {}
@@ -179,6 +180,9 @@ class OrderActionService
         }
 
         $this->persistOrderAction($order, 'confirm');
+        if ($this->isPosOrShopOrder($order)) {
+            $this->orderService->convertDraftOrderToSale($order);
+        }
 
         return $this->aplicarStatusLocal($order, 'open', 'preparing');
     }

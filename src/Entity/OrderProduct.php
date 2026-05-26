@@ -3,6 +3,7 @@
 namespace ControleOnline\Entity;
 
 use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Serializer\Attribute\MaxDepth;
 
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiFilter;
@@ -20,7 +21,6 @@ use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\OrderProductQueue;
 use ControleOnline\Controller\PrintOrderProductAction;
 use ControleOnline\Repository\OrderProductRepository;
-use Symfony\Component\Serializer\Annotation\MaxDepth;
 
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;

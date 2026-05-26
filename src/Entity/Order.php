@@ -3,7 +3,7 @@
 namespace ControleOnline\Entity;
 
 use Symfony\Component\Serializer\Attribute\Groups;
-use Symfony\Component\Serializer\Annotation\MaxDepth;
+use Symfony\Component\Serializer\Attribute\MaxDepth;
 
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
@@ -238,6 +238,11 @@ class Order
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read'])]
     private $app = 'POS';
 
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['externalCode' => 'exact'])]
+    #[ORM\Column(name: 'external_code', type: 'string', length: 255, nullable: true)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order_invoice:read'])]
+    private $externalCode;
+
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['otherInformations' => 'exact'])]
     #[ORM\Column(name: 'other_informations', type: 'json', nullable: true)]
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
@@ -247,7 +252,6 @@ class Order
     #[ORM\JoinColumn(name: 'main_order_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: self::class)]
     #[Groups(['order:read', 'order_details:read'])]
-    #[MaxDepth(1)]
     private $mainOrder;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrderId' => 'exact'])]
@@ -593,6 +597,17 @@ class Order
     public function getApp()
     {
         return $this->app;
+    }
+
+    public function setExternalCode($externalCode)
+    {
+        $this->externalCode = $externalCode;
+        return $this;
+    }
+
+    public function getExternalCode()
+    {
+        return $this->externalCode;
     }
 
     public function setMainOrder(self $main_order)

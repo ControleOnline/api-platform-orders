@@ -3,6 +3,7 @@
 namespace ControleOnline\Entity;
 
 use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Serializer\Annotation\MaxDepth;
 
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
@@ -245,6 +246,8 @@ class Order
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrder' => 'exact'])]
     #[ORM\JoinColumn(name: 'main_order_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: self::class)]
+    #[Groups(['order:read', 'order_details:read'])]
+    #[MaxDepth(1)]
     private $mainOrder;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrderId' => 'exact'])]

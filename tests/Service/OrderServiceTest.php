@@ -5,12 +5,16 @@ namespace ControleOnline\Orders\Tests\Service;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\Status;
+use ControleOnline\Entity\DeviceConfig;
+use ControleOnline\Entity\Integration;
+use ControleOnline\Service\IntegrationService;
 use ControleOnline\Service\OrderProductQueueService;
 use ControleOnline\Service\OrderService;
 use ControleOnline\Service\PeopleService;
 use ControleOnline\Service\StatusService;
 use ControleOnline\Service\Client\WebsocketClient;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\QueryBuilder;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
@@ -177,11 +181,77 @@ class OrderServiceTest extends TestCase
         self::assertArrayNotHasKey('displayOrderType', $parameters);
     }
 
+    public function testPostPersistQueuesManagerPushNotificationForOpenOrder(): void
+    {
+        $provider = $this->createMock(People::class);
+        $provider
+            ->method('getId')
+            ->willReturn(3);
+
+        $status = $this->createMock(Status::class);
+        $status
+            ->method('getRealStatus')
+            ->willReturn('open');
+
+        $order = new Order();
+        $order->setProvider($provider);
+        $order->setStatus($status);
+        $this->setEntityId(Order::class, $order, 71608);
+
+        $repository = $this->getMockBuilder(EntityRepository::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['findBy'])
+            ->getMock();
+        $repository
+            ->expects(self::once())
+            ->method('findBy')
+            ->with(['people' => $provider])
+            ->willReturn([]);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager
+            ->expects(self::once())
+            ->method('getRepository')
+            ->with(DeviceConfig::class)
+            ->willReturn($repository);
+
+        $integrationService = $this->createMock(IntegrationService::class);
+        $integrationService
+            ->expects(self::once())
+            ->method('addIntegration')
+            ->with(
+                self::callback(static function (string $payload): bool {
+                    $decoded = json_decode($payload, true);
+
+                    return is_array($decoded)
+                        && ($decoded['event'] ?? null) === 'order.created'
+                        && ($decoded['orderId'] ?? null) === '71608'
+                        && ($decoded['companyId'] ?? null) === '3';
+                }),
+                'PushNotification',
+                null,
+                null,
+                $provider
+            )
+            ->willReturn(new Integration());
+
+        $service = $this->buildService(
+            '/orders',
+            $entityManager,
+            null,
+            null,
+            $integrationService
+        );
+
+        $service->postPersist($order);
+    }
+
     private function buildService(
         string $path,
         ?EntityManagerInterface $entityManager = null,
         ?StatusService $statusService = null,
         ?OrderProductQueueService $orderProductQueueService = null,
+        ?IntegrationService $integrationService = null,
     ): OrderService
     {
         $peopleService = $this->createMock(PeopleService::class);
@@ -201,6 +271,14 @@ class OrderServiceTest extends TestCase
             $this->createMock(WebsocketClient::class),
             $this->createMock(MessageBusInterface::class),
             $requestStack,
+            $integrationService,
         );
+    }
+
+    private function setEntityId(string $className, object $entity, int $id): void
+    {
+        $property = new \ReflectionProperty($className, 'id');
+        $property->setAccessible(true);
+        $property->setValue($entity, $id);
     }
 }

@@ -7,7 +7,6 @@ use ControleOnline\Entity\DisplayQueue;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use ControleOnline\Service\Client\WebsocketClient;
-use ControleOnline\Message\SendManagerOrderPushMessage;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
 use Doctrine\ORM\QueryBuilder;
@@ -48,7 +47,8 @@ class OrderService
         private OrderProductQueueService $orderProductQueueService,
         private WebsocketClient $websocketClient,
         private MessageBusInterface $bus,
-        RequestStack $requestStack
+        RequestStack $requestStack,
+        private ?IntegrationService $integrationService = null
     ) {
         $this->request  = $requestStack->getCurrentRequest();
     }
@@ -325,8 +325,22 @@ class OrderService
         ]];
 
         if ($this->shouldDispatchManagerOrderPush($order)) {
-            $this->bus->dispatch(
-                new SendManagerOrderPushMessage((int) $order->getId())
+            $this->integrationService?->addIntegration(
+                json_encode([
+                    'store' => 'orders',
+                    'event' => 'order.created',
+                    'company' => (string) $provider->getId(),
+                    'companyId' => (string) $provider->getId(),
+                    'provider' => (string) $provider->getId(),
+                    'order' => (string) $order->getId(),
+                    'orderId' => (string) $order->getId(),
+                    'sentAt' => date(DATE_ATOM),
+                    'alertSound' => true,
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}',
+                'PushNotification',
+                null,
+                null,
+                $provider
             );
         }
 

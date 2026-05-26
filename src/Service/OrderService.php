@@ -3,6 +3,7 @@
 namespace ControleOnline\Service;
 
 use ControleOnline\Entity\DeviceConfig;
+use ControleOnline\Entity\Device;
 use ControleOnline\Entity\DisplayQueue;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
@@ -325,23 +326,7 @@ class OrderService
         ]];
 
         if ($this->shouldDispatchManagerOrderPush($order)) {
-            $this->integrationService?->addIntegration(
-                json_encode([
-                    'store' => 'orders',
-                    'event' => 'order.created',
-                    'company' => (string) $provider->getId(),
-                    'companyId' => (string) $provider->getId(),
-                    'provider' => (string) $provider->getId(),
-                    'order' => (string) $order->getId(),
-                    'orderId' => (string) $order->getId(),
-                    'sentAt' => date(DATE_ATOM),
-                    'alertSound' => true,
-                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}',
-                'PushNotification',
-                null,
-                null,
-                $provider
-            );
+            $this->queueManagerOrderPushNotifications($order, $provider, $deviceConfigs);
         }
 
         if (!$this->isPreparationOrder($order)) {
@@ -392,6 +377,83 @@ class OrderService
             ]),
             $events
         );
+    }
+
+    private function queueManagerOrderPushNotifications(Order $order, People $provider, array $deviceConfigs): void
+    {
+        if (!$this->integrationService instanceof IntegrationService) {
+            return;
+        }
+
+        $payload = json_encode([
+            'store' => 'orders',
+            'event' => 'order.created',
+            'company' => (string) $provider->getId(),
+            'companyId' => (string) $provider->getId(),
+            'provider' => (string) $provider->getId(),
+            'order' => (string) $order->getId(),
+            'orderId' => (string) $order->getId(),
+            'sentAt' => date(DATE_ATOM),
+            'alertSound' => true,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}';
+
+        $targetDevices = $this->resolveManagerPushTargetDevices($deviceConfigs);
+        if (empty($targetDevices)) {
+            $this->integrationService->addIntegration(
+                $payload,
+                'PushNotification',
+                null,
+                null,
+                $provider
+            );
+
+            return;
+        }
+
+        foreach ($targetDevices as $device) {
+            $this->integrationService->addIntegration(
+                $payload,
+                'PushNotification',
+                $device,
+                null,
+                $provider
+            );
+        }
+    }
+
+    private function resolveManagerPushTargetDevices(array $deviceConfigs): array
+    {
+        $devices = [];
+        foreach ($deviceConfigs as $deviceConfig) {
+            if (
+                !$deviceConfig instanceof DeviceConfig
+                || strtoupper(trim((string) $deviceConfig->getType())) !== 'MANAGER'
+            ) {
+                continue;
+            }
+
+            $device = $deviceConfig->getDevice();
+            $token = $device instanceof Device ? $this->extractManagerAndroidPushToken($device) : '';
+            if (!$device instanceof Device || $token === '') {
+                continue;
+            }
+
+            $devices[$token] = $device;
+        }
+
+        return array_values($devices);
+    }
+
+    private function extractManagerAndroidPushToken(Device $device): string
+    {
+        $metadata = $device->getMetadata();
+        if (!is_array($metadata)) {
+            return '';
+        }
+
+        return trim((string) (
+            $metadata['pushTokens']['manager']['android']['deviceToken'] ?? ''
+        ));
     }
 
     private function pushToDeviceConfigs(array $deviceConfigs, array $events): void

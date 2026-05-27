@@ -11,6 +11,7 @@
 - `integration` continua dono de webhooks e gateways externos.
 - Quando um fluxo tocar pedido e pagamento, a regra do pedido fica aqui e a camada financeira/integracao fica nos modulos correspondentes.
 - Em venda, o rascunho/carrinho canonico do pedido usa `orderType = cart`. `quote` nao deve mais representar carrinho de venda.
+- A confirmacao de pedido do `SHOP` deve recusar carrinho sem `addressDestination`; o carrinho pode existir como rascunho, mas nao pode virar venda sem endereco de entrega.
 - Em atendimento por `tab/table`, o pedido financeiro raiz continua sendo um `Order` do proprio modulo `orders`. Pedidos filhos e invoices devem convergir para essa raiz, sem contrato paralelo fora de `mainOrderId` e `OrderInvoice`.
 - O serializer de leitura de `Order` deve expor `mainOrder.externalCode` nos groups usados por listagem e detalhe. Esse valor e o numero da comanda e nao deve depender de `otherInformations` no frontend.
 - `ready`, `cancel` e `delivered` devem nascer pelo fluxo principal de acoes do pedido (`OrderActionService`/`OrderActionController`). Nao criar caminhos paralelos de mudanca de status para KDS, marketplace ou device.

@@ -102,6 +102,11 @@ class OrderActionService
         return in_array($app, ['pos', 'shop'], true);
     }
 
+    private function isShopOrder(Order $order): bool
+    {
+        return $this->normalizeStatusValue($order->getApp()) === 'shop';
+    }
+
     private function isIfoodOrder(Order $order): bool
     {
         return $this->normalizeStatusValue($order->getApp()) === strtolower(Order::APP_IFOOD);
@@ -177,6 +182,13 @@ class OrderActionService
     {
         if ($this->isTerminalOrder($order)) {
             return $this->buildTerminalOrderResponse();
+        }
+
+        if ($this->isShopOrder($order) && $order->getAddressDestination() === null) {
+            return [
+                'errno' => 10002,
+                'errmsg' => 'Pedido do Shop sem endereco de entrega valido.',
+            ];
         }
 
         $this->persistOrderAction($order, 'confirm');

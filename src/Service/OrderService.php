@@ -3,7 +3,6 @@
 namespace ControleOnline\Service;
 
 use ControleOnline\Entity\DeviceConfig;
-use ControleOnline\Entity\Device;
 use ControleOnline\Entity\DisplayQueue;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
@@ -326,7 +325,7 @@ class OrderService
         ]];
 
         if ($this->shouldDispatchManagerOrderPush($order)) {
-            $this->queueManagerOrderPushNotifications($order, $provider, $deviceConfigs);
+            $this->queueManagerOrderPushNotifications($order, $provider);
         }
 
         if (!$this->isPreparationOrder($order)) {
@@ -379,7 +378,7 @@ class OrderService
         );
     }
 
-    private function queueManagerOrderPushNotifications(Order $order, People $provider, array $deviceConfigs): void
+    private function queueManagerOrderPushNotifications(Order $order, People $provider): void
     {
         if (!$this->integrationService instanceof IntegrationService) {
             return;
@@ -397,63 +396,7 @@ class OrderService
             'alertSound' => true,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}';
 
-        $targetDevices = $this->resolveManagerPushTargetDevices($deviceConfigs);
-        if (empty($targetDevices)) {
-            $this->integrationService->addIntegration(
-                $payload,
-                'PushNotification',
-                null,
-                null,
-                $provider
-            );
-
-            return;
-        }
-
-        foreach ($targetDevices as $device) {
-            $this->integrationService->addIntegration(
-                $payload,
-                'PushNotification',
-                $device,
-                null,
-                $provider
-            );
-        }
-    }
-
-    private function resolveManagerPushTargetDevices(array $deviceConfigs): array
-    {
-        $devices = [];
-        foreach ($deviceConfigs as $deviceConfig) {
-            if (
-                !$deviceConfig instanceof DeviceConfig
-                || strtoupper(trim((string) $deviceConfig->getType())) !== 'MANAGER'
-            ) {
-                continue;
-            }
-
-            $device = $deviceConfig->getDevice();
-            $token = $device instanceof Device ? $this->extractManagerAndroidPushToken($device) : '';
-            if (!$device instanceof Device || $token === '') {
-                continue;
-            }
-
-            $devices[$token] = $device;
-        }
-
-        return array_values($devices);
-    }
-
-    private function extractManagerAndroidPushToken(Device $device): string
-    {
-        $metadata = $device->getMetadata();
-        if (!is_array($metadata)) {
-            return '';
-        }
-
-        return trim((string) (
-            $metadata['pushTokens']['manager']['android']['deviceToken'] ?? ''
-        ));
+        $this->integrationService->addManagerPushIntegrations($payload, $provider);
     }
 
     private function pushToDeviceConfigs(array $deviceConfigs, array $events): void

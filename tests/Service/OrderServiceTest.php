@@ -5,9 +5,7 @@ namespace ControleOnline\Orders\Tests\Service;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\Status;
-use ControleOnline\Entity\Device;
 use ControleOnline\Entity\DeviceConfig;
-use ControleOnline\Entity\Integration;
 use ControleOnline\Service\IntegrationService;
 use ControleOnline\Service\OrderProductQueueService;
 use ControleOnline\Service\OrderService;
@@ -219,7 +217,7 @@ class OrderServiceTest extends TestCase
         $integrationService = $this->createMock(IntegrationService::class);
         $integrationService
             ->expects(self::once())
-            ->method('addIntegration')
+            ->method('addManagerPushIntegrations')
             ->with(
                 self::callback(static function (string $payload): bool {
                     $decoded = json_decode($payload, true);
@@ -229,94 +227,9 @@ class OrderServiceTest extends TestCase
                         && ($decoded['orderId'] ?? null) === '71608'
                         && ($decoded['companyId'] ?? null) === '3';
                 }),
-                'PushNotification',
-                null,
-                null,
                 $provider
             )
-            ->willReturn(new Integration());
-
-        $service = $this->buildService(
-            '/orders',
-            $entityManager,
-            null,
-            null,
-            $integrationService
-        );
-
-        $service->postPersist($order);
-    }
-
-    public function testPostPersistTargetsManagerDeviceWhenPushTokenExists(): void
-    {
-        $provider = $this->createMock(People::class);
-        $provider
-            ->method('getId')
-            ->willReturn(3);
-
-        $status = $this->createMock(Status::class);
-        $status
-            ->method('getRealStatus')
-            ->willReturn('open');
-
-        $order = new Order();
-        $order->setProvider($provider);
-        $order->setStatus($status);
-        $this->setEntityId(Order::class, $order, 71623);
-
-        $managerDevice = new Device();
-        $managerDevice->setMetadata([
-            'pushTokens' => [
-                'manager' => [
-                    'android' => [
-                        'deviceToken' => 'fcm-token-empresa-3',
-                    ],
-                ],
-            ],
-        ]);
-        $this->setEntityId(Device::class, $managerDevice, 27);
-
-        $managerConfig = new DeviceConfig();
-        $managerConfig->setPeople($provider);
-        $managerConfig->setDevice($managerDevice);
-        $managerConfig->setType('MANAGER');
-
-        $repository = $this->getMockBuilder(EntityRepository::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['findBy'])
-            ->getMock();
-        $repository
-            ->expects(self::once())
-            ->method('findBy')
-            ->with(['people' => $provider])
-            ->willReturn([$managerConfig]);
-
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager
-            ->expects(self::once())
-            ->method('getRepository')
-            ->with(DeviceConfig::class)
-            ->willReturn($repository);
-
-        $integrationService = $this->createMock(IntegrationService::class);
-        $integrationService
-            ->expects(self::once())
-            ->method('addIntegration')
-            ->with(
-                self::callback(static function (string $payload): bool {
-                    $decoded = json_decode($payload, true);
-
-                    return is_array($decoded)
-                        && ($decoded['event'] ?? null) === 'order.created'
-                        && ($decoded['orderId'] ?? null) === '71623'
-                        && ($decoded['companyId'] ?? null) === '3';
-                }),
-                'PushNotification',
-                $managerDevice,
-                null,
-                $provider
-            )
-            ->willReturn(new Integration());
+            ->willReturn(0);
 
         $service = $this->buildService(
             '/orders',

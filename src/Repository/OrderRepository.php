@@ -191,6 +191,24 @@ class OrderRepository extends ServiceEntityRepository
     };
   }
 
+  public function findLatestMarketplaceOrderForProvider(int $providerId, string $app): ?Order
+  {
+    if ($providerId <= 0 || trim($app) === '') {
+      return null;
+    }
+
+    return $this->createQueryBuilder('o')
+      ->andWhere('IDENTITY(o.provider) = :providerId')
+      ->andWhere('o.app = :app')
+      ->setParameter('providerId', $providerId)
+      ->setParameter('app', $app)
+      ->orderBy('o.orderDate', 'DESC')
+      ->addOrderBy('o.id', 'DESC')
+      ->setMaxResults(1)
+      ->getQuery()
+      ->getOneOrNullResult();
+  }
+
   private function fetchOperationalInsightsRows(QueryBuilder $filteredIdsQueryBuilder): array
   {
     return $this->fetchReportSummaryRows(

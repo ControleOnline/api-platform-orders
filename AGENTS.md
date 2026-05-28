@@ -9,6 +9,7 @@
 - `orders` e o dono da regra operacional do pedido.
 - `financial` continua dono de `Invoice`, `Wallet` e meios de pagamento.
 - `integration` continua dono de webhooks e gateways externos.
+- `extra_data` e `extra_fields` nao podem guardar snapshot rico de pedido, entrega, pagamento ou status operacional quando o dado ja tiver destino canonico em `Order`, `OrderInvoice` ou `Invoice`. Nesta camada, esses campos so podem carregar IDs e codigos remotos que ainda nao tenham coluna materializada equivalente.
 - Quando um fluxo tocar pedido e pagamento, a regra do pedido fica aqui e a camada financeira/integracao fica nos modulos correspondentes.
 - Em venda, o rascunho/carrinho canonico do pedido usa `orderType = cart`. `quote` nao deve mais representar carrinho de venda.
 - A confirmacao de pedido do `SHOP` deve recusar carrinho sem `addressDestination`; o carrinho pode existir como rascunho, mas nao pode virar venda sem endereco de entrega.

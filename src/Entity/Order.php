@@ -505,6 +505,12 @@ class Order
         return $this->orderDate;
     }
 
+    public function setOrderDate(DateTimeInterface $order_date = null): self
+    {
+        $this->orderDate = $order_date;
+        return $this;
+    }
+
     public function setAlterDate(DateTimeInterface $alter_date = null): self
     {
         $this->alterDate = $alter_date;

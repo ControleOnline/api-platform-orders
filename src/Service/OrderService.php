@@ -34,6 +34,7 @@
  * - Consultas agregadas de report e TV devem nascer no `OrderRepository`, nao em services. `OrderReportSummaryResolver` so orquestra o retorno e pode expor blocos extras como `operationalInsights`, mas as queries continuam no dominio de `orders`.
  * - Quando a TV pedir um `insight` especifico, `OrderReportSummaryResolver` deve devolver apenas o bloco solicitado dentro de `operationalInsights`, mantendo o contrato completo apenas para as telas que pedirem o summary inteiro.
  * - `delivery_people_id` e o campo canônico do pedido para o entregador escolhido pela loja e deve ser mantido pela propria regra de `orders`.
+ * - A visao de delivery usa a colecao padrao `/orders` com `provider` do motoboy logado e `orderType=delivery`, preservando o recorte por `people_link` de tipo `courier`.
  * - Em pedidos filhos de logistica `Food99`, `provider` e o motoboy, `payer` e `99 Food`, `client` e a empresa do pedido pai, `deliveryContact` e o cliente do pedido pai, `addressOrigin` deve ser preenchido sempre e o filho nao deve copiar `otherInformations`.
  * - Quando a hierarquia completa de customizacao for necessaria no frontend, a fonte rica deve ser a colecao de `OrderProduct`, mantendo o serializer de `Order` seguro e previsivel.
  * - Em `/order_invoices`, dados expandidos de `Invoice` para o frontend devem usar um group dedicado e minimo, separado de `invoice:read`. Nao reutilizar o serializer completo de `Invoice` nessa colecao, para evitar joins excessivos e erro `1116 Too many tables`.

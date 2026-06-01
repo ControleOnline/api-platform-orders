@@ -113,7 +113,7 @@ use stdClass;
     'notified',
     'mainOrderId'
 ])]
-#[ApiFilter(CustomOrFilter::class, properties: [
+    #[ApiFilter(CustomOrFilter::class, properties: [
     'id',
     'app',
     'orderType',
@@ -122,6 +122,8 @@ use stdClass;
     'client.alias',
     'provider.name',
     'provider.alias',
+    'deliveryContact.name',
+    'deliveryContact.alias',
     'status.status',
     'status.realStatus',
     'addressOrigin.nickname',
@@ -291,6 +293,7 @@ class Order
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['deliveryContact' => 'exact'])]
     #[ORM\JoinColumn(name: 'delivery_contact_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['order:read', 'order_details:read'])]
     private $deliveryContact;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['deliveryPeople' => 'exact'])]

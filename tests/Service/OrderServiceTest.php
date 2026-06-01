@@ -180,6 +180,48 @@ class OrderServiceTest extends TestCase
         self::assertArrayNotHasKey('displayOrderType', $parameters);
     }
 
+    public function testSecurityFilterAppliesProviderFilterOnRegularOrdersCollection(): void
+    {
+        $service = $this->buildService(
+            '/orders',
+            null,
+            null,
+            null,
+            null,
+            [101, 202],
+            [],
+            null,
+            ['provider' => '/people/77'],
+        );
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+
+        $whereClauses = [];
+        $parameters = [];
+
+        $queryBuilder
+            ->expects(self::exactly(2))
+            ->method('andWhere')
+            ->willReturnCallback(function (string $expression) use (&$whereClauses, $queryBuilder) {
+                $whereClauses[] = $expression;
+                return $queryBuilder;
+            });
+
+        $queryBuilder
+            ->expects(self::exactly(2))
+            ->method('setParameter')
+            ->willReturnCallback(function (string $name, mixed $value) use (&$parameters, $queryBuilder) {
+                $parameters[$name] = $value;
+                return $queryBuilder;
+            });
+
+        $service->securityFilter($queryBuilder, null, null, 'orders');
+
+        self::assertContains('orders.client IN(:companies) OR orders.provider IN(:companies)', $whereClauses);
+        self::assertContains('orders.provider IN(:provider)', $whereClauses);
+        self::assertSame([101, 202], $parameters['companies']);
+        self::assertSame('77', $parameters['provider']);
+    }
+
     public function testPostPersistQueuesManagerPushNotificationForOpenOrder(): void
     {
         $provider = $this->createMock(People::class);
@@ -248,15 +290,30 @@ class OrderServiceTest extends TestCase
         ?StatusService $statusService = null,
         ?OrderProductQueueService $orderProductQueueService = null,
         ?IntegrationService $integrationService = null,
+        array $defaultCompanies = [101, 202],
+        array $courierCompanies = [],
+        ?People $currentPeople = null,
+        array $query = [],
     ): OrderService
     {
         $peopleService = $this->createMock(PeopleService::class);
         $peopleService
             ->method('getMyCompanies')
-            ->willReturn([101, 202]);
+            ->willReturnCallback(
+                function (?array $companyTypes = null) use ($defaultCompanies, $courierCompanies) {
+                    if ($companyTypes === ['courier']) {
+                        return $courierCompanies;
+                    }
+
+                    return $defaultCompanies;
+                }
+            );
+        $peopleService
+            ->method('getMyPeople')
+            ->willReturn($currentPeople);
 
         $requestStack = new RequestStack();
-        $requestStack->push(Request::create($path, 'GET'));
+        $requestStack->push(Request::create($path, 'GET', $query));
 
         return new OrderService(
             $entityManager ?? $this->createMock(EntityManagerInterface::class),

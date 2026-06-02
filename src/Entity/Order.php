@@ -3,7 +3,7 @@
 namespace ControleOnline\Entity;
 
 use Symfony\Component\Serializer\Attribute\Groups;
-use Symfony\Component\Serializer\Attribute\MaxDepth;
+use Symfony\Component\Serializer\Attribute\SerializedName;
 
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
@@ -18,6 +18,7 @@ use ControleOnline\Controller\AddProductsOrderAction;
 use ControleOnline\Controller\AutoConferencePrintOrderAction;
 use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Controller\DiscoveryCart;
+use ControleOnline\Controller\OrderDetailsController;
 use ControleOnline\Controller\PrintOrderAction;
 use ControleOnline\Attribute\CollectionSummary;
 use ControleOnline\Filter\CustomOrFilter;
@@ -33,8 +34,11 @@ use stdClass;
 
 #[ApiResource(
     operations: [
-        new Get(
+    new Get(
             security: 'is_granted(\'ROLE_HUMAN\')',
+            // Serialize through HydratorService to avoid eager-loading the whole order graph on detail.
+            controller: OrderDetailsController::class,
+            read: false,
             normalizationContext: ['groups' => ['order_details:read']],
         ),
         new GetCollection(
@@ -253,7 +257,7 @@ class Order
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrder' => 'exact'])]
     #[ORM\JoinColumn(name: 'main_order_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: self::class)]
-    #[Groups(['order:read', 'order_details:read'])]
+    #[Groups(['order:read'])]
     private $mainOrder;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrderId' => 'exact'])]
@@ -628,6 +632,26 @@ class Order
     public function getMainOrder()
     {
         return $this->mainOrder;
+    }
+
+    #[SerializedName('mainOrder')]
+    #[Groups(['order_details:read'])]
+    public function getMainOrderSummary(): ?array
+    {
+        $mainOrder = $this->getMainOrder();
+        if (!$mainOrder instanceof self) {
+            return null;
+        }
+
+        $mainOrderId = $mainOrder->getId();
+        if (!$mainOrderId) {
+            return null;
+        }
+
+        return [
+            'id' => $mainOrderId,
+            'externalCode' => $mainOrder->getExternalCode(),
+        ];
     }
 
     public function setMainOrderId($mainOrderId)

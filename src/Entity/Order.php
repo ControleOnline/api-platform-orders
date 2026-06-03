@@ -205,6 +205,10 @@ class Order
     #[ORM\OneToMany(targetEntity: OrderInvoice::class, mappedBy: 'order')]
     private $invoice;
 
+    #[ORM\OneToMany(targetEntity: OrderFile::class, mappedBy: 'order', cascade: ['persist'])]
+    #[Groups(['order_details:read', 'order:write'])]
+    private $orderFiles;
+
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['task' => 'exact'])]
     #[ORM\OneToMany(targetEntity: Task::class, mappedBy: 'order')]
     private $task;
@@ -339,6 +343,7 @@ class Order
         $this->alterDate = new DateTime('now');
         $this->invoiceTax = new ArrayCollection();
         $this->invoice = new ArrayCollection();
+        $this->orderFiles = new ArrayCollection();
         $this->task = new ArrayCollection();
         $this->orderProducts = new ArrayCollection();
         $this->otherInformations = json_encode(new stdClass());
@@ -577,6 +582,23 @@ class Order
     public function getInvoice()
     {
         return $this->invoice;
+    }
+
+    public function addOrderFile(OrderFile $orderFile): self
+    {
+        $this->orderFiles[] = $orderFile;
+        return $this;
+    }
+
+    public function removeOrderFile(OrderFile $orderFile): self
+    {
+        $this->orderFiles->removeElement($orderFile);
+        return $this;
+    }
+
+    public function getOrderFiles()
+    {
+        return $this->orderFiles;
     }
 
     public function getNotified()

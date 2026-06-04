@@ -209,6 +209,64 @@ class OrderRepository extends ServiceEntityRepository
       ->getOneOrNullResult();
   }
 
+  /**
+   * @param array<int, int|string> $productIds
+   * @param array<int, int|string> $providerIds
+   * @return array<int, array<string, mixed>>
+   */
+  public function findLatestPurchaseHistoryByProductIds(
+    int $companyId,
+    array $productIds,
+    array $providerIds = []
+  ): array {
+    $normalizedProductIds = array_values(array_unique(array_filter(array_map(
+      static fn ($value) => (int) $value,
+      $productIds
+    ))));
+
+    if ($companyId <= 0 || $normalizedProductIds === []) {
+      return [];
+    }
+
+    $normalizedProviderIds = array_values(array_unique(array_filter(array_map(
+      static fn ($value) => (int) $value,
+      $providerIds
+    ))));
+
+    $queryBuilder = $this->createQueryBuilder('o')
+      ->join('o.orderProducts', 'op')
+      ->leftJoin('o.provider', 'provider')
+      ->select(
+        'IDENTITY(op.product) AS productId',
+        'o.id AS orderId',
+        'o.orderDate AS orderDate',
+        'o.alterDate AS alterDate',
+        'op.quantity AS quantity',
+        'op.price AS unitPrice',
+        'op.total AS totalPrice',
+        'provider.id AS providerId',
+        'provider.name AS providerName',
+        'provider.alias AS providerAlias'
+      )
+      ->andWhere('IDENTITY(o.client) = :companyId')
+      ->andWhere('o.orderType = :purchaseType')
+      ->andWhere('op.orderProduct IS NULL')
+      ->andWhere('IDENTITY(op.product) IN (:productIds)')
+      ->orderBy('o.orderDate', 'DESC')
+      ->addOrderBy('o.id', 'DESC')
+      ->setParameter('companyId', $companyId)
+      ->setParameter('purchaseType', Order::ORDER_TYPE_PURCHASE)
+      ->setParameter('productIds', $normalizedProductIds);
+
+    if ($normalizedProviderIds !== []) {
+      $queryBuilder
+        ->andWhere('IDENTITY(o.provider) IN (:providerIds)')
+        ->setParameter('providerIds', $normalizedProviderIds);
+    }
+
+    return $queryBuilder->getQuery()->getArrayResult();
+  }
+
   private function fetchOperationalInsightsRows(QueryBuilder $filteredIdsQueryBuilder): array
   {
     return $this->fetchReportSummaryRows(

@@ -111,11 +111,11 @@ class OrderProduct
 
     #[ORM\ManyToOne(targetEntity: ProductGroup::class)]
     #[ORM\JoinColumn(nullable: true)]
-    #[Groups(['order_product:write', 'orders-queue:read', 'order_product:read'])]
+    #[Groups(['order_product:write', 'orders-queue:read', 'order_details:read', 'order_product:read'])]
     private $productGroup;
 
     #[ORM\OneToMany(targetEntity: self::class, mappedBy: 'orderProduct')]
-    #[Groups(['order_product:write', 'order_product:read', 'orders-queue-tree:read'])]
+    #[Groups(['order_product:write', 'order_product:read', 'orders-queue-tree:read', 'order_details:read'])]
     private $orderProductComponents;
 
     #[ORM\OneToMany(targetEntity: OrderProductQueue::class, mappedBy: 'order_product')]

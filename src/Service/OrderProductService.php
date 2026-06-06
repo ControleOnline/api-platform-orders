@@ -7,12 +7,14 @@ use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Product;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\ProductGroupProduct;
+use ControleOnline\Entity\Status;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface
 as Security;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use ControleOnline\Service\StatusService;
 
 
 class OrderProductService
@@ -28,6 +30,7 @@ class OrderProductService
         private Security $security,
         private PeopleService $peopleService,
         private OrderService $orderService,
+        private StatusService $statusService,
         private RequestStack $requestStack,
         private OrderProductQueueService $orderProductQueueService,
         private InvoiceService $invoiceService
@@ -50,6 +53,7 @@ class OrderProductService
         $OProduct->setPrice($price);
         $OProduct->setTotal($price * $quantity);
         $this->checkInventory($OProduct);
+        $this->applyDefaultStatus($OProduct);
         $this->manager->persist($OProduct);
         $this->manager->flush();
 
@@ -92,11 +96,13 @@ class OrderProductService
     public function prePersist(OrderProduct $orderProduct): void
     {
         $this->guardMarketplaceOrderProductMutation($orderProduct);
+        $this->applyDefaultStatus($orderProduct);
     }
 
     public function preUpdate(OrderProduct $orderProduct): void
     {
         $this->guardMarketplaceOrderProductMutation($orderProduct);
+        $this->applyDefaultStatus($orderProduct);
     }
 
     public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity)
@@ -127,6 +133,7 @@ class OrderProductService
         $OProduct->setPrice($productGroupProduct->getPrice());
         $OProduct->setTotal($productGroupProduct->getPrice() * $quantity);
         $this->checkInventory($OProduct);
+        $this->applyDefaultStatus($OProduct);
         $this->manager->persist($OProduct);
         $this->manager->flush();
 
@@ -249,6 +256,17 @@ class OrderProductService
                 is_array($json['sub_products']) ? $json['sub_products'] : []
             );
         }
+    }
+
+    private function applyDefaultStatus(OrderProduct $orderProduct): void
+    {
+        if ($orderProduct->getStatus() instanceof Status) {
+            return;
+        }
+
+        $orderProduct->setStatus(
+            $this->statusService->discoveryStatus('open', 'open', 'order_product')
+        );
     }
 
     public function postUpdate(OrderProduct $orderProduct)

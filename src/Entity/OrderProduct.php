@@ -19,7 +19,9 @@ use ControleOnline\Entity\Product;
 use ControleOnline\Entity\Inventory;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\OrderProductQueue;
+use ControleOnline\Entity\Status;
 use ControleOnline\Controller\PrintOrderProductAction;
+use ControleOnline\Controller\MarkOrderProductCheckedAction;
 use ControleOnline\Repository\OrderProductRepository;
 
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
@@ -28,6 +30,7 @@ use ApiPlatform\Doctrine\Orm\Filter\ExistsFilter;
 use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
 
 #[ORM\Table(name: 'order_product')]
+#[ORM\Index(name: 'status_id', columns: ['status_id'])]
 
 #[ORM\Entity(repositoryClass: OrderProductRepository::class)]
 #[ApiResource(
@@ -43,6 +46,11 @@ use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
             uriTemplate: '/order_products/{id}/print',
             controller: PrintOrderProductAction::class
         ),
+        new Post(
+            security: "is_granted('ROLE_HUMAN')",
+            uriTemplate: '/order_products/{id}/check',
+            controller: MarkOrderProductCheckedAction::class
+        ),
         new Put(security: "is_granted('ROLE_HUMAN')"),
         new Delete(security: "is_granted('ROLE_HUMAN')")
     ]
@@ -54,6 +62,9 @@ use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
     'order' => 'exact',
     'product' => 'exact',
     'product.type' => 'exact',
+    'status.status' => 'exact',
+    'status.realStatus' => 'exact',
+    'status.context' => 'exact',
     'inInventory' => 'exact',
     'outInventory' => 'exact',
     'parentProduct' => 'exact',
@@ -88,6 +99,11 @@ class OrderProduct
     #[ORM\JoinColumn(nullable: false)]
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
     private $product;
+
+    #[ORM\ManyToOne(targetEntity: Status::class)]
+    #[ORM\JoinColumn(name: 'status_id', referencedColumnName: 'id', nullable: false)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'orders-queue-tree:read', 'order:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
+    private $status;
 
     #[ORM\ManyToOne(targetEntity: Inventory::class)]
     #[ORM\JoinColumn(name: 'in_inventory_id', referencedColumnName: 'id', nullable: true)]
@@ -178,6 +194,17 @@ class OrderProduct
     public function setProduct($product): self
     {
         $this->product = $product;
+        return $this;
+    }
+
+    public function getStatus(): ?Status
+    {
+        return $this->status;
+    }
+
+    public function setStatus(?Status $status): self
+    {
+        $this->status = $status;
         return $this;
     }
 

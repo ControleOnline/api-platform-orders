@@ -127,17 +127,15 @@ class OrderProduct
 
     #[ORM\ManyToOne(targetEntity: ProductGroup::class)]
     #[ORM\JoinColumn(nullable: true)]
-    #[Groups(['order:read', 'order_product:write', 'orders-queue:read', 'order_product:read'])]
+    #[Groups(['order_product:write', 'orders-queue:read', 'order_product:read'])]
     private $productGroup;
 
-    // `/orders` keeps nested components so orders and tv can render the complete tree.
     #[ORM\OneToMany(targetEntity: self::class, mappedBy: 'orderProduct')]
-    #[Groups(['order:read', 'order_product:write', 'order_product:read', 'orders-queue-tree:read'])]
+    #[Groups(['order_product:write', 'order_product:read', 'orders-queue-tree:read'])]
     private $orderProductComponents;
 
-    // Queue rows travel inside /orders so the display can match queue-id scans and barcode prints.
     #[ORM\OneToMany(targetEntity: OrderProductQueue::class, mappedBy: 'order_product')]
-    #[Groups(['order:read', 'order_product:read', 'orders-queue:read', 'order_details:read'])]
+    #[Groups(['order_product:read', 'orders-queue:read', 'order_details:read'])]
     private $orderProductQueues;
 
     #[ORM\Column(type: 'float')]

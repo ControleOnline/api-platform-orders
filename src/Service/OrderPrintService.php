@@ -688,6 +688,7 @@ class OrderPrintService
         array $queueEntries,
         bool $printForm
     ): void {
+        // Queue tickets print the queue-entry id so the display can scan each unit before checking the parent orderProduct.
         foreach ($queueEntries as $queueEntry) {
             $queueName = trim((string) ($queueEntry['queueName'] ?? ''));
             if ($queueName === '') {
@@ -697,7 +698,9 @@ class OrderPrintService
             $this->printQueueItemWithCut(
                 $queueEntry['orderProduct'],
                 $printForm,
-                (float) ($queueEntry['quantity'] ?? 1)
+                (float) ($queueEntry['quantity'] ?? 1),
+                false,
+                (string) ($queueEntry['id'] ?? '')
             );
         }
     }
@@ -724,36 +727,49 @@ class OrderPrintService
         OrderProduct $orderProduct,
         bool $printForm,
         ?float $quantityOverride = null,
-        bool $showQuantityPrefix = false
+        bool $showQuantityPrefix = false,
+        ?string $barcodeValue = null
     ): void
     {
         if ($printForm) {
-            $this->printQueueFormItem($orderProduct, $quantityOverride);
+            $this->printQueueFormItem($orderProduct, $quantityOverride, $barcodeValue);
             return;
         }
 
-        $this->printQueueRegularItem($orderProduct, $quantityOverride, $showQuantityPrefix);
+        $this->printQueueRegularItem(
+            $orderProduct,
+            $quantityOverride,
+            $showQuantityPrefix,
+            $barcodeValue
+        );
     }
 
     private function printQueueItemWithCut(
         OrderProduct $orderProduct,
         bool $printForm,
         ?float $quantityOverride = null,
-        bool $showQuantityPrefix = false
+        bool $showQuantityPrefix = false,
+        ?string $barcodeValue = null
     ): void {
         if ($printForm) {
-            $this->printQueueFormItemWithCut($orderProduct, $quantityOverride);
+            $this->printQueueFormItemWithCut($orderProduct, $quantityOverride, $barcodeValue);
             return;
         }
 
-        $this->printQueueRegularItem($orderProduct, $quantityOverride, $showQuantityPrefix);
+        $this->printQueueRegularItem(
+            $orderProduct,
+            $quantityOverride,
+            $showQuantityPrefix,
+            $barcodeValue
+        );
         $this->printService->addCutMarker();
     }
 
     private function printQueueRegularItem(
         OrderProduct $orderProduct,
         ?float $quantityOverride = null,
-        bool $showQuantityPrefix = false
+        bool $showQuantityPrefix = false,
+        ?string $barcodeValue = null
     ): void
     {
         $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
@@ -766,12 +782,14 @@ class OrderPrintService
         $this->printOrderProductDescription($orderProduct);
         $this->printOrderProductComment($orderProduct);
         $this->printChildren($orderProduct->getOrderProductComponents(), true, true);
+        $this->printQueueBarcode($barcodeValue);
         $this->printSeparator();
     }
 
     private function printQueueFormItem(
         OrderProduct $orderProduct,
-        ?float $quantityOverride = null
+        ?float $quantityOverride = null,
+        ?string $barcodeValue = null
     ): void
     {
         $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
@@ -782,13 +800,15 @@ class OrderPrintService
             $this->printOrderProductDescription($orderProduct);
             $this->printOrderProductComment($orderProduct);
             $this->printChildren($orderProduct->getOrderProductComponents(), true, true);
+            $this->printQueueBarcode($barcodeValue);
             $this->printSeparator();
         }
     }
 
     private function printQueueFormItemWithCut(
         OrderProduct $orderProduct,
-        ?float $quantityOverride = null
+        ?float $quantityOverride = null,
+        ?string $barcodeValue = null
     ): void
     {
         $productName = $this->normalizeText($orderProduct->getProduct()->getProduct());
@@ -799,6 +819,7 @@ class OrderPrintService
             $this->printOrderProductDescription($orderProduct);
             $this->printOrderProductComment($orderProduct);
             $this->printChildren($orderProduct->getOrderProductComponents(), true, true);
+            $this->printQueueBarcode($barcodeValue);
             $this->printSeparator();
             $this->printService->addCutMarker();
         }
@@ -1714,6 +1735,16 @@ class OrderPrintService
     private function printSeparator(string $delimiter = '-'): void
     {
         $this->printService->addLine('', '', $delimiter);
+    }
+
+    private function printQueueBarcode(?string $barcodeValue): void
+    {
+        $normalizedBarcode = trim((string) $barcodeValue);
+        if ($normalizedBarcode === '') {
+            return;
+        }
+
+        $this->printService->addCode128Barcode($normalizedBarcode);
     }
 
     private function printWrappedLabelValue(string $label, string $value): void

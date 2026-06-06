@@ -196,8 +196,9 @@ class Order
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read'])]
     private $orderDate;
 
+    // `/orders` and the operational displays need the full orderProducts tree, not only the queue projection.
     #[ORM\OneToMany(targetEntity: OrderProduct::class, mappedBy: 'order', cascade: ['persist'])]
-    #[Groups(['order_details:read', 'orders-queue:read', 'order:write', 'order:write'])]
+    #[Groups(['order:read', 'order_details:read', 'orders-queue:read', 'order:write', 'order:write'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProducts.orderProductQueues.status' => 'exact'])]
     private $orderProducts;
 

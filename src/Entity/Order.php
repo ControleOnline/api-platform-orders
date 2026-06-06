@@ -197,7 +197,7 @@ class Order
     private $orderDate;
 
     #[ORM\OneToMany(targetEntity: OrderProduct::class, mappedBy: 'order', cascade: ['persist'])]
-    #[Groups(['order:write', 'order:write'])]
+    #[Groups(['order_details:read', 'orders-queue:read', 'order:write', 'order:write'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProducts.orderProductQueues.status' => 'exact'])]
     private $orderProducts;
 
@@ -778,15 +778,6 @@ class Order
     public function getOrderProducts()
     {
         return $this->orderProducts;
-    }
-
-    #[Groups(['order_details:read', 'orders-queue:read'])]
-    #[SerializedName('orderProducts')]
-    public function getRootOrderProducts(): array
-    {
-        return $this->orderProducts
-            ->filter(static fn(OrderProduct $orderProduct): bool => $orderProduct->getOrderProduct() === null)
-            ->getValues();
     }
 
     public function addOrderProduct(OrderProduct $orderProduct): self

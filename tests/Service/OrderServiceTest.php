@@ -4,6 +4,8 @@ namespace ControleOnline\Orders\Tests\Service;
 
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
+use ControleOnline\Entity\ProductGroup;
+use ControleOnline\Entity\ProductGroupProduct;
 use ControleOnline\Entity\Status;
 use ControleOnline\Entity\DeviceConfig;
 use ControleOnline\Service\IntegrationService;
@@ -222,6 +224,26 @@ class OrderServiceTest extends TestCase
         self::assertSame('77', $parameters['provider']);
     }
 
+    public function testPreferredProductGroupProductLinkUsesHiddenMappingFirst(): void
+    {
+        $service = $this->buildService('/orders');
+
+        $visibleGroup = $this->createProductGroup(321, 'Molhos extra à parte');
+        $hiddenGroup = $this->createProductGroup(100, 'Molhos extra à parte - 60ml');
+
+        $visibleLink = $this->createProductGroupProductLink(1850, $visibleGroup, true);
+        $hiddenLink = $this->createProductGroupProductLink(380, $hiddenGroup, false);
+
+        $resolved = $this->invokePrivateMethod($service, 'pickPreferredProductGroupProductLink', [
+            [$visibleLink, $hiddenLink],
+            $visibleGroup,
+        ]);
+
+        self::assertSame($hiddenLink, $resolved);
+        self::assertFalse($resolved->getShowInParentQueue());
+        self::assertSame(100, $resolved->getProductGroup()->getId());
+    }
+
     public function testPostPersistQueuesManagerPushNotificationForOpenOrder(): void
     {
         $provider = $this->createMock(People::class);
@@ -333,5 +355,39 @@ class OrderServiceTest extends TestCase
         $property = new \ReflectionProperty($className, 'id');
         $property->setAccessible(true);
         $property->setValue($entity, $id);
+    }
+
+    private function createProductGroup(int $id, string $name): ProductGroup
+    {
+        $productGroup = (new ProductGroup())
+            ->setProductGroup($name)
+            ->setShowInDisplay(false);
+
+        $this->setEntityId(ProductGroup::class, $productGroup, $id);
+
+        return $productGroup;
+    }
+
+    private function createProductGroupProductLink(
+        int $id,
+        ProductGroup $productGroup,
+        bool $showInParentQueue,
+    ): ProductGroupProduct {
+        $groupProduct = (new ProductGroupProduct())
+            ->setProductGroup($productGroup)
+            ->setShowInParentQueue($showInParentQueue);
+
+        $this->setEntityId(ProductGroupProduct::class, $groupProduct, $id);
+
+        return $groupProduct;
+    }
+
+    private function invokePrivateMethod(object $object, string $method, array $arguments = []): mixed
+    {
+        $reflection = new \ReflectionClass($object);
+        $reflectionMethod = $reflection->getMethod($method);
+        $reflectionMethod->setAccessible(true);
+
+        return $reflectionMethod->invoke($object, ...$arguments);
     }
 }

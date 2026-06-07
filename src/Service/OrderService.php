@@ -267,31 +267,16 @@ class OrderService
         }
 
         $repository = $this->manager->getRepository(ProductGroupProduct::class);
-        $directLinkQueryBuilder = $repository->createQueryBuilder('groupProduct')
+        $directLinkCandidates = $repository->createQueryBuilder('groupProduct')
             ->andWhere('groupProduct.product = :parentProduct')
             ->andWhere('groupProduct.productChild = :childProduct')
             ->andWhere('groupProduct.active = true')
             ->setParameter('parentProduct', $parentProduct)
             ->setParameter('childProduct', $childProduct)
-            ->orderBy('groupProduct.showInParentQueue', 'ASC')
-            ->addOrderBy('groupProduct.id', 'DESC')
-            ->setMaxResults(1);
-
-        if ($currentProductGroup instanceof ProductGroup) {
-            $directLinkQueryBuilder
-                ->andWhere('groupProduct.productGroup = :currentProductGroup')
-                ->setParameter('currentProductGroup', $currentProductGroup);
-        }
-
-        $directLink = $directLinkQueryBuilder
             ->getQuery()
-            ->getOneOrNullResult();
+            ->getResult();
 
-        if ($directLink instanceof ProductGroupProduct) {
-            return $directLink;
-        }
-
-        $groupLinkQueryBuilder = $repository->createQueryBuilder('groupProduct')
+        $groupLinkCandidates = $repository->createQueryBuilder('groupProduct')
             ->innerJoin(
                 ProductGroupParent::class,
                 'groupParent',
@@ -304,18 +289,71 @@ class OrderService
             ->andWhere('groupParent.active = true')
             ->setParameter('childProduct', $childProduct)
             ->setParameter('parentProduct', $parentProduct)
-            ->orderBy('groupProduct.showInParentQueue', 'ASC')
-            ->addOrderBy('groupProduct.id', 'DESC')
-            ->setMaxResults(1)
-        ;
+            ->getQuery()
+            ->getResult();
 
-        if ($currentProductGroup instanceof ProductGroup) {
-            $groupLinkQueryBuilder
-                ->andWhere('groupProduct.productGroup = :currentProductGroup')
-                ->setParameter('currentProductGroup', $currentProductGroup);
+        return $this->pickPreferredProductGroupProductLink(
+            array_merge($directLinkCandidates, $groupLinkCandidates),
+            $currentProductGroup,
+        );
+    }
+
+    /**
+     * @param array<int, mixed> $productGroupProducts
+     */
+    private function pickPreferredProductGroupProductLink(
+        array $productGroupProducts,
+        ?ProductGroup $currentProductGroup = null,
+    ): ?ProductGroupProduct {
+        $candidates = array_values(array_filter(
+            $productGroupProducts,
+            static fn (mixed $candidate): bool => $candidate instanceof ProductGroupProduct,
+        ));
+
+        if (empty($candidates)) {
+            return null;
         }
 
-        return $groupLinkQueryBuilder->getQuery()->getOneOrNullResult();
+        usort(
+            $candidates,
+            function (ProductGroupProduct $left, ProductGroupProduct $right) use ($currentProductGroup): int {
+                $leftVisibilityRank = $left->getShowInParentQueue() ? 1 : 0;
+                $rightVisibilityRank = $right->getShowInParentQueue() ? 1 : 0;
+
+                if ($leftVisibilityRank !== $rightVisibilityRank) {
+                    return $leftVisibilityRank <=> $rightVisibilityRank;
+                }
+
+                if ($currentProductGroup instanceof ProductGroup) {
+                    $leftMatchesCurrentGroup = $this->matchesProductGroup(
+                        $left,
+                        $currentProductGroup,
+                    );
+                    $rightMatchesCurrentGroup = $this->matchesProductGroup(
+                        $right,
+                        $currentProductGroup,
+                    );
+
+                    if ($leftMatchesCurrentGroup !== $rightMatchesCurrentGroup) {
+                        return $rightMatchesCurrentGroup <=> $leftMatchesCurrentGroup;
+                    }
+                }
+
+                return (int) $right->getId() <=> (int) $left->getId();
+            }
+        );
+
+        return $candidates[0] ?? null;
+    }
+
+    private function matchesProductGroup(
+        ProductGroupProduct $groupProduct,
+        ProductGroup $currentProductGroup,
+    ): bool {
+        $linkedProductGroup = $groupProduct->getProductGroup();
+
+        return $linkedProductGroup instanceof ProductGroup
+            && (int) $linkedProductGroup->getId() === (int) $currentProductGroup->getId();
     }
 
     public function createOrder(People $receiver, People $payer, $app)

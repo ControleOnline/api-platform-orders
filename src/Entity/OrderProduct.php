@@ -21,6 +21,7 @@ use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\OrderProductQueue;
 use ControleOnline\Entity\Status;
 use ControleOnline\Controller\PrintOrderProductAction;
+use ControleOnline\Controller\OrderProductCollectionController;
 use ControleOnline\Controller\MarkOrderProductCheckedAction;
 use ControleOnline\Repository\OrderProductRepository;
 
@@ -38,7 +39,11 @@ use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
     normalizationContext: ['groups' => ['order_product:read']],
     denormalizationContext: ['groups' => ['order_product:write']],
     operations: [
-        new GetCollection(security: "is_granted('ROLE_HUMAN')"),
+        new GetCollection(
+            security: "is_granted('ROLE_HUMAN')",
+            controller: OrderProductCollectionController::class,
+            read: false,
+        ),
         new Get(security: "is_granted('ROLE_HUMAN')"),
         new Post(security: "is_granted('ROLE_HUMAN')"),
         new Post(

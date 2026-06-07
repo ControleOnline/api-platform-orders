@@ -157,7 +157,7 @@ class OrderProductCollectionControllerTest extends TestCase
         array &$andWhereCalls = [],
         array &$paginationCalls = [],
     ): QueryBuilder {
-        $query = $this->createMock(Query::class);
+        $query = $this->createStub(Query::class);
         $query
             ->method('getResult')
             ->willReturn($result);
@@ -165,20 +165,7 @@ class OrderProductCollectionControllerTest extends TestCase
             ->method('getSingleScalarResult')
             ->willReturn((string) $countResult);
 
-        $queryBuilder = $this
-            ->getMockBuilder(QueryBuilder::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods([
-                'select',
-                'from',
-                'andWhere',
-                'setParameter',
-                'addOrderBy',
-                'setMaxResults',
-                'setFirstResult',
-                'getQuery',
-            ])
-            ->getMock();
+        $queryBuilder = $this->createStub(QueryBuilder::class);
 
         $queryBuilder->method('select')->willReturnSelf();
         $queryBuilder->method('from')->willReturnSelf();

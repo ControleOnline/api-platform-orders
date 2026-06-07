@@ -50,7 +50,11 @@ namespace ControleOnline\Service;
 use ControleOnline\Entity\DeviceConfig;
 use ControleOnline\Entity\DisplayQueue;
 use ControleOnline\Entity\Order;
+use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\People;
+use ControleOnline\Entity\Product;
+use ControleOnline\Entity\ProductGroupParent;
+use ControleOnline\Entity\ProductGroupProduct;
 use ControleOnline\Service\Client\WebsocketClient;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
@@ -148,6 +152,136 @@ class OrderService
         $statement->executeStatement();
 
         return $order;
+    }
+
+    public function normalizeOrderProductGroupLinks(Order $order): bool
+    {
+        $orderProducts = $order->getOrderProducts()->toArray();
+        usort(
+            $orderProducts,
+            static fn (OrderProduct $left, OrderProduct $right): int =>
+                ((int) $left->getId()) <=> ((int) $right->getId())
+        );
+
+        $changed = false;
+
+        foreach ($orderProducts as $childOrderProduct) {
+            if (!$this->shouldNormalizeOrderProductGroupLink($childOrderProduct)) {
+                continue;
+            }
+
+            $childProduct = $childOrderProduct->getProduct();
+            if (!$childProduct instanceof Product) {
+                continue;
+            }
+
+            $parentOrderProduct = $this->findNearestConfiguredParentOrderProduct(
+                $childOrderProduct,
+                $orderProducts,
+            );
+
+            if (!$parentOrderProduct instanceof OrderProduct) {
+                continue;
+            }
+
+            $groupProduct = $this->findProductGroupProductLink(
+                $parentOrderProduct->getProduct(),
+                $childProduct,
+            );
+
+            if (!$groupProduct instanceof ProductGroupProduct) {
+                continue;
+            }
+
+            $childOrderProduct->setOrderProduct($parentOrderProduct);
+            $childOrderProduct->setParentProduct($parentOrderProduct->getProduct());
+            $childOrderProduct->setProductGroup($groupProduct->getProductGroup());
+            $childOrderProduct->setShowInParentQueue($groupProduct->getShowInParentQueue());
+            $changed = true;
+        }
+
+        if ($changed) {
+            $this->manager->flush();
+            $this->manager->refresh($order);
+        }
+
+        return $changed;
+    }
+
+    private function shouldNormalizeOrderProductGroupLink(OrderProduct $orderProduct): bool
+    {
+        return (
+            !$orderProduct->getOrderProduct() instanceof OrderProduct &&
+            !$orderProduct->getParentProduct() instanceof Product &&
+            $orderProduct->getProductGroup() === null
+        );
+    }
+
+    /**
+     * Marketplace payloads can arrive as a flat list. Use the nearest previous
+     * configured parent in the same order to rebuild the operational hierarchy.
+     */
+    private function findNearestConfiguredParentOrderProduct(
+        OrderProduct $childOrderProduct,
+        array $orderProducts,
+    ): ?OrderProduct {
+        $childId = (int) $childOrderProduct->getId();
+        $childProduct = $childOrderProduct->getProduct();
+
+        if (!$childProduct instanceof Product) {
+            return null;
+        }
+
+        $candidates = array_values(array_filter(
+            $orderProducts,
+            fn (OrderProduct $candidate): bool =>
+                (int) $candidate->getId() < $childId &&
+                $candidate->getProduct() instanceof Product &&
+                $this->findProductGroupProductLink($candidate->getProduct(), $childProduct) instanceof ProductGroupProduct
+        ));
+
+        if (empty($candidates)) {
+            return null;
+        }
+
+        return $candidates[array_key_last($candidates)];
+    }
+
+    private function findProductGroupProductLink(
+        ?Product $parentProduct,
+        Product $childProduct,
+    ): ?ProductGroupProduct {
+        if (!$parentProduct instanceof Product) {
+            return null;
+        }
+
+        $repository = $this->manager->getRepository(ProductGroupProduct::class);
+        $directLink = $repository->findOneBy([
+            'product' => $parentProduct,
+            'productChild' => $childProduct,
+            'active' => true,
+        ]);
+
+        if ($directLink instanceof ProductGroupProduct) {
+            return $directLink;
+        }
+
+        return $repository->createQueryBuilder('groupProduct')
+            ->innerJoin(
+                ProductGroupParent::class,
+                'groupParent',
+                'WITH',
+                'groupParent.productGroup = groupProduct.productGroup'
+            )
+            ->andWhere('groupProduct.productChild = :childProduct')
+            ->andWhere('groupProduct.active = true')
+            ->andWhere('groupParent.parentProduct = :parentProduct')
+            ->andWhere('groupParent.active = true')
+            ->setParameter('childProduct', $childProduct)
+            ->setParameter('parentProduct', $parentProduct)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 
     public function createOrder(People $receiver, People $payer, $app)

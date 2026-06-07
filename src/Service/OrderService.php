@@ -267,6 +267,7 @@ class OrderService
         }
 
         $repository = $this->manager->getRepository(ProductGroupProduct::class);
+        // Prefer the hidden queue mapping when the same child exists in more than one group.
         $directLinkCandidates = $repository->createQueryBuilder('groupProduct')
             ->andWhere('groupProduct.product = :parentProduct')
             ->andWhere('groupProduct.productChild = :childProduct')

@@ -197,7 +197,7 @@ class Order
     private $orderDate;
 
     #[ORM\OneToMany(targetEntity: OrderProduct::class, mappedBy: 'order', cascade: ['persist'])]
-    #[Groups(['order_details:read', 'orders-queue:read', 'order:write', 'order:write'])]
+    #[Groups(['order:read', 'order_details:read', 'orders-queue:read', 'order:write', 'order:write'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProducts.orderProductQueues.status' => 'exact'])]
     private $orderProducts;
 

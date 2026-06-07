@@ -117,21 +117,21 @@ class OrderProduct
 
     #[ORM\ManyToOne(targetEntity: Product::class)]
     #[ORM\JoinColumn(name: 'parent_product_id', referencedColumnName: 'id', nullable: true)]
-    #[Groups(['order_product:write', 'order_product:read'])]
+    #[Groups(['order:read', 'order_product:write', 'order_product:read'])]
     private $parentProduct;
 
     #[ORM\ManyToOne(targetEntity: self::class, inversedBy: 'orderProductComponents')]
     #[ORM\JoinColumn(name: 'order_product_id', nullable: true)]
-    #[Groups(['order_product:write', 'order_product:read'])]
+    #[Groups(['order:read', 'order_product:write', 'order_product:read'])]
     private $orderProduct;
 
     #[ORM\ManyToOne(targetEntity: ProductGroup::class)]
     #[ORM\JoinColumn(nullable: true)]
-    #[Groups(['order_product_queue:read', 'order_product:write', 'orders-queue:read', 'order_product:read'])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_product:write', 'orders-queue:read', 'order_product:read'])]
     private $productGroup;
 
     #[ORM\OneToMany(targetEntity: self::class, mappedBy: 'orderProduct')]
-    #[Groups(['order_product_queue:read', 'order_product:write', 'order_product:read', 'orders-queue-tree:read'])]
+    #[Groups(['order_product_queue:read', 'order:read', 'order_product:write', 'order_product:read', 'orders-queue-tree:read'])]
     private $orderProductComponents;
 
     #[ORM\OneToMany(targetEntity: OrderProductQueue::class, mappedBy: 'order_product')]
@@ -151,7 +151,7 @@ class OrderProduct
     private $total = 0;
 
     #[ORM\Column(name: 'comment', type: 'string',  nullable: true)]
-    #[Groups(['order_product_queue:read', 'product:read', 'orders-queue:read', 'product:write'])]
+    #[Groups(['order_product_queue:read', 'order:read', 'product:read', 'orders-queue:read', 'product:write'])]
     private $comment;
 
     #[ORM\Column(name: 'show_in_parent_queue', type: 'boolean', nullable: false, options: ['default' => '1'])]

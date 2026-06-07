@@ -7,8 +7,8 @@ use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Service\HydratorService;
 use ControleOnline\Service\OrderProductService;
-use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -157,11 +157,7 @@ class OrderProductCollectionControllerTest extends TestCase
         array &$andWhereCalls = [],
         array &$paginationCalls = [],
     ): QueryBuilder {
-        $query = $this
-            ->getMockBuilder(AbstractQuery::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['getResult', 'getSingleScalarResult'])
-            ->getMockForAbstractClass();
+        $query = $this->createMock(Query::class);
         $query
             ->method('getResult')
             ->willReturn($result);

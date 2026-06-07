@@ -40,7 +40,7 @@ class OrderProductCollectionControllerTest extends TestCase
             paginationCalls: $itemsPagination,
         );
 
-        $manager = $this->createStub(EntityManagerInterface::class);
+        $manager = $this->createMock(EntityManagerInterface::class);
         $manager
             ->method('createQueryBuilder')
             ->willReturnOnConsecutiveCalls($countQueryBuilder, $itemsQueryBuilder);
@@ -113,7 +113,7 @@ class OrderProductCollectionControllerTest extends TestCase
             paginationCalls: $itemsPagination,
         );
 
-        $manager = $this->createStub(EntityManagerInterface::class);
+        $manager = $this->createMock(EntityManagerInterface::class);
         $manager
             ->method('createQueryBuilder')
             ->willReturnOnConsecutiveCalls($countQueryBuilder, $itemsQueryBuilder);

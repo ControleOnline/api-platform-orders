@@ -18,6 +18,7 @@ use ControleOnline\Controller\AddProductsOrderAction;
 use ControleOnline\Controller\AutoConferencePrintOrderAction;
 use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Controller\DiscoveryCart;
+use ControleOnline\Controller\OrderConferenceController;
 use ControleOnline\Controller\OrderDetailsController;
 use ControleOnline\Controller\PrintOrderAction;
 use ControleOnline\Attribute\CollectionSummary;
@@ -49,6 +50,13 @@ use stdClass;
         new GetCollection(
             security: 'is_granted(\'ROLE_HUMAN\')',
             normalizationContext: ['groups' => ['order:read']],
+        ),
+        new Get(
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            uriTemplate: '/orders/{id}/conference',
+            controller: OrderConferenceController::class,
+            read: false,
+            normalizationContext: ['groups' => ['order:read', 'order_conference:read']],
         ),
         new GetCollection(
             uriTemplate: '/orders-queue',
@@ -197,7 +205,7 @@ class Order
     private $orderDate;
 
     #[ORM\OneToMany(targetEntity: OrderProduct::class, mappedBy: 'order', cascade: ['persist'])]
-    #[Groups(['order:read', 'order_details:read', 'orders-queue:read', 'order:write', 'order:write'])]
+    #[Groups(['order_conference:read', 'order_details:read', 'orders-queue:read', 'order:write', 'order:write'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProducts.orderProductQueues.status' => 'exact'])]
     private $orderProducts;
 

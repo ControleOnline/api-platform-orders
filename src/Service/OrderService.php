@@ -53,6 +53,7 @@ use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\Product;
+use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\ProductGroupParent;
 use ControleOnline\Entity\ProductGroupProduct;
 use ControleOnline\Service\Client\WebsocketClient;
@@ -166,38 +167,56 @@ class OrderService
         $changed = false;
 
         foreach ($orderProducts as $childOrderProduct) {
-            if (!$this->shouldNormalizeOrderProductGroupLink($childOrderProduct)) {
-                continue;
-            }
-
             $childProduct = $childOrderProduct->getProduct();
             if (!$childProduct instanceof Product) {
                 continue;
             }
 
-            $parentOrderProduct = $this->findNearestConfiguredParentOrderProduct(
-                $childOrderProduct,
-                $orderProducts,
-            );
+            $parentOrderProduct = $childOrderProduct->getOrderProduct();
+            if (!$parentOrderProduct instanceof OrderProduct) {
+                $parentOrderProduct = $this->findNearestConfiguredParentOrderProduct(
+                    $childOrderProduct,
+                    $orderProducts,
+                );
+            }
 
             if (!$parentOrderProduct instanceof OrderProduct) {
+                continue;
+            }
+
+            if ((int) $parentOrderProduct->getId() === (int) $childOrderProduct->getId()) {
                 continue;
             }
 
             $groupProduct = $this->findProductGroupProductLink(
                 $parentOrderProduct->getProduct(),
                 $childProduct,
+                $childOrderProduct->getProductGroup(),
             );
 
             if (!$groupProduct instanceof ProductGroupProduct) {
                 continue;
             }
 
-            $childOrderProduct->setOrderProduct($parentOrderProduct);
-            $childOrderProduct->setParentProduct($parentOrderProduct->getProduct());
-            $childOrderProduct->setProductGroup($groupProduct->getProductGroup());
-            $childOrderProduct->setShowInParentQueue($groupProduct->getShowInParentQueue());
-            $changed = true;
+            if ($childOrderProduct->getOrderProduct() !== $parentOrderProduct) {
+                $childOrderProduct->setOrderProduct($parentOrderProduct);
+                $changed = true;
+            }
+
+            if ($childOrderProduct->getParentProduct() !== $parentOrderProduct->getProduct()) {
+                $childOrderProduct->setParentProduct($parentOrderProduct->getProduct());
+                $changed = true;
+            }
+
+            if ($childOrderProduct->getProductGroup() !== $groupProduct->getProductGroup()) {
+                $childOrderProduct->setProductGroup($groupProduct->getProductGroup());
+                $changed = true;
+            }
+
+            if ($childOrderProduct->getShowInParentQueue() !== $groupProduct->getShowInParentQueue()) {
+                $childOrderProduct->setShowInParentQueue($groupProduct->getShowInParentQueue());
+                $changed = true;
+            }
         }
 
         if ($changed) {
@@ -206,15 +225,6 @@ class OrderService
         }
 
         return $changed;
-    }
-
-    private function shouldNormalizeOrderProductGroupLink(OrderProduct $orderProduct): bool
-    {
-        return (
-            !$orderProduct->getOrderProduct() instanceof OrderProduct &&
-            !$orderProduct->getParentProduct() instanceof Product &&
-            $orderProduct->getProductGroup() === null
-        );
     }
 
     /**
@@ -250,23 +260,38 @@ class OrderService
     private function findProductGroupProductLink(
         ?Product $parentProduct,
         Product $childProduct,
+        ?ProductGroup $currentProductGroup = null,
     ): ?ProductGroupProduct {
         if (!$parentProduct instanceof Product) {
             return null;
         }
 
         $repository = $this->manager->getRepository(ProductGroupProduct::class);
-        $directLink = $repository->findOneBy([
-            'product' => $parentProduct,
-            'productChild' => $childProduct,
-            'active' => true,
-        ]);
+        $directLinkQueryBuilder = $repository->createQueryBuilder('groupProduct')
+            ->andWhere('groupProduct.product = :parentProduct')
+            ->andWhere('groupProduct.productChild = :childProduct')
+            ->andWhere('groupProduct.active = true')
+            ->setParameter('parentProduct', $parentProduct)
+            ->setParameter('childProduct', $childProduct)
+            ->orderBy('groupProduct.showInParentQueue', 'ASC')
+            ->addOrderBy('groupProduct.id', 'DESC')
+            ->setMaxResults(1);
+
+        if ($currentProductGroup instanceof ProductGroup) {
+            $directLinkQueryBuilder
+                ->andWhere('groupProduct.productGroup = :currentProductGroup')
+                ->setParameter('currentProductGroup', $currentProductGroup);
+        }
+
+        $directLink = $directLinkQueryBuilder
+            ->getQuery()
+            ->getOneOrNullResult();
 
         if ($directLink instanceof ProductGroupProduct) {
             return $directLink;
         }
 
-        return $repository->createQueryBuilder('groupProduct')
+        $groupLinkQueryBuilder = $repository->createQueryBuilder('groupProduct')
             ->innerJoin(
                 ProductGroupParent::class,
                 'groupParent',
@@ -279,9 +304,18 @@ class OrderService
             ->andWhere('groupParent.active = true')
             ->setParameter('childProduct', $childProduct)
             ->setParameter('parentProduct', $parentProduct)
+            ->orderBy('groupProduct.showInParentQueue', 'ASC')
+            ->addOrderBy('groupProduct.id', 'DESC')
             ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
+        ;
+
+        if ($currentProductGroup instanceof ProductGroup) {
+            $groupLinkQueryBuilder
+                ->andWhere('groupProduct.productGroup = :currentProductGroup')
+                ->setParameter('currentProductGroup', $currentProductGroup);
+        }
+
+        return $groupLinkQueryBuilder->getQuery()->getOneOrNullResult();
     }
 
     public function createOrder(People $receiver, People $payer, $app)

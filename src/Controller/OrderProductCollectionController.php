@@ -5,7 +5,9 @@ namespace ControleOnline\Controller;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Order;
 use ControleOnline\Service\HydratorService;
+use ControleOnline\Service\OrderProductService;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\QueryBuilder;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,27 +17,37 @@ class OrderProductCollectionController
     public function __construct(
         private readonly EntityManagerInterface $manager,
         private readonly HydratorService $hydratorService,
+        private readonly OrderProductService $orderProductService,
     ) {
     }
 
     public function __invoke(Request $request): JsonResponse
     {
         try {
-            $criteria = $this->buildCriteria($request);
+            $orderId = $this->resolveOrderId($request);
             $itemsPerPage = max(1, (int) $request->query->get('itemsPerPage', 50));
             $page = max(1, (int) $request->query->get('page', 1));
             $offset = ($page - 1) * $itemsPerPage;
 
-            $items = $this->manager
-                ->getRepository(OrderProduct::class)
-                ->findBy($criteria, ['id' => 'ASC'], $itemsPerPage, $offset);
+            $totalItems = (int) $this->createFilteredQueryBuilder($orderId)
+                ->select('COUNT(DISTINCT orderProduct.id)')
+                ->getQuery()
+                ->getSingleScalarResult();
+
+            $items = $this->createFilteredQueryBuilder($orderId)
+                ->addOrderBy('orderProduct.id', 'ASC')
+                ->setMaxResults($itemsPerPage)
+                ->setFirstResult($offset)
+                ->getQuery()
+                ->getResult();
 
             return new JsonResponse(
                 $this->hydratorService->collectionData(
                     $items,
                     OrderProduct::class,
                     'order_product:read',
-                    $criteria,
+                    [],
+                    $totalItems,
                 ),
                 Response::HTTP_OK,
             );
@@ -53,16 +65,30 @@ class OrderProductCollectionController
         }
     }
 
-    private function buildCriteria(Request $request): array
+    private function createFilteredQueryBuilder(?int $orderId): QueryBuilder
     {
-        $criteria = [];
-        $orderId = $this->resolveOrderId($request);
+        $queryBuilder = $this->manager
+            ->createQueryBuilder()
+            ->select('orderProduct')
+            ->from(OrderProduct::class, 'orderProduct');
+
+        $this->orderProductService->securityFilter(
+            $queryBuilder,
+            OrderProduct::class,
+            'collection',
+            'orderProduct',
+        );
 
         if (null !== $orderId) {
-            $criteria['order'] = $this->manager->getReference(Order::class, $orderId);
+            $queryBuilder
+                ->andWhere('orderProduct.order = :orderProductOrder')
+                ->setParameter(
+                    'orderProductOrder',
+                    $this->manager->getReference(Order::class, $orderId),
+                );
         }
 
-        return $criteria;
+        return $queryBuilder;
     }
 
     private function resolveOrderId(Request $request): ?int

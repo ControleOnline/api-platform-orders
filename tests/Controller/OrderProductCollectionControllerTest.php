@@ -6,42 +6,48 @@ use ControleOnline\Controller\OrderProductCollectionController;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Service\HydratorService;
+use ControleOnline\Service\OrderProductService;
+use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\EntityRepository;
+use Doctrine\ORM\QueryBuilder;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 
 class OrderProductCollectionControllerTest extends TestCase
 {
-    public function testResolvesOrderIdQueryAndReturnsHydratedCollection(): void
+    public function testResolvesOrderIdQueryAndReturnsSecureHydratedCollection(): void
     {
         $items = [new OrderProduct()];
         $orderReference = $this->createStub(Order::class);
-        $capturedFindByArguments = null;
-        $capturedCollectionArguments = null;
         $payload = [
             'member' => [
                 ['id' => 72133],
             ],
             'totalItems' => 1,
         ];
+        $capturedCollectionArguments = null;
+        $countFilters = [];
+        $itemsFilters = [];
+        $itemsPagination = [];
 
-        $repository = $this->createStub(EntityRepository::class);
-        $repository
-            ->method('findBy')
-            ->willReturnCallback(function (...$arguments) use ($items, &$capturedFindByArguments) {
-                $capturedFindByArguments = $arguments;
-
-                return $items;
-            });
+        $countQueryBuilder = $this->createQueryBuilderMock(
+            countResult: 1,
+            andWhereCalls: $countFilters,
+        );
+        $itemsQueryBuilder = $this->createQueryBuilderMock(
+            result: $items,
+            andWhereCalls: $itemsFilters,
+            paginationCalls: $itemsPagination,
+        );
 
         $manager = $this->createStub(EntityManagerInterface::class);
         $manager
-            ->method('getReference')
-            ->willReturn($orderReference);
+            ->method('createQueryBuilder')
+            ->willReturnOnConsecutiveCalls($countQueryBuilder, $itemsQueryBuilder);
         $manager
-            ->method('getRepository')
-            ->willReturn($repository);
+            ->method('getReference')
+            ->with(Order::class, 72133)
+            ->willReturn($orderReference);
 
         $hydratorService = $this->createStub(HydratorService::class);
         $hydratorService
@@ -52,7 +58,18 @@ class OrderProductCollectionControllerTest extends TestCase
                 return $payload;
             });
 
-        $controller = new OrderProductCollectionController($manager, $hydratorService);
+        $orderProductService = $this->createMock(OrderProductService::class);
+        $orderProductService
+            ->expects(self::exactly(2))
+            ->method('securityFilter')
+            ->with(
+                self::isInstanceOf(QueryBuilder::class),
+                OrderProduct::class,
+                'collection',
+                'orderProduct',
+            );
+
+        $controller = new OrderProductCollectionController($manager, $hydratorService, $orderProductService);
         $response = $controller->__invoke(
             Request::create('/order_products', 'GET', [
                 'order_id' => '72133',
@@ -62,23 +79,18 @@ class OrderProductCollectionControllerTest extends TestCase
 
         self::assertSame(200, $response->getStatusCode());
         self::assertSame($payload, json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR));
-        self::assertSame(
-            [
-                ['order' => $orderReference],
-                ['id' => 'ASC'],
-                200,
-                0,
-            ],
-            array_slice($capturedFindByArguments, 0, 4),
-        );
+        self::assertSame(['orderProduct.order = :orderProductOrder'], $countFilters);
+        self::assertSame(['orderProduct.order = :orderProductOrder'], $itemsFilters);
+        self::assertSame(['max' => 200, 'first' => 0], $itemsPagination);
         self::assertSame(
             [
                 $items,
                 OrderProduct::class,
                 'order_product:read',
-                ['order' => $orderReference],
+                [],
+                1,
             ],
-            array_slice($capturedCollectionArguments, 0, 4),
+            array_slice($capturedCollectionArguments, 0, 5),
         );
     }
 
@@ -86,31 +98,29 @@ class OrderProductCollectionControllerTest extends TestCase
     {
         $items = [new OrderProduct()];
         $orderReference = $this->createStub(Order::class);
-        $capturedFindByArguments = null;
-        $capturedCollectionArguments = null;
         $payload = [
             'member' => [
                 ['id' => 72133],
             ],
             'totalItems' => 1,
         ];
+        $capturedCollectionArguments = null;
+        $itemsPagination = [];
 
-        $repository = $this->createStub(EntityRepository::class);
-        $repository
-            ->method('findBy')
-            ->willReturnCallback(function (...$arguments) use ($items, &$capturedFindByArguments) {
-                $capturedFindByArguments = $arguments;
-
-                return $items;
-            });
+        $countQueryBuilder = $this->createQueryBuilderMock(countResult: 3);
+        $itemsQueryBuilder = $this->createQueryBuilderMock(
+            result: $items,
+            paginationCalls: $itemsPagination,
+        );
 
         $manager = $this->createStub(EntityManagerInterface::class);
         $manager
-            ->method('getReference')
-            ->willReturn($orderReference);
+            ->method('createQueryBuilder')
+            ->willReturnOnConsecutiveCalls($countQueryBuilder, $itemsQueryBuilder);
         $manager
-            ->method('getRepository')
-            ->willReturn($repository);
+            ->method('getReference')
+            ->with(Order::class, 72133)
+            ->willReturn($orderReference);
 
         $hydratorService = $this->createStub(HydratorService::class);
         $hydratorService
@@ -121,7 +131,12 @@ class OrderProductCollectionControllerTest extends TestCase
                 return $payload;
             });
 
-        $controller = new OrderProductCollectionController($manager, $hydratorService);
+        $orderProductService = $this->createMock(OrderProductService::class);
+        $orderProductService
+            ->expects(self::exactly(2))
+            ->method('securityFilter');
+
+        $controller = new OrderProductCollectionController($manager, $hydratorService, $orderProductService);
         $response = $controller->__invoke(
             Request::create('/order_products', 'GET', [
                 'order' => '/orders/72133',
@@ -132,23 +147,70 @@ class OrderProductCollectionControllerTest extends TestCase
 
         self::assertSame(200, $response->getStatusCode());
         self::assertSame($payload, json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR));
-        self::assertSame(
-            [
-                ['order' => $orderReference],
-                ['id' => 'ASC'],
-                50,
-                50,
-            ],
-            array_slice($capturedFindByArguments, 0, 4),
-        );
-        self::assertSame(
-            [
-                $items,
-                OrderProduct::class,
-                'order_product:read',
-                ['order' => $orderReference],
-            ],
-            array_slice($capturedCollectionArguments, 0, 4),
-        );
+        self::assertSame(['max' => 50, 'first' => 50], $itemsPagination);
+        self::assertSame(3, $capturedCollectionArguments[4]);
+    }
+
+    private function createQueryBuilderMock(
+        array $result = [],
+        int $countResult = 0,
+        array &$andWhereCalls = [],
+        array &$paginationCalls = [],
+    ): QueryBuilder {
+        $query = $this
+            ->getMockBuilder(AbstractQuery::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['getResult', 'getSingleScalarResult'])
+            ->getMockForAbstractClass();
+        $query
+            ->method('getResult')
+            ->willReturn($result);
+        $query
+            ->method('getSingleScalarResult')
+            ->willReturn((string) $countResult);
+
+        $queryBuilder = $this
+            ->getMockBuilder(QueryBuilder::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([
+                'select',
+                'from',
+                'andWhere',
+                'setParameter',
+                'addOrderBy',
+                'setMaxResults',
+                'setFirstResult',
+                'getQuery',
+            ])
+            ->getMock();
+
+        $queryBuilder->method('select')->willReturnSelf();
+        $queryBuilder->method('from')->willReturnSelf();
+        $queryBuilder
+            ->method('andWhere')
+            ->willReturnCallback(function (string $expression) use (&$andWhereCalls, $queryBuilder): QueryBuilder {
+                $andWhereCalls[] = $expression;
+
+                return $queryBuilder;
+            });
+        $queryBuilder->method('setParameter')->willReturnSelf();
+        $queryBuilder->method('addOrderBy')->willReturnSelf();
+        $queryBuilder
+            ->method('setMaxResults')
+            ->willReturnCallback(function (int $maxResults) use (&$paginationCalls, $queryBuilder): QueryBuilder {
+                $paginationCalls['max'] = $maxResults;
+
+                return $queryBuilder;
+            });
+        $queryBuilder
+            ->method('setFirstResult')
+            ->willReturnCallback(function (int $firstResult) use (&$paginationCalls, $queryBuilder): QueryBuilder {
+                $paginationCalls['first'] = $firstResult;
+
+                return $queryBuilder;
+            });
+        $queryBuilder->method('getQuery')->willReturn($query);
+
+        return $queryBuilder;
     }
 }

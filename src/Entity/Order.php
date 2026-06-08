@@ -26,6 +26,7 @@ use ControleOnline\Filter\CustomOrFilter;
 
 use ControleOnline\Repository\OrderRepository;
 use ControleOnline\Service\OrderReportSummaryResolver;
+use ControleOnline\Service\OrderSalesSummaryResolver;
 use DateTime;
 use DateTimeInterface;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -125,7 +126,7 @@ use stdClass;
     'notified',
     'mainOrderId'
 ])]
-    #[ApiFilter(CustomOrFilter::class, properties: [
+#[ApiFilter(CustomOrFilter::class, properties: [
     'id',
     'app',
     'orderType',
@@ -141,7 +142,7 @@ use stdClass;
     'addressOrigin.nickname',
     'addressDestination.nickname'
 ])]
-
+#[ApiFilter(SearchFilter::class, properties: ['orderProducts.product' => 'exact'])]
 #[ORM\Table(name: 'orders')]
 #[ORM\Index(name: 'adress_destination_id', columns: ['address_destination_id'])]
 #[ORM\Index(name: 'notified', columns: ['notified'])]
@@ -238,6 +239,15 @@ class Order
         resolver: OrderReportSummaryResolver::class
     )]
     private $reportSummary = null;
+
+    #[CollectionSummary(
+        name: 'sales',
+        parameter: 'summary',
+        parameterValue: 'sales',
+        groups: ['order:read'],
+        resolver: OrderSalesSummaryResolver::class
+    )]
+    private $salesSummary = null;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status.realStatus' => 'exact'])]

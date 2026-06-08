@@ -191,6 +191,20 @@ class OrderRepository extends ServiceEntityRepository
     };
   }
 
+  public function resolveSalesSummary(
+    QueryBuilder $filteredIdsQueryBuilder,
+    array $context = []
+  ): array {
+    $rows = $this->fetchSalesSummaryRows($filteredIdsQueryBuilder, $context);
+
+    return [
+      'totals' => $this->buildSalesSummaryTotals($rows),
+      'daily' => $this->buildSalesSummarySeries($rows, 'day'),
+      'weekly' => $this->buildSalesSummarySeries($rows, 'week'),
+      'monthly' => $this->buildSalesSummarySeries($rows, 'month'),
+    ];
+  }
+
   public function findLatestMarketplaceOrderForProvider(int $providerId, string $app): ?Order
   {
     if ($providerId <= 0 || trim($app) === '') {
@@ -595,5 +609,238 @@ class OrderRepository extends ServiceEntityRepository
     } catch (\Throwable) {
       return $dateKey;
     }
+  }
+
+  /**
+   * @param array<string, mixed> $context
+   * @return array<int, array<string, mixed>>
+   */
+  private function fetchSalesSummaryRows(
+    QueryBuilder $filteredIdsQueryBuilder,
+    array $context = []
+  ): array {
+    $summaryQueryBuilder = $this->createQueryBuilder('summary_order');
+    $summaryQueryBuilder
+      ->join('summary_order.orderProducts', 'summary_order_product')
+      ->leftJoin('summary_order.status', 'summary_status')
+      ->select(
+        'summary_order.id AS orderId',
+        'summary_order.orderDate AS orderDate',
+        'summary_order_product.quantity AS quantity',
+        'summary_order_product.total AS total'
+      )
+      ->andWhere(sprintf(
+        'summary_order.id IN (%s)',
+        $filteredIdsQueryBuilder->getDQL()
+      ))
+      ->andWhere('summary_order.orderType = :salesOrderType')
+      ->andWhere('summary_status.realStatus = :salesRealStatus')
+      ->andWhere('summary_order_product.orderProduct IS NULL')
+      ->setParameter('salesOrderType', Order::ORDER_TYPE_SALE)
+      ->setParameter('salesRealStatus', 'closed')
+      ->orderBy('summary_order.orderDate', 'ASC')
+      ->addOrderBy('summary_order.id', 'ASC');
+
+    $salesProductId = $this->resolveSalesProductId($context);
+    if ($salesProductId > 0) {
+      $summaryQueryBuilder
+        ->andWhere('IDENTITY(summary_order_product.product) = :salesProductId')
+        ->setParameter('salesProductId', $salesProductId);
+    }
+
+    $this->copyReportParameters($summaryQueryBuilder, $filteredIdsQueryBuilder);
+
+    $rows = $summaryQueryBuilder->getQuery()->getArrayResult();
+
+    return array_values(array_filter(
+      is_array($rows) ? $rows : [],
+      static fn ($row) => is_array($row)
+    ));
+  }
+
+  private function buildSalesSummaryTotals(array $rows): array
+  {
+    $uniqueOrders = [];
+    $totalUnits = 0.0;
+    $totalRevenue = 0.0;
+
+    foreach ($rows as $row) {
+      $orderId = (int) ($row['orderId'] ?? 0);
+      if ($orderId > 0) {
+        $uniqueOrders[$orderId] = true;
+      }
+
+      $totalUnits += (float) ($row['quantity'] ?? 0);
+      $totalRevenue += (float) ($row['total'] ?? 0);
+    }
+
+    $orders = count($uniqueOrders);
+
+    return [
+      'orders' => $orders,
+      'units' => $totalUnits,
+      'revenue' => $totalRevenue,
+      'averageTicket' => $orders > 0 ? ($totalRevenue / $orders) : 0.0,
+    ];
+  }
+
+  private function buildSalesSummarySeries(array $rows, string $period): array
+  {
+    $groups = [];
+
+    foreach ($rows as $row) {
+      $date = $this->normalizeSalesDate($row['orderDate'] ?? null);
+      if (!$date instanceof \DateTimeImmutable) {
+        continue;
+      }
+
+      $bucket = $this->resolveSalesPeriodBucket($date, $period);
+      $key = $bucket['key'] ?? null;
+      $label = $bucket['label'] ?? null;
+
+      if (!is_string($key) || '' === $key) {
+        continue;
+      }
+
+      if (!isset($groups[$key])) {
+        $groups[$key] = [
+          'key' => $key,
+          'label' => $label,
+          'orders' => [],
+          'units' => 0.0,
+          'revenue' => 0.0,
+        ];
+      }
+
+      $orderId = (int) ($row['orderId'] ?? 0);
+      if ($orderId > 0) {
+        $groups[$key]['orders'][$orderId] = true;
+      }
+
+      $groups[$key]['units'] += (float) ($row['quantity'] ?? 0);
+      $groups[$key]['revenue'] += (float) ($row['total'] ?? 0);
+    }
+
+    ksort($groups);
+
+    return array_values(array_map(static function (array $group): array {
+      return [
+        'key' => $group['key'],
+        'label' => $group['label'],
+        'orders' => count($group['orders']),
+        'units' => (float) $group['units'],
+        'revenue' => (float) $group['revenue'],
+      ];
+    }, $groups));
+  }
+
+  private function resolveSalesPeriodBucket(\DateTimeImmutable $date, string $period): array
+  {
+    return match (strtolower(trim($period))) {
+      'week' => $this->resolveSalesWeekBucket($date),
+      'month' => [
+        'key' => $date->format('Y-m'),
+        'label' => $date->format('m/Y'),
+      ],
+      default => [
+        'key' => $date->format('Y-m-d'),
+        'label' => $date->format('d/m'),
+      ],
+    };
+  }
+
+  private function resolveSalesWeekBucket(\DateTimeImmutable $date): array
+  {
+    $isoYear = (int) $date->format('o');
+    $isoWeek = (int) $date->format('W');
+    $weekStart = $date->setISODate($isoYear, $isoWeek, 1)->setTime(0, 0, 0);
+    $weekEnd = $weekStart->modify('+6 days')->setTime(23, 59, 59);
+
+    return [
+      'key' => sprintf('%04d-W%02d', $isoYear, $isoWeek),
+      'label' => sprintf(
+        'Sem %02d · %s - %s',
+        $isoWeek,
+        $weekStart->format('d/m'),
+        $weekEnd->format('d/m')
+      ),
+    ];
+  }
+
+  private function normalizeSalesDate(mixed $value): ?\DateTimeImmutable
+  {
+    if ($value instanceof \DateTimeImmutable) {
+      return $value;
+    }
+
+    if ($value instanceof \DateTimeInterface) {
+      return \DateTimeImmutable::createFromInterface($value);
+    }
+
+    $text = trim((string) $value);
+    if ('' === $text) {
+      return null;
+    }
+
+    try {
+      return new \DateTimeImmutable($text);
+    } catch (\Throwable) {
+      return null;
+    }
+  }
+
+  private function resolveSalesProductId(array $context = []): int
+  {
+    $filters = $context['filters'] ?? [];
+    if (!is_array($filters)) {
+      return 0;
+    }
+
+    foreach ([
+      'product',
+      'orderProducts.product',
+      'orderProduct.product',
+      'productId',
+    ] as $filterName) {
+      if (!array_key_exists($filterName, $filters)) {
+        continue;
+      }
+
+      $productId = $this->extractNumericId($filters[$filterName]);
+      if ($productId > 0) {
+        return $productId;
+      }
+    }
+
+    return 0;
+  }
+
+  private function extractNumericId(mixed $value): int
+  {
+    if (is_array($value)) {
+      foreach (['id', '@id', 'value'] as $key) {
+        if (!array_key_exists($key, $value)) {
+          continue;
+        }
+
+        $resolvedId = $this->extractNumericId($value[$key]);
+        if ($resolvedId > 0) {
+          return $resolvedId;
+        }
+      }
+
+      return 0;
+    }
+
+    if (is_int($value)) {
+      return $value > 0 ? $value : 0;
+    }
+
+    if (is_string($value)) {
+      $digits = preg_replace('/\D+/', '', $value);
+      return '' !== $digits ? (int) $digits : 0;
+    }
+
+    return 0;
   }
 }

@@ -181,6 +181,7 @@ class OrderRepositorySalesSummaryTest extends TestCase
         $repository->expects(self::once())
             ->method('resolveSalesSummary')
             ->with($filteredIdsQueryBuilder, [
+                'includeNestedProducts' => true,
                 'filters' => [
                     'product' => '/products/1133',
                 ],
@@ -229,6 +230,103 @@ class OrderRepositorySalesSummaryTest extends TestCase
         self::assertSame(3, $setParameters['salesCompanyId']);
         self::assertSame('2026-05-10 00:00:00', $setParameters['salesAfter']->format('Y-m-d H:i:s'));
         self::assertSame('2026-06-08 23:59:59', $setParameters['salesBefore']->format('Y-m-d H:i:s'));
+    }
+
+    public function testProductSalesSummaryIncludesNestedProductRowsWhenRequested(): void
+    {
+        $filteredIdsQueryBuilder = $this->createMock(QueryBuilder::class);
+        $filteredIdsQueryBuilder->method('getDQL')->willReturn('SELECT summary_filter.id FROM orders summary_filter');
+        $filteredIdsQueryBuilder->method('getParameters')->willReturn(new ArrayCollection());
+
+        $summaryQuery = $this->createMock(Query::class);
+        $summaryQuery->method('getArrayResult')->willReturn([
+            [
+                'orderId' => '72142',
+                'orderDate' => '2026-06-07 18:00:00',
+                'quantity' => '1',
+                'total' => '0',
+            ],
+        ]);
+
+        $summaryQueryBuilder = $this->createMock(QueryBuilder::class);
+        foreach ([
+            'from',
+            'join',
+            'leftJoin',
+            'select',
+            'orderBy',
+            'addOrderBy',
+            'setParameter',
+        ] as $method) {
+            $summaryQueryBuilder->method($method)->willReturnSelf();
+        }
+        $andWhereCalls = [];
+        $summaryQueryBuilder->method('andWhere')
+            ->willReturnCallback(function (string $expression) use (&$andWhereCalls, $summaryQueryBuilder) {
+                $andWhereCalls[] = $expression;
+                return $summaryQueryBuilder;
+            });
+        $summaryQueryBuilder->method('getQuery')->willReturn($summaryQuery);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::once())
+            ->method('createQueryBuilder')
+            ->willReturn($summaryQueryBuilder);
+        $entityManager->method('getClassMetadata')->with(Order::class)->willReturn(new ClassMetadata(Order::class));
+
+        $managerRegistry = $this->createMock(ManagerRegistry::class);
+        $managerRegistry->method('getManagerForClass')->with(Order::class)->willReturn($entityManager);
+        $managerRegistry->method('getManager')->willReturn($entityManager);
+
+        $repository = new OrderRepository(
+            $this->createMock(PeopleService::class),
+            $managerRegistry
+        );
+
+        $result = $repository->resolveSalesSummary($filteredIdsQueryBuilder, [
+            'includeNestedProducts' => true,
+            'filters' => [
+                'product' => '/products/1133',
+            ],
+        ]);
+
+        self::assertSame([
+            'totals' => [
+                'orders' => 1,
+                'units' => 1.0,
+                'revenue' => 0.0,
+                'averageTicket' => 0.0,
+            ],
+            'daily' => [
+                [
+                    'key' => '2026-06-07',
+                    'label' => '07/06',
+                    'orders' => 1,
+                    'units' => 1.0,
+                    'revenue' => 0.0,
+                ],
+            ],
+            'weekly' => [
+                [
+                    'key' => '2026-W23',
+                    'label' => 'Sem 23 · 01/06 - 07/06',
+                    'orders' => 1,
+                    'units' => 1.0,
+                    'revenue' => 0.0,
+                ],
+            ],
+            'monthly' => [
+                [
+                    'key' => '2026-06',
+                    'label' => '06/2026',
+                    'orders' => 1,
+                    'units' => 1.0,
+                    'revenue' => 0.0,
+                ],
+            ],
+        ], $result);
+        self::assertContains('IDENTITY(summary_order_product.product) = :salesProductId', $andWhereCalls);
+        self::assertNotContains('summary_order_product.orderProduct IS NULL', $andWhereCalls);
     }
 
     private function mockQueryBuilder(array $rows): QueryBuilder

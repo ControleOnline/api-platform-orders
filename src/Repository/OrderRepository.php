@@ -248,6 +248,7 @@ class OrderRepository extends ServiceEntityRepository
     }
 
     return $this->resolveSalesSummary($filteredIdsQueryBuilder, [
+      'includeNestedProducts' => true,
       'filters' => [
         'product' => sprintf('/products/%d', $productId),
       ],
@@ -668,6 +669,7 @@ class OrderRepository extends ServiceEntityRepository
     QueryBuilder $filteredIdsQueryBuilder,
     array $context = []
   ): array {
+    $includeNestedProducts = (bool) ($context['includeNestedProducts'] ?? false);
     $summaryQueryBuilder = $this->createQueryBuilder('summary_order');
     $summaryQueryBuilder
       ->join('summary_order.orderProducts', 'summary_order_product')
@@ -684,11 +686,14 @@ class OrderRepository extends ServiceEntityRepository
       ))
       ->andWhere('summary_order.orderType = :salesOrderType')
       ->andWhere('summary_status.realStatus = :salesRealStatus')
-      ->andWhere('summary_order_product.orderProduct IS NULL')
       ->setParameter('salesOrderType', Order::ORDER_TYPE_SALE)
       ->setParameter('salesRealStatus', 'closed')
       ->orderBy('summary_order.orderDate', 'ASC')
       ->addOrderBy('summary_order.id', 'ASC');
+
+    if (!$includeNestedProducts) {
+      $summaryQueryBuilder->andWhere('summary_order_product.orderProduct IS NULL');
+    }
 
     $salesProductId = $this->resolveSalesProductId($context);
     if ($salesProductId > 0) {

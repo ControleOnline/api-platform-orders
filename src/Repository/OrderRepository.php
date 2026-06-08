@@ -225,7 +225,6 @@ class OrderRepository extends ServiceEntityRepository
       ->leftJoin('filtered_order.status', 'filtered_status')
       ->andWhere('filtered_order.orderType = :salesOrderType')
       ->andWhere('filtered_status.realStatus = :salesRealStatus')
-      ->andWhere('filtered_order_product.orderProduct IS NULL')
       ->andWhere('IDENTITY(filtered_order_product.product) = :salesProductId')
       ->andWhere('IDENTITY(filtered_order.provider) = :salesCompanyId')
       ->setParameter('salesOrderType', Order::ORDER_TYPE_SALE)

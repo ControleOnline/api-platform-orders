@@ -218,7 +218,6 @@ class OrderRepositorySalesSummaryTest extends TestCase
         self::assertSame([
             'filtered_order.orderType = :salesOrderType',
             'filtered_status.realStatus = :salesRealStatus',
-            'filtered_order_product.orderProduct IS NULL',
             'IDENTITY(filtered_order_product.product) = :salesProductId',
             'IDENTITY(filtered_order.provider) = :salesCompanyId',
             'filtered_order.orderDate >= :salesAfter',

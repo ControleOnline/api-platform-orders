@@ -2,7 +2,9 @@
 
 namespace ControleOnline\Tests\Repository;
 
+use ControleOnline\Entity\People;
 use ControleOnline\Entity\Order;
+use ControleOnline\Entity\Product;
 use ControleOnline\Repository\OrderRepository;
 use ControleOnline\Service\PeopleService;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -121,6 +123,112 @@ class OrderRepositorySalesSummaryTest extends TestCase
                 ],
             ],
         ], $repository->resolveSalesSummary($filteredIdsQueryBuilder, []));
+    }
+
+    public function testBuildsProductSalesSummaryForTheSelectedProduct(): void
+    {
+        $company = $this->createMock(People::class);
+        $company->method('getId')->willReturn(3);
+
+        $product = $this->createMock(Product::class);
+        $product->method('getId')->willReturn(1133);
+        $product->method('getCompany')->willReturn($company);
+
+        $filteredIdsQueryBuilder = $this->createMock(QueryBuilder::class);
+        foreach ([
+            'from',
+            'select',
+            'join',
+            'leftJoin',
+            'orderBy',
+            'addOrderBy',
+        ] as $method) {
+            $filteredIdsQueryBuilder->method($method)->willReturnSelf();
+        }
+
+        $andWhereCalls = [];
+        $filteredIdsQueryBuilder->method('andWhere')
+            ->willReturnCallback(function (string $expression) use (&$andWhereCalls, $filteredIdsQueryBuilder) {
+                $andWhereCalls[] = $expression;
+                return $filteredIdsQueryBuilder;
+            });
+
+        $setParameters = [];
+        $filteredIdsQueryBuilder->method('setParameter')
+            ->willReturnCallback(function (string $name, mixed $value) use (&$setParameters, $filteredIdsQueryBuilder) {
+                $setParameters[$name] = $value;
+                return $filteredIdsQueryBuilder;
+            });
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::once())
+            ->method('createQueryBuilder')
+            ->willReturn($filteredIdsQueryBuilder);
+        $entityManager->method('getClassMetadata')->with(Order::class)->willReturn(new ClassMetadata(Order::class));
+
+        $managerRegistry = $this->createMock(ManagerRegistry::class);
+        $managerRegistry->method('getManagerForClass')->with(Order::class)->willReturn($entityManager);
+        $managerRegistry->method('getManager')->willReturn($entityManager);
+
+        $repository = $this->getMockBuilder(OrderRepository::class)
+            ->setConstructorArgs([
+                $this->createMock(PeopleService::class),
+                $managerRegistry,
+            ])
+            ->onlyMethods(['resolveSalesSummary'])
+            ->getMock();
+
+        $repository->expects(self::once())
+            ->method('resolveSalesSummary')
+            ->with($filteredIdsQueryBuilder, [
+                'filters' => [
+                    'product' => '/products/1133',
+                ],
+            ])
+            ->willReturn([
+                'totals' => [
+                    'orders' => 2,
+                    'units' => 3,
+                    'revenue' => 39,
+                    'averageTicket' => 19.5,
+                ],
+                'daily' => [],
+                'weekly' => [],
+                'monthly' => [],
+            ]);
+
+        $result = $repository->resolveProductSalesSummary(
+            $product,
+            '2026-05-10 00:00:00',
+            '2026-06-08 23:59:59'
+        );
+
+        self::assertSame([
+            'totals' => [
+                'orders' => 2,
+                'units' => 3,
+                'revenue' => 39,
+                'averageTicket' => 19.5,
+            ],
+            'daily' => [],
+            'weekly' => [],
+            'monthly' => [],
+        ], $result);
+        self::assertSame([
+            'filtered_order.orderType = :salesOrderType',
+            'filtered_status.realStatus = :salesRealStatus',
+            'filtered_order_product.orderProduct IS NULL',
+            'IDENTITY(filtered_order_product.product) = :salesProductId',
+            'IDENTITY(filtered_order.provider) = :salesCompanyId',
+            'filtered_order.orderDate >= :salesAfter',
+            'filtered_order.orderDate <= :salesBefore',
+        ], $andWhereCalls);
+        self::assertSame(Order::ORDER_TYPE_SALE, $setParameters['salesOrderType']);
+        self::assertSame('closed', $setParameters['salesRealStatus']);
+        self::assertSame(1133, $setParameters['salesProductId']);
+        self::assertSame(3, $setParameters['salesCompanyId']);
+        self::assertSame('2026-05-10 00:00:00', $setParameters['salesAfter']->format('Y-m-d H:i:s'));
+        self::assertSame('2026-06-08 23:59:59', $setParameters['salesBefore']->format('Y-m-d H:i:s'));
     }
 
     private function mockQueryBuilder(array $rows): QueryBuilder

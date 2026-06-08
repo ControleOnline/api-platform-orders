@@ -3,6 +3,7 @@
 namespace ControleOnline\Repository;
 
 use ControleOnline\Entity\Order;
+use ControleOnline\Entity\Product;
 use ControleOnline\Service\PeopleService;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Common\Collections\Collection;
@@ -203,6 +204,54 @@ class OrderRepository extends ServiceEntityRepository
       'weekly' => $this->buildSalesSummarySeries($rows, 'week'),
       'monthly' => $this->buildSalesSummarySeries($rows, 'month'),
     ];
+  }
+
+  public function resolveProductSalesSummary(
+    Product $product,
+    ?string $after = null,
+    ?string $before = null
+  ): array {
+    $productId = (int) ($product->getId() ?? 0);
+    $companyId = (int) ($product->getCompany()?->getId() ?? 0);
+
+    if ($productId <= 0 || $companyId <= 0) {
+      return $this->emptySalesSummary();
+    }
+
+    $filteredIdsQueryBuilder = $this->createQueryBuilder('filtered_order');
+    $filteredIdsQueryBuilder
+      ->select('filtered_order.id')
+      ->join('filtered_order.orderProducts', 'filtered_order_product')
+      ->leftJoin('filtered_order.status', 'filtered_status')
+      ->andWhere('filtered_order.orderType = :salesOrderType')
+      ->andWhere('filtered_status.realStatus = :salesRealStatus')
+      ->andWhere('filtered_order_product.orderProduct IS NULL')
+      ->andWhere('IDENTITY(filtered_order_product.product) = :salesProductId')
+      ->andWhere('IDENTITY(filtered_order.provider) = :salesCompanyId')
+      ->setParameter('salesOrderType', Order::ORDER_TYPE_SALE)
+      ->setParameter('salesRealStatus', 'closed')
+      ->setParameter('salesProductId', $productId)
+      ->setParameter('salesCompanyId', $companyId)
+      ->orderBy('filtered_order.orderDate', 'ASC')
+      ->addOrderBy('filtered_order.id', 'ASC');
+
+    if ($afterDate = $this->normalizeSalesBoundary($after)) {
+      $filteredIdsQueryBuilder
+        ->andWhere('filtered_order.orderDate >= :salesAfter')
+        ->setParameter('salesAfter', $afterDate);
+    }
+
+    if ($beforeDate = $this->normalizeSalesBoundary($before, true)) {
+      $filteredIdsQueryBuilder
+        ->andWhere('filtered_order.orderDate <= :salesBefore')
+        ->setParameter('salesBefore', $beforeDate);
+    }
+
+    return $this->resolveSalesSummary($filteredIdsQueryBuilder, [
+      'filters' => [
+        'product' => sprintf('/products/%d', $productId),
+      ],
+    ]);
   }
 
   public function findLatestMarketplaceOrderForProvider(int $providerId, string $app): ?Order
@@ -789,6 +838,24 @@ class OrderRepository extends ServiceEntityRepository
     }
   }
 
+  private function normalizeSalesBoundary(?string $value, bool $endOfDay = false): ?\DateTimeImmutable
+  {
+    $text = trim((string) $value);
+    if ('' === $text) {
+      return null;
+    }
+
+    try {
+      $date = new \DateTimeImmutable($text);
+
+      return $endOfDay
+        ? $date->setTime(23, 59, 59)
+        : $date->setTime(0, 0, 0);
+    } catch (\Throwable) {
+      return null;
+    }
+  }
+
   private function resolveSalesProductId(array $context = []): int
   {
     $filters = $context['filters'] ?? [];
@@ -813,6 +880,21 @@ class OrderRepository extends ServiceEntityRepository
     }
 
     return 0;
+  }
+
+  private function emptySalesSummary(): array
+  {
+    return [
+      'totals' => [
+        'orders' => 0,
+        'units' => 0.0,
+        'revenue' => 0.0,
+        'averageTicket' => 0.0,
+      ],
+      'daily' => [],
+      'weekly' => [],
+      'monthly' => [],
+    ];
   }
 
   private function extractNumericId(mixed $value): int

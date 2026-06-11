@@ -85,7 +85,37 @@ class OrderProductService
         Order $order,
         ?string $content
     ): Order {
-        return $this->addProductsToOrder($order, $this->decodePayload($content));
+        return $this->addProductsToOrder($order, $this->normalizeOrderProductItems($this->decodePayload($content)));
+    }
+
+    public function replaceProductsToOrder(Order $order, array $items): Order
+    {
+        $this->removeExistingOrderProducts($order);
+        $this->manager->flush();
+        $this->manager->refresh($order);
+
+        $normalizedItems = $this->normalizeOrderProductItems($items);
+        if (empty($normalizedItems)) {
+            $this->orderService->calculateOrderPrice($order);
+            $this->manager->refresh($order);
+            self::$mainProduct = true;
+
+            return $order;
+        }
+
+        self::$mainProduct = true;
+        $this->addProductsToOrder($order, [reset($normalizedItems)]);
+        $this->manager->refresh($order);
+        self::$mainProduct = true;
+
+        return $order;
+    }
+
+    public function replaceProductsToOrderFromContent(
+        Order $order,
+        ?string $content
+    ): Order {
+        return $this->replaceProductsToOrder($order, $this->decodePayload($content));
     }
 
     public function findOrderProductById(int $id): ?OrderProduct
@@ -397,6 +427,44 @@ class OrderProductService
         $decoded = json_decode($content, true);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    private function normalizeOrderProductItems(array $items): array
+    {
+        if (isset($items['product']) || isset($items['productId'])) {
+            return [$items];
+        }
+
+        if (array_is_list($items)) {
+            return array_values(array_filter(
+                $items,
+                static fn (mixed $item): bool => is_array($item),
+            ));
+        }
+
+        if (isset($items['items']) && is_array($items['items'])) {
+            return array_values(array_filter(
+                $items['items'],
+                static fn (mixed $item): bool => is_array($item),
+            ));
+        }
+
+        return [];
+    }
+
+    private function removeExistingOrderProducts(Order $order): void
+    {
+        $existingOrderProducts = $this->manager->getRepository(OrderProduct::class)->findBy([
+            'order' => $order,
+        ]);
+
+        foreach ($existingOrderProducts as $existingOrderProduct) {
+            if ($existingOrderProduct->getOrderProduct() instanceof OrderProduct) {
+                continue;
+            }
+
+            $this->removeOrderProductBranch($existingOrderProduct);
+        }
     }
 
     private function guardMarketplaceOrderProductMutation(OrderProduct $orderProduct): void

@@ -21,6 +21,7 @@ use ControleOnline\Controller\DiscoveryCart;
 use ControleOnline\Controller\OrderConferenceController;
 use ControleOnline\Controller\OrderDetailsController;
 use ControleOnline\Controller\PrintOrderAction;
+use ControleOnline\Controller\ReplaceProductsOrderAction;
 use ControleOnline\Attribute\CollectionSummary;
 use ControleOnline\Filter\CustomOrFilter;
 
@@ -97,6 +98,13 @@ use stdClass;
             security: 'is_granted(\'ROLE_HUMAN\')',
             uriTemplate: '/orders/{id}/add-products',
             controller: AddProductsOrderAction::class,
+            denormalizationContext: ['groups' => ['order:write']],
+            normalizationContext: ['groups' => ['order_details:read']],
+        ),
+        new Put(
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            uriTemplate: '/orders/{id}/replace-products',
+            controller: ReplaceProductsOrderAction::class,
             denormalizationContext: ['groups' => ['order:write']],
             normalizationContext: ['groups' => ['order_details:read']],
         ),

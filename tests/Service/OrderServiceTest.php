@@ -14,6 +14,8 @@ use ControleOnline\Service\OrderService;
 use ControleOnline\Service\PeopleService;
 use ControleOnline\Service\StatusService;
 use ControleOnline\Service\Client\WebsocketClient;
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Statement;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\QueryBuilder;
@@ -118,6 +120,54 @@ class OrderServiceTest extends TestCase
 
         self::assertTrue($service->normalizeDraftCartOrder($order));
         self::assertSame(OrderService::ORDER_TYPE_CART, $order->getOrderType());
+    }
+
+    public function testCalculateGroupProductPriceConsolidatesGroupRulesIntoParentTotal(): void
+    {
+        $order = new Order();
+        $this->setEntityId(Order::class, $order, 72320);
+
+        $boundParameters = [];
+        $statement = $this->createMock(Statement::class);
+        $statement
+            ->expects(self::exactly(3))
+            ->method('bindValue')
+            ->willReturnCallback(static function (string $parameter, mixed $value) use (&$boundParameters): void {
+                $boundParameters[$parameter] = $value;
+            });
+        $statement
+            ->expects(self::once())
+            ->method('executeStatement');
+
+        $connection = $this->getMockBuilder(Connection::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['prepare'])
+            ->getMock();
+        $connection
+            ->expects(self::once())
+            ->method('prepare')
+            ->with(self::callback(static function (string $sql): bool {
+                return str_contains($sql, 'P.price + IFNULL(parent_prices.extra_price, 0)')
+                    && str_contains($sql, 'SUM(grouped_prices.group_price) AS extra_price')
+                    && str_contains($sql, 'WHEN PG.price_calculation = "biggest" THEN MAX(OP.price)')
+                    && str_contains($sql, 'WHEN PG.price_calculation = "average" THEN AVG(OP.price)')
+                    && str_contains($sql, 'WHEN PG.price_calculation = "free" THEN 0')
+                    && str_contains($sql, 'ELSE SUM(OP.price)')
+                    && str_contains($sql, 'WHERE OPO.order_product_id IS NULL');
+            }))
+            ->willReturn($statement);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager
+            ->expects(self::once())
+            ->method('getConnection')
+            ->willReturn($connection);
+
+        $this->buildService('/orders', $entityManager)->calculateGroupProductPrice($order);
+
+        self::assertSame(72320, $boundParameters[':order_id'] ?? null);
+        self::assertSame(72320, $boundParameters[':root_order_id'] ?? null);
+        self::assertSame('Brinde fidelidade', $boundParameters[':loyalty_gift_comment'] ?? null);
     }
 
     public function testSecurityFilterRestrictsOrdersQueueToSale(): void

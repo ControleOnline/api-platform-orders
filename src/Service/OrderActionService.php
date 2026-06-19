@@ -197,7 +197,7 @@ class OrderActionService
             $wasPromotedToSale = $this->orderService->convertDraftOrderToSale($order);
         }
 
-        $result = $this->aplicarStatusLocal($order, 'open', 'preparing');
+        $result = $this->applyLocalStatus($order, 'open', 'preparing');
         if ($wasPromotedToSale && ($result['errno'] ?? 1) === 0) {
             // The real order only exists after the cart is promoted to sale.
             $this->orderService->dispatchOrderCreated($order);
@@ -225,7 +225,7 @@ class OrderActionService
             'reason' => $reason,
         ]);
 
-        return $this->aplicarStatusLocal($order, 'canceled', 'canceled');
+        return $this->applyLocalStatus($order, 'canceled', 'canceled');
     }
 
     public function ready(Order $order): array
@@ -240,7 +240,7 @@ class OrderActionService
 
         $this->persistOrderAction($order, 'ready');
 
-        return $this->aplicarStatusLocal($order, 'pending', 'ready');
+        return $this->applyLocalStatus($order, 'pending', 'ready');
     }
 
     public function delivered(
@@ -277,10 +277,10 @@ class OrderActionService
             return ['errno' => 0, 'errmsg' => 'ok'];
         }
 
-        return $this->aplicarStatusLocal($order, 'closed', 'closed');
+        return $this->applyLocalStatus($order, 'closed', 'closed');
     }
 
-    private function aplicarStatusLocal(Order $order, string $status, string $realStatus): array
+    private function applyLocalStatus(Order $order, string $status, string $realStatus): array
     {
         $novoStatus = $this->statusService->discoveryStatus($status, $realStatus, 'order');
 

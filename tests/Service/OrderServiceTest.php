@@ -29,6 +29,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\Serializer\SerializerInterface;
 
 #[AllowMockObjectsWithoutExpectations]
 class OrderServiceTest extends TestCase
@@ -225,6 +227,149 @@ class OrderServiceTest extends TestCase
 
         self::assertSame($preparingStatus, $service->resolvePostPaymentStatus($order));
         self::assertSame(OrderService::ORDER_TYPE_SALE, $order->getOrderType());
+    }
+
+    public function testUpdateOrderFromPayloadRejectsStatusChanges(): void
+    {
+        $serializer = $this->createMock(SerializerInterface::class);
+        $serializer
+            ->expects(self::never())
+            ->method('deserialize');
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $queueService = $this->createMock(OrderProductQueueService::class);
+        $service = $this->buildService('/orders/901', $entityManager, null, $queueService, null, [], [], null, [], $serializer);
+
+        $order = new Order();
+        $order->setOrderType(OrderService::ORDER_TYPE_CART);
+        $order->setStatus($this->createStatusEntity(10, 'open'));
+
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessage('Status do pedido nao pode ser alterado por PUT. Use as acoes do pedido.');
+
+        $service->updateOrderFromPayload($order, [
+            'status' => '/statuses/11',
+        ]);
+    }
+
+    public function testUpdateOrderFromPayloadPromotesCartToSaleAndDispatchesCreationEvent(): void
+    {
+        $provider = new People();
+        $this->setEntityId(People::class, $provider, 71);
+
+        $serializer = $this->createMock(SerializerInterface::class);
+        $serializer
+            ->expects(self::once())
+            ->method('deserialize')
+            ->willReturnCallback(static function (string $json, string $class, string $format, array $context): Order {
+                $order = $context['object_to_populate'];
+                $order->setComments('Mesa 4');
+
+                return $order;
+            });
+
+        $deviceConfigRepository = $this->createMock(EntityRepository::class);
+        $deviceConfigRepository
+            ->expects(self::exactly(2))
+            ->method('findBy')
+            ->with(['people' => $provider])
+            ->willReturn([]);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager
+            ->expects(self::exactly(2))
+            ->method('getRepository')
+            ->with(DeviceConfig::class)
+            ->willReturn($deviceConfigRepository);
+        $entityManager
+            ->expects(self::once())
+            ->method('persist')
+            ->with(self::callback(static function (mixed $entity): bool {
+                return $entity instanceof Order
+                    && $entity->getOrderType() === OrderService::ORDER_TYPE_SALE
+                    && $entity->getComments() === 'Mesa 4';
+            }));
+        $entityManager
+            ->expects(self::once())
+            ->method('flush');
+
+        $queueService = $this->createMock(OrderProductQueueService::class);
+        $queueService
+            ->expects(self::once())
+            ->method('ensureOrderQueueEntries')
+            ->with(self::callback(static function (Order $order): bool {
+                return $order->getOrderType() === OrderService::ORDER_TYPE_SALE;
+            }));
+
+        $service = $this->buildService('/orders/902', $entityManager, null, $queueService, null, [], [], null, [], $serializer);
+
+        $order = new Order();
+        $order->setApp('POS');
+        $order->setProvider($provider);
+        $order->setOrderType(OrderService::ORDER_TYPE_CART);
+        $order->setStatus($this->createStatusEntity(10, 'open'));
+        $this->setEntityId(Order::class, $order, 902);
+
+        $updatedOrder = $service->updateOrderFromPayload($order, [
+            'orderType' => 'sale',
+            'comments' => 'Mesa 4',
+        ]);
+
+        self::assertSame($order, $updatedOrder);
+        self::assertSame(OrderService::ORDER_TYPE_SALE, $order->getOrderType());
+        self::assertSame('Mesa 4', $order->getComments());
+    }
+
+    public function testUpdateOrderFromPayloadNormalizesSaleBackToCartWhenAllowed(): void
+    {
+        $serializer = $this->createMock(SerializerInterface::class);
+        $serializer
+            ->expects(self::once())
+            ->method('deserialize')
+            ->willReturnCallback(static function (string $json, string $class, string $format, array $context): Order {
+                $order = $context['object_to_populate'];
+                $order->setComments('Reclassificado');
+
+                return $order;
+            });
+
+        $queueService = $this->createMock(OrderProductQueueService::class);
+        $queueService
+            ->expects(self::once())
+            ->method('syncByOrderStatus')
+            ->with(self::callback(static function (Order $order): bool {
+                return $order->getOrderType() === OrderService::ORDER_TYPE_CART;
+            }));
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager
+            ->expects(self::once())
+            ->method('persist')
+            ->with(self::callback(static function (mixed $entity): bool {
+                return $entity instanceof Order
+                    && $entity->getOrderType() === OrderService::ORDER_TYPE_CART
+                    && $entity->getComments() === 'Reclassificado';
+            }));
+        $entityManager
+            ->expects(self::once())
+            ->method('flush');
+
+        $service = $this->buildService('/orders/903', $entityManager, null, $queueService, null, [], [], null, [], $serializer);
+
+        $order = new Order();
+        $order->setApp('POS');
+        $order->setOrderType(OrderService::ORDER_TYPE_SALE);
+        $order->setStatus($this->createStatusEntity(10, 'open'));
+        $this->setEntityId(Order::class, $order, 903);
+
+        $updatedOrder = $service->updateOrderFromPayload($order, [
+            'orderType' => 'cart',
+            'comments' => 'Reclassificado',
+        ]);
+
+        self::assertSame($order, $updatedOrder);
+        self::assertSame(OrderService::ORDER_TYPE_CART, $order->getOrderType());
+        self::assertSame('Reclassificado', $order->getComments());
     }
 
     public function testCalculateGroupProductPriceConsolidatesGroupRulesIntoParentTotal(): void
@@ -511,6 +656,7 @@ class OrderServiceTest extends TestCase
         array $courierCompanies = [],
         ?People $currentPeople = null,
         array $query = [],
+        ?SerializerInterface $serializer = null,
     ): OrderService
     {
         $peopleService = $this->createMock(PeopleService::class);
@@ -540,6 +686,7 @@ class OrderServiceTest extends TestCase
             $orderProductQueueService ?? $this->createMock(OrderProductQueueService::class),
             $this->createMock(WebsocketClient::class),
             $this->createMock(MessageBusInterface::class),
+            $serializer ?? $this->createMock(SerializerInterface::class),
             $requestStack,
             $integrationService,
         );
@@ -594,5 +741,16 @@ class OrderServiceTest extends TestCase
             ->willReturn($realStatus);
 
         return $status;
+    }
+
+    private function createStatusEntity(int $id, string $realStatus, ?string $status = null): Status
+    {
+        $entity = new Status();
+        $entity->setRealStatus($realStatus);
+        $entity->setStatus($status ?? $realStatus);
+        $entity->setContext('order');
+        $this->setEntityId(Status::class, $entity, $id);
+
+        return $entity;
     }
 }

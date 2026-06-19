@@ -22,6 +22,7 @@ use ControleOnline\Controller\OrderConferenceController;
 use ControleOnline\Controller\OrderDetailsController;
 use ControleOnline\Controller\PrintOrderAction;
 use ControleOnline\Controller\ReplaceProductsOrderAction;
+use ControleOnline\Controller\UpdateOrderAction;
 use ControleOnline\Attribute\CollectionSummary;
 use ControleOnline\Filter\CustomOrFilter;
 
@@ -72,8 +73,9 @@ use stdClass;
         ),
         new Put(
             security: 'is_granted(\'ROLE_HUMAN\')',
-            validationContext: ['groups' => ['order:write']],
-            denormalizationContext: ['groups' => ['order:write']]
+            controller: UpdateOrderAction::class,
+            read: false,
+            deserialize: false
         ),
         new Post(
             security: 'is_granted(\'ROLE_HUMAN\')',

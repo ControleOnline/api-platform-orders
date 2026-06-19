@@ -9,3 +9,5 @@
 - Qualquer transicao operacional para `preparando` ou `closed` deve primeiro promover `cart` para `sale`; nenhum pedido pode permanecer como `cart` ao entrar nessas condicoes.
 - Produtos adicionados em `cart` nao entram em KDS nem criam fila de producao; a fila so passa a existir quando o pedido ja for `sale`.
 - A promocao de `cart` para `sale` deve materializar imediatamente as filas que foram ignoradas durante o rascunho.
+- Itens de pedido so podem ser adicionados, ter quantidade alterada, ser substituidos ou removidos enquanto o pedido ainda estiver em `cart` e nao for terminal; `sale` e estados finais ficam read-only para `order_products`.
+- `PUT /orders/{id}` nao e editor livre de estado. O controller desse recurso so pode aceitar mudanca de dados de negocio e normalizacao controlada entre `cart` e `sale`; `status` nao deve descancelar nem reabrir pedido por esse caminho.

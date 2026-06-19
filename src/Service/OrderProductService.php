@@ -125,13 +125,13 @@ class OrderProductService
 
     public function prePersist(OrderProduct $orderProduct): void
     {
-        $this->guardMarketplaceOrderProductMutation($orderProduct);
+        $this->guardDirectOrderProductMutation($orderProduct);
         $this->applyDefaultStatus($orderProduct);
     }
 
     public function preUpdate(OrderProduct $orderProduct): void
     {
-        $this->guardMarketplaceOrderProductMutation($orderProduct);
+        $this->guardDirectOrderProductMutation($orderProduct);
         $this->applyDefaultStatus($orderProduct);
     }
 
@@ -317,7 +317,7 @@ class OrderProductService
 
     public function preRemove(OrderProduct $orderProduct)
     {
-        $this->guardMarketplaceOrderProductMutation($orderProduct);
+        $this->guardDirectOrderProductMutation($orderProduct);
 
         if (!self::$mainProduct) return;
         self::$mainProduct = false;
@@ -467,20 +467,28 @@ class OrderProductService
         }
     }
 
-    private function guardMarketplaceOrderProductMutation(OrderProduct $orderProduct): void
+    private function guardDirectOrderProductMutation(OrderProduct $orderProduct): void
     {
         $order = $orderProduct->getOrder();
         if (
             !$order instanceof Order
-            || !$this->orderService->isMarketplaceIntegrationOrder($order)
             || !$this->isOrderProductMutationRequest()
         ) {
             return;
         }
 
-        throw new BadRequestHttpException(
-            'Itens de pedidos de integracao nao podem ser editados diretamente.'
-        );
+        // Importacoes e recalculos internos reutilizam este service, entao a trava so vale para rotas diretas.
+        if (!$this->isMutableCartOrder($order)) {
+            throw new BadRequestHttpException(
+                'Produtos, quantidades e remocoes so podem ser alterados enquanto o pedido estiver em cart.'
+            );
+        }
+
+        if ($this->orderService->isMarketplaceIntegrationOrder($order)) {
+            throw new BadRequestHttpException(
+                'Itens de pedidos de integracao nao podem ser editados diretamente.'
+            );
+        }
     }
 
     private function isOrderProductMutationRequest(): bool
@@ -489,6 +497,7 @@ class OrderProductService
             return false;
         }
 
+        // Somente rotas que mutam item diretamente entram na regra; calculos internos ficam de fora.
         $method = strtoupper((string) $this->request->getMethod());
         if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
             return false;
@@ -497,6 +506,15 @@ class OrderProductService
         $path = (string) $this->request->getPathInfo();
 
         return (bool) preg_match('#^/order_products(?:/\d+)?$#', $path)
-            || (bool) preg_match('#^/orders/\d+/add-products$#', $path);
+            || (bool) preg_match('#^/orders/\d+/(add-products|replace-products)$#', $path);
+    }
+
+    private function isMutableCartOrder(Order $order): bool
+    {
+        $orderType = strtolower(trim((string) $order->getOrderType()));
+        $realStatus = strtolower(trim((string) $order->getStatus()?->getRealStatus()));
+
+        return in_array($orderType, [OrderService::ORDER_TYPE_CART, OrderService::ORDER_TYPE_QUOTE], true)
+            && !in_array($realStatus, ['closed', 'canceled', 'cancelled'], true);
     }
 }

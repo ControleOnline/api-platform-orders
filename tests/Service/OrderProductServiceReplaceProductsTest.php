@@ -23,6 +23,7 @@ class OrderProductServiceReplaceProductsTest extends TestCase
     public function testReplaceProductsToOrderKeepsOnlyTheFirstRootItem(): void
     {
         $order = new Order();
+        $order->setOrderType(OrderService::ORDER_TYPE_CART);
         $this->setEntityId(Order::class, $order, 78112);
 
         $existingRoot = $this->createMock(OrderProduct::class);
@@ -97,6 +98,7 @@ class OrderProductServiceReplaceProductsTest extends TestCase
     public function testReplaceProductsToOrderClearsOrderWhenPayloadIsEmpty(): void
     {
         $order = new Order();
+        $order->setOrderType(OrderService::ORDER_TYPE_CART);
         $this->setEntityId(Order::class, $order, 78113);
 
         $existingRoot = $this->createMock(OrderProduct::class);

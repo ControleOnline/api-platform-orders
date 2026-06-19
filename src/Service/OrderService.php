@@ -20,6 +20,7 @@
  * - Em atendimento por `tab/table`, o pedido financeiro raiz continua sendo um `Order` do proprio modulo `orders`. Pedidos filhos e invoices devem convergir para essa raiz, sem contrato paralelo fora de `mainOrderId` e `OrderInvoice`.
  * - O serializer de leitura de `Order` deve expor `mainOrder.externalCode` nos groups usados por listagem e detalhe. Esse valor e o numero da comanda e nao deve depender de `otherInformations` no frontend.
  * - `ready`, `cancel` e `delivered` devem nascer pelo fluxo principal de acoes do pedido (`OrderActionService`/`OrderActionController`). Nao criar caminhos paralelos de mudanca de status para KDS, marketplace ou device.
+ * - `PUT /orders/{id}` nao e editor livre de estado. Esse fluxo so pode atualizar campos de negocio nao operacionais e normalizar `quote`/`cart`/`sale` quando a regra permitir; trocas de `status` ficam nos fluxos de acao e financeiro.
  * - O nome canonico da integracao da 99 no backend e `Food99` quando o pedido ou contexto precisar identificar a plataforma.
  * - O recurso `/orders-queue`, consumido por displays/KDS, deve expor apenas pedidos de venda (`orderType = sale`). Rascunhos e carrinhos (`cart`) nao pertencem a essa visao operacional.
  * - O recurso `/orders-queue` pode expor a arvore visual de componentes via group dedicado `orders-queue-tree:read`. Esse group nao deve incluir backrefs ciclicos como `orderProduct`.
@@ -65,6 +66,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Doctrine\DBAL\Types\Type;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\Serializer\SerializerInterface;
 
 
 class OrderService
@@ -98,6 +100,7 @@ class OrderService
         private OrderProductQueueService $orderProductQueueService,
         private WebsocketClient $websocketClient,
         private MessageBusInterface $bus,
+        private SerializerInterface $serializer,
         RequestStack $requestStack,
         private ?IntegrationService $integrationService = null
     ) {
@@ -407,6 +410,69 @@ class OrderService
         return $this->manager->getRepository(Order::class)->find($orderId);
     }
 
+    public function updateOrderFromPayload(Order $order, array $payload): Order
+    {
+        $this->assertDirectOrderUpdateAllowed($order, $payload);
+
+        $requestedOrderType = $this->normalizeOrderTypeValue($payload['orderType'] ?? null);
+        $requestedOrderType = $requestedOrderType === 'quote'
+            ? self::ORDER_TYPE_CART
+            : $requestedOrderType;
+
+        $sanitizedPayload = $payload;
+        unset(
+            $sanitizedPayload['id'],
+            $sanitizedPayload['@id'],
+            $sanitizedPayload['@type'],
+            $sanitizedPayload['@context'],
+            $sanitizedPayload['status'],
+            $sanitizedPayload['orderType'],
+            $sanitizedPayload['orderProducts'],
+        );
+
+        if (!empty($sanitizedPayload)) {
+            $this->serializer->deserialize(
+                json_encode(
+                    $sanitizedPayload,
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                ) ?: '{}',
+                Order::class,
+                'json',
+                [
+                    'object_to_populate' => $order,
+                    'groups' => ['order:write'],
+                ]
+            );
+        }
+
+        $promotedToSale = false;
+        $currentOrderType = $this->normalizeStatusValue($order->getOrderType());
+
+        if ($requestedOrderType === self::ORDER_TYPE_SALE && $currentOrderType !== self::ORDER_TYPE_SALE) {
+            $promotedToSale = $this->convertDraftOrderToSale($order);
+            if (!$promotedToSale) {
+                throw new BadRequestHttpException(
+                    'Tipo de pedido nao pode ser promovido para sale neste contexto.'
+                );
+            }
+        } elseif ($requestedOrderType === self::ORDER_TYPE_CART && $currentOrderType !== self::ORDER_TYPE_CART) {
+            if (!$this->normalizeDraftCartOrder($order)) {
+                throw new BadRequestHttpException(
+                    'Tipo de pedido nao pode voltar para cart neste contexto.'
+                );
+            }
+        }
+
+        $this->manager->persist($order);
+        $this->manager->flush();
+
+        if ($promotedToSale) {
+            $this->dispatchOrderCreated($order);
+        }
+
+        return $order;
+    }
+
     public function isMarketplaceIntegrationOrder(Order $order): bool
     {
         return $this->isMarketplaceApp($order->getApp());
@@ -614,6 +680,78 @@ class OrderService
         throw new BadRequestHttpException(
             'Pedidos de integracao nao podem ser editados diretamente. Use as acoes do pedido para alterar status.'
         );
+    }
+
+    private function assertDirectOrderUpdateAllowed(Order $order, array $payload): void
+    {
+        // PUT do pedido e para ajustes de cadastro e normalizacao de tipo; transicao de status fica nos fluxos operacionais.
+        if (array_key_exists('orderProducts', $payload)) {
+            throw new BadRequestHttpException(
+                'A atualizacao direta do pedido nao pode alterar produtos. Use as acoes de produtos.'
+            );
+        }
+
+        if (array_key_exists('status', $payload)) {
+            $requestedStatusId = $this->resolvePayloadEntityId($payload['status']);
+            if ($requestedStatusId === null) {
+                throw new BadRequestHttpException(
+                    'Status do pedido invalido para atualizacao direta.'
+                );
+            }
+
+            $currentStatusId = $this->resolvePayloadEntityId($order->getStatus()?->getId());
+            if ($currentStatusId !== $requestedStatusId) {
+                throw new BadRequestHttpException(
+                    'Status do pedido nao pode ser alterado por PUT. Use as acoes do pedido.'
+                );
+            }
+        }
+
+        if (!array_key_exists('orderType', $payload)) {
+            return;
+        }
+
+        $currentOrderType = $this->normalizeStatusValue($order->getOrderType());
+        $requestedOrderType = $this->normalizeOrderTypeValue($payload['orderType'] ?? null);
+
+        if ($requestedOrderType === 'quote') {
+            $requestedOrderType = self::ORDER_TYPE_CART;
+        }
+
+        if ($requestedOrderType === '') {
+            throw new BadRequestHttpException(
+                'Tipo de pedido invalido para atualizacao direta.'
+            );
+        }
+
+        if ($requestedOrderType === $currentOrderType) {
+            return;
+        }
+
+        if (!in_array($currentOrderType, [
+            self::ORDER_TYPE_CART,
+            self::ORDER_TYPE_QUOTE,
+            self::ORDER_TYPE_SALE,
+        ], true)) {
+            throw new BadRequestHttpException(
+                'Tipo de pedido nao pode ser alterado por PUT.'
+            );
+        }
+
+        if (in_array($this->normalizeStatusValue($order->getStatus()?->getRealStatus()), ['closed', 'canceled', 'cancelled'], true)) {
+            throw new BadRequestHttpException(
+                'Pedidos fechados ou cancelados nao podem trocar de tipo por PUT.'
+            );
+        }
+
+        if (!in_array($requestedOrderType, [
+            self::ORDER_TYPE_CART,
+            self::ORDER_TYPE_SALE,
+        ], true)) {
+            throw new BadRequestHttpException(
+                'Tipo de pedido invalido para atualizacao direta.'
+            );
+        }
     }
 
     public function securityFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
@@ -949,6 +1087,37 @@ class OrderService
     private function normalizeStatusValue(?string $value): string
     {
         return strtolower(trim((string) $value));
+    }
+
+    private function normalizeOrderTypeValue(mixed $value): string
+    {
+        if (is_object($value) && method_exists($value, 'getId')) {
+            $value = $value->getId();
+        }
+
+        if (is_array($value)) {
+            $value = $value['@id'] ?? $value['id'] ?? $value['orderType'] ?? null;
+        }
+
+        return $this->normalizeStatusValue($value);
+    }
+
+    private function resolvePayloadEntityId(mixed $value): ?int
+    {
+        if (is_object($value) && method_exists($value, 'getId')) {
+            $value = $value->getId();
+        }
+
+        if (is_array($value)) {
+            $value = $value['@id'] ?? $value['id'] ?? null;
+        }
+
+        $normalized = preg_replace('/\D+/', '', (string) $value);
+        if ($normalized === null || $normalized === '') {
+            return null;
+        }
+
+        return (int) $normalized;
     }
 
     private function normalizeEntityId(mixed $value): ?int

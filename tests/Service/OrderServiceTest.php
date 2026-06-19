@@ -3,6 +3,7 @@
 namespace ControleOnline\Orders\Tests\Service;
 
 use ControleOnline\Entity\Order;
+use ControleOnline\Entity\Address;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\ProductGroupProduct;
@@ -120,6 +121,55 @@ class OrderServiceTest extends TestCase
 
         self::assertTrue($service->normalizeDraftCartOrder($order));
         self::assertSame(OrderService::ORDER_TYPE_CART, $order->getOrderType());
+    }
+
+    public function testResolvePostPaymentStatusPromotesCartToSaleBeforeClosedResolution(): void
+    {
+        $statusService = $this->createMock(StatusService::class);
+        $closedStatus = $this->createMock(Status::class);
+        $closedStatus
+            ->method('getRealStatus')
+            ->willReturn('closed');
+
+        $statusService
+            ->expects(self::once())
+            ->method('discoveryStatus')
+            ->with('closed', 'closed', 'order')
+            ->willReturn($closedStatus);
+
+        $order = new Order();
+        $order->setOrderType(OrderService::ORDER_TYPE_CART);
+        $order->setStatus($this->createStatusMock('open'));
+
+        $service = $this->buildService('/orders', null, $statusService);
+
+        self::assertSame($closedStatus, $service->resolvePostPaymentStatus($order));
+        self::assertSame(OrderService::ORDER_TYPE_SALE, $order->getOrderType());
+    }
+
+    public function testResolvePostPaymentStatusPromotesCartToSaleBeforePreparingResolution(): void
+    {
+        $statusService = $this->createMock(StatusService::class);
+        $preparingStatus = $this->createMock(Status::class);
+        $preparingStatus
+            ->method('getRealStatus')
+            ->willReturn('preparing');
+
+        $statusService
+            ->expects(self::once())
+            ->method('discoveryStatus')
+            ->with('open', 'preparing', 'order')
+            ->willReturn($preparingStatus);
+
+        $order = new Order();
+        $order->setOrderType(OrderService::ORDER_TYPE_CART);
+        $order->setStatus($this->createStatusMock('open'));
+        $order->setAddressDestination($this->createMock(Address::class));
+
+        $service = $this->buildService('/orders', null, $statusService);
+
+        self::assertSame($preparingStatus, $service->resolvePostPaymentStatus($order));
+        self::assertSame(OrderService::ORDER_TYPE_SALE, $order->getOrderType());
     }
 
     public function testCalculateGroupProductPriceConsolidatesGroupRulesIntoParentTotal(): void
@@ -294,7 +344,7 @@ class OrderServiceTest extends TestCase
         self::assertSame(100, $resolved->getProductGroup()->getId());
     }
 
-    public function testPostPersistQueuesManagerPushNotificationForOpenOrder(): void
+    public function testPostPersistQueuesManagerPushNotificationForSaleOrder(): void
     {
         $provider = $this->createMock(People::class);
         $provider
@@ -309,6 +359,7 @@ class OrderServiceTest extends TestCase
         $order = new Order();
         $order->setProvider($provider);
         $order->setStatus($status);
+        $order->setOrderType(OrderService::ORDER_TYPE_SALE);
         $this->setEntityId(Order::class, $order, 71608);
 
         $repository = $this->getMockBuilder(EntityRepository::class)
@@ -316,14 +367,14 @@ class OrderServiceTest extends TestCase
             ->onlyMethods(['findBy'])
             ->getMock();
         $repository
-            ->expects(self::once())
+            ->expects(self::exactly(2))
             ->method('findBy')
             ->with(['people' => $provider])
             ->willReturn([]);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager
-            ->expects(self::once())
+            ->expects(self::exactly(2))
             ->method('getRepository')
             ->with(DeviceConfig::class)
             ->willReturn($repository);
@@ -344,6 +395,45 @@ class OrderServiceTest extends TestCase
                 $provider
             )
             ->willReturn(0);
+
+        $service = $this->buildService(
+            '/orders',
+            $entityManager,
+            null,
+            null,
+            $integrationService
+        );
+
+        $service->postPersist($order);
+    }
+
+    public function testPostPersistDoesNotQueueManagerPushNotificationForCartOrder(): void
+    {
+        $provider = $this->createMock(People::class);
+        $provider
+            ->method('getId')
+            ->willReturn(3);
+
+        $status = $this->createMock(Status::class);
+        $status
+            ->method('getRealStatus')
+            ->willReturn('open');
+
+        $order = new Order();
+        $order->setProvider($provider);
+        $order->setStatus($status);
+        $order->setOrderType(OrderService::ORDER_TYPE_CART);
+        $this->setEntityId(Order::class, $order, 71608);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager
+            ->expects(self::never())
+            ->method('getRepository');
+
+        $integrationService = $this->createMock(IntegrationService::class);
+        $integrationService
+            ->expects(self::never())
+            ->method('addManagerPushIntegrations');
 
         $service = $this->buildService(
             '/orders',
@@ -439,5 +529,15 @@ class OrderServiceTest extends TestCase
         $reflectionMethod->setAccessible(true);
 
         return $reflectionMethod->invoke($object, ...$arguments);
+    }
+
+    private function createStatusMock(string $realStatus): Status
+    {
+        $status = $this->createMock(Status::class);
+        $status
+            ->method('getRealStatus')
+            ->willReturn($realStatus);
+
+        return $status;
     }
 }

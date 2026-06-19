@@ -192,11 +192,18 @@ class OrderActionService
         }
 
         $this->persistOrderAction($order, 'confirm');
+        $wasPromotedToSale = false;
         if ($this->isPosOrShopOrder($order)) {
-            $this->orderService->convertDraftOrderToSale($order);
+            $wasPromotedToSale = $this->orderService->convertDraftOrderToSale($order);
         }
 
-        return $this->aplicarStatusLocal($order, 'open', 'preparing');
+        $result = $this->aplicarStatusLocal($order, 'open', 'preparing');
+        if ($wasPromotedToSale && ($result['errno'] ?? 1) === 0) {
+            // The real order only exists after the cart is promoted to sale.
+            $this->orderService->dispatchOrderCreated($order);
+        }
+
+        return $result;
     }
 
     public function cancel(Order $order, mixed $reasonId = null, ?string $reason = null): array
@@ -250,6 +257,9 @@ class OrderActionService
         if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
             return $this->iFoodService->performDeliveredAction($order, $deliveryCode, $locator);
         }
+
+        // Delivered is a sale-only terminal transition, so a draft cart must be promoted first.
+        $this->orderService->convertDraftOrderToSale($order);
 
         $shouldRemoteSync = $deferStatusUpdate
             || $this->normalizeString($deliveryCode) !== ''

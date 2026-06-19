@@ -4,3 +4,6 @@
 - O contexto de upload usado pela biblioteca do pedido e `order-attachments`.
 - Nao usar fluxo de produto para gravar, remover ou listar anexos de pedido.
 - O endpoint `PUT /orders/{id}/replace-products` e o contrato canonico para o modo `single-item` do POS; ele deve substituir os produtos raiz do pedido, recalcular totais e deixar apenas um item principal por vez.
+- No fluxo de pedido, `cart` continua sendo rascunho; a criacao real do pedido e o `order.created` pertencem a `sale`.
+- Quando o pagamento for o unico gatilho de encerramento, a resolucao final deve escolher `closed` se nao houver entrega nem fila pendente, e `preparando` se ainda existir trabalho em aberto.
+- Qualquer transicao operacional para `preparando` ou `closed` deve primeiro promover `cart` para `sale`; nenhum pedido pode permanecer como `cart` ao entrar nessas condicoes.

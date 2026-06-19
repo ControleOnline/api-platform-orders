@@ -56,6 +56,7 @@ use ControleOnline\Entity\Product;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\ProductGroupParent;
 use ControleOnline\Entity\ProductGroupProduct;
+use ControleOnline\Entity\Status;
 use ControleOnline\Service\Client\WebsocketClient;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
@@ -528,6 +529,76 @@ class OrderService
         return true;
     }
 
+    public function resolvePostPaymentStatus(Order $order): Status
+    {
+        // Payment finalization always operates on a sale order, never on a draft cart.
+        if ($this->normalizeStatusValue($order->getOrderType()) !== self::ORDER_TYPE_SALE) {
+            $this->convertDraftOrderToSale($order);
+        }
+
+        $currentRealStatus = $this->normalizeStatusValue($order->getStatus()?->getRealStatus());
+        if (in_array($currentRealStatus, ['closed', 'canceled', 'cancelled'], true)) {
+            return $this->statusService->discoveryStatus('closed', 'closed', 'order');
+        }
+
+        // Payment only closes the order when nothing else is waiting to be prepared or delivered.
+        if ($this->hasPendingFulfillment($order)) {
+            return $this->statusService->discoveryStatus('open', 'preparing', 'order');
+        }
+
+        return $this->statusService->discoveryStatus('closed', 'closed', 'order');
+    }
+
+    public function dispatchOrderCreated(Order $order): void
+    {
+        if (!$this->shouldDispatchOrderCreatedEvent($order)) {
+            return;
+        }
+
+        $provider = $order->getProvider();
+        if (!$provider instanceof People) {
+            return;
+        }
+
+        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findBy([
+            'people' => $provider,
+        ]);
+
+        $baseEvent = [[
+            'store' => 'orders',
+            'event' => 'order.created',
+            'company' => $provider->getId(),
+            'order' => $order->getId(),
+            'realStatus' => $this->normalizeStatusValue($order->getStatus()?->getRealStatus()),
+            'sentAt' => date(DATE_ATOM),
+        ]];
+
+        // Only sale orders represent a real order; cart stays silent until it is promoted.
+        if ($this->shouldDispatchManagerOrderPush($order)) {
+            $this->queueManagerOrderPushNotifications($order, $provider);
+        }
+
+        if (!$this->isPreparationOrder($order)) {
+            $this->pushToDeviceConfigs($deviceConfigs, $baseEvent);
+            return;
+        }
+
+        $alertDeviceConfigs = $this->resolvePreparationAlertDeviceConfigs($provider, $order);
+
+        $this->pushToDeviceConfigs(
+            $this->excludeDeviceConfigs($deviceConfigs, $alertDeviceConfigs),
+            $baseEvent
+        );
+
+        $this->pushToDeviceConfigs(
+            $alertDeviceConfigs,
+            [[
+                ...$baseEvent[0],
+                'alertSound' => true,
+            ]]
+        );
+    }
+
     public function preUpdate(Order $order): void
     {
         if (
@@ -580,47 +651,7 @@ class OrderService
     public function postPersist(Order $order): void
     {
         $this->syncSettlementOrderPrice($order);
-        $provider = $order->getProvider();
-        if (!$provider) {
-            return;
-        }
-
-        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findBy([
-            'people' => $provider,
-        ]);
-
-        $baseEvent = [[
-            'store' => 'orders',
-            'event' => 'order.created',
-            'company' => $provider->getId(),
-            'order' => $order->getId(),
-            'realStatus' => $this->normalizeStatusValue($order->getStatus()?->getRealStatus()),
-            'sentAt' => date(DATE_ATOM),
-        ]];
-
-        if ($this->shouldDispatchManagerOrderPush($order)) {
-            $this->queueManagerOrderPushNotifications($order, $provider);
-        }
-
-        if (!$this->isPreparationOrder($order)) {
-            $this->pushToDeviceConfigs($deviceConfigs, $baseEvent);
-            return;
-        }
-
-        $alertDeviceConfigs = $this->resolvePreparationAlertDeviceConfigs($provider, $order);
-
-        $this->pushToDeviceConfigs(
-            $this->excludeDeviceConfigs($deviceConfigs, $alertDeviceConfigs),
-            $baseEvent
-        );
-
-        $this->pushToDeviceConfigs(
-            $alertDeviceConfigs,
-            [[
-                ...$baseEvent[0],
-                'alertSound' => true,
-            ]]
-        );
+        $this->dispatchOrderCreated($order);
     }
 
     public function postUpdate(Order $order): void
@@ -710,12 +741,7 @@ class OrderService
 
     private function shouldDispatchManagerOrderPush(Order $order): bool
     {
-        $provider = $order->getProvider();
-        if (!$provider || !$order->getId()) {
-            return false;
-        }
-
-        return $this->normalizeStatusValue($order->getStatus()?->getRealStatus()) === 'open';
+        return $this->shouldDispatchOrderCreatedEvent($order);
     }
 
     private function isMarketplaceApp(?string $app): bool
@@ -731,6 +757,38 @@ class OrderService
     private function applyQueueStateForOrder(Order $order): void
     {
         $this->orderProductQueueService->syncByOrderStatus($order);
+    }
+
+    private function shouldDispatchOrderCreatedEvent(Order $order): bool
+    {
+        return $this->isProductionOrder($order)
+            && (int) ($order->getId() ?? 0) > 0
+            && $order->getProvider() instanceof People;
+    }
+
+    private function hasPendingFulfillment(Order $order): bool
+    {
+        if ($this->hasPendingDelivery($order)) {
+            return true;
+        }
+
+        foreach ($order->getOrderProducts() as $orderProduct) {
+            $orderProductQueues = $orderProduct->getOrderProductQueues();
+            foreach ($orderProductQueues as $orderProductQueue) {
+                $queueStatus = $this->normalizeStatusValue($orderProductQueue->getStatus()?->getRealStatus());
+                if (!in_array($queueStatus, ['closed', 'canceled', 'cancelled'], true)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function hasPendingDelivery(Order $order): bool
+    {
+        return $order->getAddressDestination() !== null
+            || $order->getDeliveryPeople() !== null;
     }
 
     private function hasClosedInvoices(Order $order): bool

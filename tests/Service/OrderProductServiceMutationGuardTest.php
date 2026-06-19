@@ -62,6 +62,16 @@ class OrderProductServiceMutationGuardTest extends TestCase
         self::assertTrue(true);
     }
 
+    public function testPrePersistAllowsCartOrderOnReplaceProductsRoute(): void
+    {
+        $service = $this->buildService('/orders/78112/replace-products', 'PUT');
+        $orderProduct = $this->createOrderProduct(OrderService::ORDER_TYPE_CART);
+
+        $service->prePersist($orderProduct);
+
+        self::assertTrue(true);
+    }
+
     public function testPreUpdateAllowsCartOrderQuantityChanges(): void
     {
         $service = $this->buildService('/order_products/990', 'PUT');

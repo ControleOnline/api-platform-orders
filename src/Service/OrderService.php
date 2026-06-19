@@ -526,19 +526,22 @@ class OrderService
             $this->manager->persist($orderProduct);
         }
 
+        // Cart items stay out of KDS until the order is promoted to sale.
+        $this->orderProductQueueService->ensureOrderQueueEntries($order);
+
         return true;
     }
 
     public function resolvePostPaymentStatus(Order $order): Status
     {
-        // Payment finalization always operates on a sale order, never on a draft cart.
-        if ($this->normalizeStatusValue($order->getOrderType()) !== self::ORDER_TYPE_SALE) {
-            $this->convertDraftOrderToSale($order);
-        }
-
         $currentRealStatus = $this->normalizeStatusValue($order->getStatus()?->getRealStatus());
         if (in_array($currentRealStatus, ['closed', 'canceled', 'cancelled'], true)) {
             return $this->statusService->discoveryStatus('closed', 'closed', 'order');
+        }
+
+        // Payment finalization always operates on a sale order, never on a draft cart.
+        if ($this->normalizeStatusValue($order->getOrderType()) !== self::ORDER_TYPE_SALE) {
+            $this->convertDraftOrderToSale($order);
         }
 
         // Payment only closes the order when nothing else is waiting to be prepared or delivered.

@@ -8,3 +8,4 @@
 - Quando o pagamento for o unico gatilho de encerramento, a resolucao final deve escolher `closed` se nao houver entrega nem fila pendente, e `preparando` se ainda existir trabalho em aberto.
 - Qualquer transicao operacional para `preparando` ou `closed` deve primeiro promover `cart` para `sale`; nenhum pedido pode permanecer como `cart` ao entrar nessas condicoes.
 - Produtos adicionados em `cart` nao entram em KDS nem criam fila de producao; a fila so passa a existir quando o pedido ja for `sale`.
+- A promocao de `cart` para `sale` deve materializar imediatamente as filas que foram ignoradas durante o rascunho.

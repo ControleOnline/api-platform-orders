@@ -3,8 +3,11 @@
 namespace ControleOnline\Orders\Tests\Service;
 
 use ControleOnline\Entity\Order;
+use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Address;
+use ControleOnline\Entity\Inventory;
 use ControleOnline\Entity\People;
+use ControleOnline\Entity\Product;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\ProductGroupProduct;
 use ControleOnline\Entity\Status;
@@ -123,9 +126,50 @@ class OrderServiceTest extends TestCase
         self::assertSame(OrderService::ORDER_TYPE_CART, $order->getOrderType());
     }
 
+    public function testConvertDraftOrderToSalePromotesDraftAndMaterializesQueues(): void
+    {
+        $queueService = $this->createMock(OrderProductQueueService::class);
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+
+        $defaultOutInventory = $this->createMock(Inventory::class);
+        $product = $this->createMock(Product::class);
+        $product
+            ->method('getDefaultOutInventory')
+            ->willReturn($defaultOutInventory);
+
+        $order = new Order();
+        $order->setOrderType(OrderService::ORDER_TYPE_CART);
+
+        $orderProduct = new OrderProduct();
+        $orderProduct->setOrder($order);
+        $orderProduct->setProduct($product);
+        $orderProduct->setQuantity(1);
+        $order->addOrderProduct($orderProduct);
+
+        $entityManager
+            ->expects(self::once())
+            ->method('persist')
+            ->with(self::callback(function (mixed $entity) use ($orderProduct, $defaultOutInventory): bool {
+                return $entity === $orderProduct
+                    && $entity->getOutInventory() === $defaultOutInventory;
+            }));
+
+        $queueService
+            ->expects(self::once())
+            ->method('ensureOrderQueueEntries')
+            ->with($order);
+
+        $service = $this->buildService('/orders', $entityManager, null, $queueService);
+
+        self::assertTrue($service->convertDraftOrderToSale($order));
+        self::assertSame(OrderService::ORDER_TYPE_SALE, $order->getOrderType());
+        self::assertSame($defaultOutInventory, $orderProduct->getOutInventory());
+    }
+
     public function testResolvePostPaymentStatusPromotesCartToSaleBeforeClosedResolution(): void
     {
         $statusService = $this->createMock(StatusService::class);
+        $queueService = $this->createMock(OrderProductQueueService::class);
         $closedStatus = $this->createMock(Status::class);
         $closedStatus
             ->method('getRealStatus')
@@ -141,7 +185,12 @@ class OrderServiceTest extends TestCase
         $order->setOrderType(OrderService::ORDER_TYPE_CART);
         $order->setStatus($this->createStatusMock('open'));
 
-        $service = $this->buildService('/orders', null, $statusService);
+        $queueService
+            ->expects(self::once())
+            ->method('ensureOrderQueueEntries')
+            ->with($order);
+
+        $service = $this->buildService('/orders', null, $statusService, $queueService);
 
         self::assertSame($closedStatus, $service->resolvePostPaymentStatus($order));
         self::assertSame(OrderService::ORDER_TYPE_SALE, $order->getOrderType());
@@ -150,6 +199,7 @@ class OrderServiceTest extends TestCase
     public function testResolvePostPaymentStatusPromotesCartToSaleBeforePreparingResolution(): void
     {
         $statusService = $this->createMock(StatusService::class);
+        $queueService = $this->createMock(OrderProductQueueService::class);
         $preparingStatus = $this->createMock(Status::class);
         $preparingStatus
             ->method('getRealStatus')
@@ -166,7 +216,12 @@ class OrderServiceTest extends TestCase
         $order->setStatus($this->createStatusMock('open'));
         $order->setAddressDestination($this->createMock(Address::class));
 
-        $service = $this->buildService('/orders', null, $statusService);
+        $queueService
+            ->expects(self::once())
+            ->method('ensureOrderQueueEntries')
+            ->with($order);
+
+        $service = $this->buildService('/orders', null, $statusService, $queueService);
 
         self::assertSame($preparingStatus, $service->resolvePostPaymentStatus($order));
         self::assertSame(OrderService::ORDER_TYPE_SALE, $order->getOrderType());

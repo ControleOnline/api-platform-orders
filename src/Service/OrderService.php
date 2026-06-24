@@ -425,6 +425,8 @@ class OrderService
             $sanitizedPayload['@id'],
             $sanitizedPayload['@type'],
             $sanitizedPayload['@context'],
+            $sanitizedPayload['client'],
+            $sanitizedPayload['payer'],
             $sanitizedPayload['status'],
             $sanitizedPayload['orderType'],
             $sanitizedPayload['orderProducts'],
@@ -443,6 +445,14 @@ class OrderService
                     'groups' => ['order:write'],
                 ]
             );
+        }
+
+        if (array_key_exists('client', $payload)) {
+            $order->setClient($this->resolveOrderPeopleReference($payload['client'] ?? null));
+        }
+
+        if (array_key_exists('payer', $payload)) {
+            $order->setPayer($this->resolveOrderPeopleReference($payload['payer'] ?? null));
         }
 
         $promotedToSale = false;
@@ -471,6 +481,23 @@ class OrderService
         }
 
         return $order;
+    }
+
+    private function resolveOrderPeopleReference(mixed $reference): ?People
+    {
+        $peopleId = $this->resolvePayloadEntityId($reference);
+        if ($peopleId === null) {
+            return null;
+        }
+
+        $people = $this->manager->getRepository(People::class)->find($peopleId);
+        if ($people instanceof People) {
+            return $people;
+        }
+
+        throw new BadRequestHttpException(
+            sprintf('Pessoa informada nao foi encontrada: %s.', (string) $reference)
+        );
     }
 
     public function isMarketplaceIntegrationOrder(Order $order): bool

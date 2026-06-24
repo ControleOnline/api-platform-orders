@@ -372,6 +372,58 @@ class OrderServiceTest extends TestCase
         self::assertSame('Reclassificado', $order->getComments());
     }
 
+    public function testUpdateOrderFromPayloadResolvesClientAndPayerWithoutSerializerIriLookup(): void
+    {
+        $client = new People();
+        $this->setEntityId(People::class, $client, 31482);
+
+        $serializer = $this->createMock(SerializerInterface::class);
+        $serializer
+            ->expects(self::never())
+            ->method('deserialize')
+            ->willReturnCallback(static function (string $json, string $class, string $format, array $context): Order {
+                return $context['object_to_populate'];
+            });
+
+        $peopleRepository = $this->createMock(EntityRepository::class);
+        $peopleRepository
+            ->expects(self::exactly(2))
+            ->method('find')
+            ->with(31482)
+            ->willReturn($client);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager
+            ->expects(self::exactly(2))
+            ->method('getRepository')
+            ->with(People::class)
+            ->willReturn($peopleRepository);
+        $entityManager
+            ->expects(self::once())
+            ->method('persist')
+            ->with(self::isInstanceOf(Order::class));
+        $entityManager
+            ->expects(self::once())
+            ->method('flush');
+
+        $service = $this->buildService('/orders/904', $entityManager, null, null, null, [], [], null, [], $serializer);
+
+        $order = new Order();
+        $order->setApp('POS');
+        $order->setOrderType(OrderService::ORDER_TYPE_CART);
+        $order->setStatus($this->createStatusEntity(10, 'open'));
+        $this->setEntityId(Order::class, $order, 904);
+
+        $updatedOrder = $service->updateOrderFromPayload($order, [
+            'client' => '/people/31482',
+            'payer' => '/people/31482',
+        ]);
+
+        self::assertSame($order, $updatedOrder);
+        self::assertSame($client, $order->getClient());
+        self::assertSame($client, $order->getPayer());
+    }
+
     public function testCalculateGroupProductPriceConsolidatesGroupRulesIntoParentTotal(): void
     {
         $order = new Order();

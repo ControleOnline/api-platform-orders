@@ -58,16 +58,7 @@ class OrderProductCollectionControllerTest extends TestCase
                 return $payload;
             });
 
-        $orderProductService = $this->createMock(OrderProductService::class);
-        $orderProductService
-            ->expects(self::exactly(2))
-            ->method('securityFilter')
-            ->with(
-                self::isInstanceOf(QueryBuilder::class),
-                OrderProduct::class,
-                'collection',
-                'orderProduct',
-            );
+        $orderProductService = $this->createOrderProductServiceStub();
 
         $controller = new OrderProductCollectionController($manager, $hydratorService, $orderProductService);
         $response = $controller->__invoke(
@@ -78,6 +69,13 @@ class OrderProductCollectionControllerTest extends TestCase
         );
 
         self::assertSame(200, $response->getStatusCode());
+        self::assertCount(2, $orderProductService->securityFilterCalls);
+        foreach ($orderProductService->securityFilterCalls as $call) {
+            self::assertInstanceOf(QueryBuilder::class, $call[0]);
+            self::assertSame(OrderProduct::class, $call[1]);
+            self::assertSame('collection', $call[2]);
+            self::assertSame('orderProduct', $call[3]);
+        }
         self::assertSame($payload, json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR));
         self::assertSame(['orderProduct.order = :orderProductOrder'], $countFilters);
         self::assertSame(['orderProduct.order = :orderProductOrder'], $itemsFilters);
@@ -131,10 +129,7 @@ class OrderProductCollectionControllerTest extends TestCase
                 return $payload;
             });
 
-        $orderProductService = $this->createMock(OrderProductService::class);
-        $orderProductService
-            ->expects(self::exactly(2))
-            ->method('securityFilter');
+        $orderProductService = $this->createOrderProductServiceStub();
 
         $controller = new OrderProductCollectionController($manager, $hydratorService, $orderProductService);
         $response = $controller->__invoke(
@@ -146,9 +141,55 @@ class OrderProductCollectionControllerTest extends TestCase
         );
 
         self::assertSame(200, $response->getStatusCode());
+        self::assertCount(2, $orderProductService->securityFilterCalls);
         self::assertSame($payload, json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR));
         self::assertSame(['max' => 50, 'first' => 50], $itemsPagination);
         self::assertSame(3, $capturedCollectionArguments[4]);
+    }
+
+    public function testResolvesNestedOrderIdQuery(): void
+    {
+        $orderReference = $this->createStub(Order::class);
+        $countFilters = [];
+        $itemsFilters = [];
+
+        $countQueryBuilder = $this->createQueryBuilderMock(
+            countResult: 0,
+            andWhereCalls: $countFilters,
+        );
+        $itemsQueryBuilder = $this->createQueryBuilderMock(
+            result: [],
+            andWhereCalls: $itemsFilters,
+        );
+
+        $manager = $this->createMock(EntityManagerInterface::class);
+        $manager
+            ->method('createQueryBuilder')
+            ->willReturnOnConsecutiveCalls($countQueryBuilder, $itemsQueryBuilder);
+        $manager
+            ->expects(self::exactly(2))
+            ->method('getReference')
+            ->with(Order::class, 72133)
+            ->willReturn($orderReference);
+
+        $hydratorService = $this->createStub(HydratorService::class);
+        $hydratorService
+            ->method('collectionData')
+            ->willReturn(['member' => [], 'totalItems' => 0]);
+
+        $orderProductService = $this->createOrderProductServiceStub();
+
+        $controller = new OrderProductCollectionController($manager, $hydratorService, $orderProductService);
+        $response = $controller->__invoke(
+            Request::create('/order_products', 'GET', [
+                'order.id' => '72133',
+            ]),
+        );
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertCount(2, $orderProductService->securityFilterCalls);
+        self::assertSame(['orderProduct.order = :orderProductOrder'], $countFilters);
+        self::assertSame(['orderProduct.order = :orderProductOrder'], $itemsFilters);
     }
 
     private function createQueryBuilderMock(
@@ -195,5 +236,25 @@ class OrderProductCollectionControllerTest extends TestCase
         $queryBuilder->method('getQuery')->willReturn($query);
 
         return $queryBuilder;
+    }
+
+    private function createOrderProductServiceStub(): OrderProductService
+    {
+        return new class extends OrderProductService {
+            public array $securityFilterCalls = [];
+
+            public function __construct()
+            {
+            }
+
+            public function securityFilter(QueryBuilder $queryBuilder, $resourceClass = null, $applyTo = null, $rootAlias = null): void
+            {
+                $this->securityFilterCalls[] = [$queryBuilder, $resourceClass, $applyTo, $rootAlias];
+            }
+
+            public function __destruct()
+            {
+            }
+        };
     }
 }

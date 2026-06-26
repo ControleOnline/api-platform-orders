@@ -108,6 +108,19 @@ class OrderProductServiceMutationGuardTest extends TestCase
         $service->preRemove($orderProduct);
     }
 
+    public function testPreRemoveRejectsQuoteOrderDeletion(): void
+    {
+        $service = $this->buildService('/order_products/990', 'DELETE');
+        $orderProduct = $this->createOrderProduct(OrderService::ORDER_TYPE_QUOTE);
+
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessage(
+            'Produtos, quantidades e remocoes so podem ser alterados enquanto o pedido estiver em cart.'
+        );
+
+        $service->preRemove($orderProduct);
+    }
+
     public function testPreRemoveAllowsCartOrderDeletion(): void
     {
         $repository = $this->createMock(\Doctrine\ORM\EntityRepository::class);
@@ -132,6 +145,9 @@ class OrderProductServiceMutationGuardTest extends TestCase
             ->method('getRepository')
             ->with(OrderProduct::class)
             ->willReturn($repository);
+        $entityManager
+            ->expects(self::never())
+            ->method('flush');
 
         $service = $this->buildService('/order_products/990', 'DELETE', $entityManager);
         $orderProduct = $this->createOrderProduct(OrderService::ORDER_TYPE_CART);

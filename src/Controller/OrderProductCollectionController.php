@@ -98,6 +98,7 @@ class OrderProductCollectionController
         $candidates = [
             $query['order_id'] ?? null,
             $query['orderId'] ?? null,
+            $query['order.id'] ?? null,
             $query['order'] ?? null,
         ];
 

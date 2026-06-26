@@ -334,8 +334,6 @@ class OrderProductService
 
         $this->cleanupOrderProductRelationsForRemoval($orderProduct);
 
-        $this->manager->flush();
-
         self::$calculateBefore[] = $order;
     }
 
@@ -514,7 +512,7 @@ class OrderProductService
         $orderType = strtolower(trim((string) $order->getOrderType()));
         $realStatus = strtolower(trim((string) $order->getStatus()?->getRealStatus()));
 
-        return in_array($orderType, [OrderService::ORDER_TYPE_CART, OrderService::ORDER_TYPE_QUOTE], true)
+        return OrderService::ORDER_TYPE_CART === $orderType
             && !in_array($realStatus, ['closed', 'canceled', 'cancelled'], true);
     }
 }

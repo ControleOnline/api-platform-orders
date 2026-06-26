@@ -57,7 +57,12 @@ use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
             controller: MarkOrderProductCheckedAction::class
         ),
         new Put(security: "is_granted('ROLE_HUMAN')"),
-        new Delete(security: "is_granted('ROLE_HUMAN')")
+        new Delete(
+            security: "is_granted('ROLE_HUMAN')",
+            output: false,
+            serialize: false,
+            forceEager: false,
+        )
     ]
 )]
 #[ApiFilter(OrderFilter::class, properties: ['alterDate' => 'DESC', 'id' => 'ASC', 'product.product' => 'ASC'])]

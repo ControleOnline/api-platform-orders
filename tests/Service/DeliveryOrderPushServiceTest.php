@@ -62,7 +62,7 @@ class DeliveryOrderPushServiceTest extends TestCase
             ->with(
                 'fcm-token-1',
                 'Pedido #100 aguardando aceite',
-                'Store: aceite a corrida para assumir a entrega.',
+                'STORE: aceite a corrida para assumir a entrega.',
                 self::callback(static function (array $data): bool {
                     return ($data['event'] ?? null) === 'delivery.awaiting_acceptance'
                         && ($data['orderId'] ?? null) === '100'
@@ -76,7 +76,9 @@ class DeliveryOrderPushServiceTest extends TestCase
             $this->createStub(LoggerInterface::class)
         );
 
-        self::assertSame(1, $service->sendAwaitingAcceptanceNotification($order));
+        $service->onEntityChanged(
+            new EntityChangedEvent($order, 'postPersist')
+        );
     }
 
     public function testPostUpdateSendsOnlyWhenOrderTransitionsToAwaitingAcceptance(): void
@@ -127,7 +129,7 @@ class DeliveryOrderPushServiceTest extends TestCase
             ->with(
                 'fcm-token-2',
                 'Pedido #100 aguardando aceite',
-                'Store: aceite a corrida para assumir a entrega.',
+                'STORE: aceite a corrida para assumir a entrega.',
                 self::isType('array')
             );
 

@@ -19,7 +19,6 @@ use ControleOnline\Controller\AutoConferencePrintOrderAction;
 use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Controller\DiscoveryCart;
 use ControleOnline\Controller\OrderConferenceController;
-use ControleOnline\Controller\OrderDetailsController;
 use ControleOnline\Controller\PrintOrderAction;
 use ControleOnline\Controller\ReplaceProductsOrderAction;
 use ControleOnline\Controller\UpdateOrderAction;
@@ -27,6 +26,7 @@ use ControleOnline\Attribute\CollectionSummary;
 use ControleOnline\Filter\CustomOrFilter;
 
 use ControleOnline\Repository\OrderRepository;
+use ControleOnline\State\HydratedReadProvider;
 use ControleOnline\Service\OrderReportSummaryResolver;
 use ControleOnline\Service\OrderSalesSummaryResolver;
 use DateTime;
@@ -40,9 +40,7 @@ use stdClass;
     operations: [
     new Get(
             security: 'is_granted(\'ROLE_HUMAN\')',
-            // Serialize through HydratorService to avoid eager-loading the whole order graph on detail.
-            controller: OrderDetailsController::class,
-            read: false,
+            provider: HydratedReadProvider::class,
             normalizationContext: ['groups' => ['order_details:read']],
         ),
         new GetCollection(
@@ -52,6 +50,7 @@ use stdClass;
         ),
         new GetCollection(
             security: 'is_granted(\'ROLE_HUMAN\')',
+            provider: HydratedReadProvider::class,
             normalizationContext: ['groups' => ['order:read']],
         ),
         new Get(

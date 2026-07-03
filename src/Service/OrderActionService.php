@@ -104,7 +104,7 @@ class OrderActionService
 
     private function isDeliveryOrder(Order $order): bool
     {
-        return $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_DELIVERY;
+        return $this->normalizeStatusValue($order->getOrderType()) === Order::ORDER_TYPE_DELIVERY;
     }
 
     private function isShopOrder(Order $order): bool

@@ -15,16 +15,6 @@ use Throwable;
 class DeliveryOrderPushService implements EventSubscriberInterface
 {
     private const ROUTE_NAME = 'OrderDetails';
-    private const AWAITING_ACCEPTANCE_MARKERS = [
-        'aguardando aceite',
-        'awaiting acceptance',
-        'waiting acceptance',
-        'pending acceptance',
-        'acceptance pending',
-        'requested',
-        'pending',
-        'pendente',
-    ];
 
     public function __construct(
         private EntityManagerInterface $manager,
@@ -232,142 +222,23 @@ class DeliveryOrderPushService implements EventSubscriberInterface
         ]);
     }
 
-    private function resolveLifecycleState(Order $order): string
-    {
-        $statusTokens = $this->collectStatusTokens($order);
-
-        if ($this->containsAwaitingAcceptanceStatus($statusTokens)) {
-            return 'awaiting_acceptance';
-        }
-
-        if ($this->containsAnyStatusToken($statusTokens, [
-            'closed',
-            'fechado',
-            'delivered',
-            'entregue',
-            'finished',
-            'finalizado',
-        ])) {
-            return 'delivered';
-        }
-
-        if ($this->containsAnyStatusToken($statusTokens, [
-            'canceled',
-            'cancelled',
-            'cancelado',
-        ])) {
-            return 'rejected';
-        }
-
-        if ($this->containsAnyStatusToken($statusTokens, [
-            'way',
-            'away',
-            'en route',
-            'in route',
-            'on route',
-        ])) {
-            return 'in_route';
-        }
-
-        if ($this->containsAnyStatusToken($statusTokens, [
-            'aceito',
-            'accepted',
-            'accept',
-            'confirmed',
-            'confirmado',
-        ]) || $this->hasDeliveryPeople($order)) {
-            return 'accepted';
-        }
-
-        return '';
-    }
-
-    private function hasDeliveryPeople(Order $order): bool
-    {
-        return $order->getDeliveryPeople() instanceof People || (int) ($order->getDeliveryPeople()?->getId() ?? 0) > 0;
-    }
-
-    private function containsAnyStatusToken(array $statusTokens, array $markers): bool
-    {
-        foreach ($statusTokens as $statusToken) {
-            $normalizedStatusToken = strtolower($statusToken);
-            foreach ($markers as $marker) {
-                if (str_contains($normalizedStatusToken, strtolower($marker))) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private function isDeliveryAwaitingAcceptance(Order $order): bool
-    {
-        return $this->resolveLifecycleState($order) === 'awaiting_acceptance';
-    }
-
     private function isDeliveryOrder(Order $order): bool
     {
         return $this->normalizeText($order->getOrderType()) === Order::ORDER_TYPE_DELIVERY;
     }
 
-    private function containsAwaitingAcceptanceStatus(array $statusTokens): bool
+    private function resolveLifecycleState(Order $order): string
     {
-        return $this->containsAnyStatusToken($statusTokens, self::AWAITING_ACCEPTANCE_MARKERS);
-    }
+        $realStatus = strtolower($this->normalizeText($order->getStatus()?->getRealStatus()));
 
-    private function collectStatusTokens(Order $order): array
-    {
-        $tokens = [];
-
-        $status = $order->getStatus();
-        if ($status instanceof \ControleOnline\Entity\Status) {
-            $tokens[] = $this->normalizeText($status->getStatus());
-            $tokens[] = $this->normalizeText($status->getRealStatus());
-        }
-
-        $otherInformations = $order->getOtherInformations(true);
-        if (!is_object($otherInformations)) {
-            return array_values(array_filter(array_unique($tokens)));
-        }
-
-        foreach (['quote_state', 'status', 'delivery_status'] as $fieldName) {
-            $tokens[] = $this->normalizeText($otherInformations->{$fieldName} ?? null);
-        }
-
-        foreach (['logistics', 'delivery'] as $sectionName) {
-            $section = $otherInformations->{$sectionName} ?? null;
-            if (!is_object($section)) {
-                continue;
-            }
-
-            foreach (['status', 'quote_state', 'real_status'] as $fieldName) {
-                $tokens[] = $this->normalizeText($section->{$fieldName} ?? null);
-            }
-        }
-
-        return array_values(array_filter(array_unique($tokens)));
-    }
-
-    private function resolveDeliveryDeviceTokens(People $deliveryPeople): array
-    {
-        $deviceConfigs = $this->resolveDeliveryDeviceConfigs($deliveryPeople);
-
-        $tokens = [];
-        foreach ($deviceConfigs as $deviceConfig) {
-            if (!$deviceConfig instanceof DeviceConfig) {
-                continue;
-            }
-
-            $token = $this->extractDeliveryAndroidToken($deviceConfig->getDevice()->getMetadata());
-            if ($token === '') {
-                continue;
-            }
-
-            $tokens[$token] = $token;
-        }
-
-        return array_values($tokens);
+        return match ($realStatus) {
+            'pending' => 'awaiting_acceptance',
+            'accepted' => 'accepted',
+            'way', 'away' => 'in_route',
+            'closed', 'delivered' => 'delivered',
+            'canceled', 'cancelled' => 'rejected',
+            default => '',
+        };
     }
 
     private function extractDeliveryAndroidToken(array $metadata): string

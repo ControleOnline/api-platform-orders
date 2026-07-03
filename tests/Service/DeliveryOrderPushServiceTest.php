@@ -107,7 +107,7 @@ class DeliveryOrderPushServiceTest extends TestCase
         $currentOrder = $this->order(100, $provider, $courier, $this->createStatus('pending', 'pending'));
         $currentOrder->setOrderType(Order::ORDER_TYPE_DELIVERY);
 
-        $previousOrder = $this->order(100, $provider, $courier, $this->createStatus('open', 'open'));
+        $previousOrder = $this->order(100, $provider, $courier, $this->createStatus('accepted', 'accepted'));
         $previousOrder->setOrderType(Order::ORDER_TYPE_DELIVERY);
 
         $device = new Device();
@@ -219,7 +219,7 @@ class DeliveryOrderPushServiceTest extends TestCase
         $currentOrder = $this->order(100, $provider, $courier, $this->createStatus('way', 'way'));
         $currentOrder->setOrderType(Order::ORDER_TYPE_DELIVERY);
 
-        $previousOrder = $this->order(100, $provider, $courier, $this->createStatus('preparing', 'open'));
+        $previousOrder = $this->order(100, $provider, $courier, $this->createStatus('accepted', 'accepted'));
         $previousOrder->setOrderType(Order::ORDER_TYPE_DELIVERY);
 
         $device = new Device();
@@ -300,7 +300,7 @@ class DeliveryOrderPushServiceTest extends TestCase
         $currentOrder = $this->order(100, $provider, $courier, $this->createStatus('closed', 'closed'));
         $currentOrder->setOrderType(Order::ORDER_TYPE_DELIVERY);
 
-        $previousOrder = $this->order(100, $provider, $courier, $this->createStatus('way', 'pending'));
+        $previousOrder = $this->order(100, $provider, $courier, $this->createStatus('way', 'way'));
         $previousOrder->setOrderType(Order::ORDER_TYPE_DELIVERY);
 
         $device = new Device();
@@ -402,7 +402,7 @@ class DeliveryOrderPushServiceTest extends TestCase
         return $people;
     }
 
-    private function createStatus(string $status, string $realStatus, string $context = 'order'): Status
+    private function createStatus(string $status, string $realStatus, string $context = 'delivery'): Status
     {
         $entity = new Status();
         $entity->setStatus($status);

@@ -102,6 +102,11 @@ class OrderActionService
         return in_array($app, ['pos', 'shop'], true);
     }
 
+    private function isDeliveryOrder(Order $order): bool
+    {
+        return $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_DELIVERY;
+    }
+
     private function isShopOrder(Order $order): bool
     {
         return $this->normalizeStatusValue($order->getApp()) === 'shop';
@@ -130,6 +135,51 @@ class OrderActionService
         $realStatus = $this->normalizeStatusValue($order->getStatus()?->getRealStatus());
         $status = $this->normalizeStatusValue($order->getStatus()?->getStatus());
         $terminal = in_array($realStatus, ['canceled', 'cancelled', 'closed'], true);
+
+        if ($this->isDeliveryOrder($order)) {
+            $awaitingAcceptance = in_array($status, [
+                'aguardando aceite',
+                'awaiting acceptance',
+                'waiting acceptance',
+                'pending acceptance',
+                'acceptance pending',
+                'pending',
+                'pendente',
+            ], true);
+            $accepted = in_array($status, ['aceito', 'accepted', 'accept'], true) || $realStatus === 'accepted';
+            $inRoute = in_array($status, [
+                'way',
+                'away',
+                'en route',
+                'in route',
+                'on route',
+                'picked up',
+                'pickup',
+                'dispatch',
+                'delivery',
+                'delivering',
+            ], true);
+            $deliveryTerminal = $terminal || in_array($status, [
+                'delivered',
+                'entregue',
+                'finished',
+                'finalizado',
+                'canceled',
+                'cancelado',
+                'cancelled',
+                'cancel',
+            ], true);
+
+            return [
+                'realStatus' => $realStatus,
+                'can_cancel' => $awaitingAcceptance && !$deliveryTerminal,
+                'can_confirm' => $awaitingAcceptance && !$deliveryTerminal,
+                'can_ready' => false,
+                'can_delivered' => ($accepted || $inRoute) && !$deliveryTerminal,
+                'is_delivering' => $accepted || $inRoute,
+                'is_terminal' => $deliveryTerminal,
+            ];
+        }
 
         $isInitialPosOrShopState = $this->isPosOrShopOrder($order)
             && $realStatus === 'open'
@@ -184,6 +234,12 @@ class OrderActionService
             return $this->buildTerminalOrderResponse();
         }
 
+        if ($this->isDeliveryOrder($order)) {
+            $this->persistOrderAction($order, 'confirm');
+
+            return $this->applyDeliveryStatus($order, 'accepted', 'aceito');
+        }
+
         if ($this->isShopOrder($order) && $order->getAddressDestination() === null) {
             return [
                 'errno' => 10002,
@@ -210,6 +266,15 @@ class OrderActionService
     {
         if ($this->isTerminalOrder($order)) {
             return $this->buildTerminalOrderResponse();
+        }
+
+        if ($this->isDeliveryOrder($order)) {
+            $this->persistOrderAction($order, 'cancel', [
+                'reason_id' => $reasonId,
+                'reason' => $reason,
+            ]);
+
+            return $this->applyDeliveryStatus($order, 'canceled', 'canceled');
         }
 
         if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
@@ -254,6 +319,15 @@ class OrderActionService
             return $this->buildTerminalOrderResponse();
         }
 
+        if ($this->isDeliveryOrder($order)) {
+            $this->persistOrderAction($order, 'delivered', [
+                'delivery_code' => $deliveryCode,
+                'locator' => $locator,
+            ], false);
+
+            return $this->applyDeliveryStatus($order, 'closed', 'closed');
+        }
+
         if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
             return $this->iFoodService->performDeliveredAction($order, $deliveryCode, $locator);
         }
@@ -280,9 +354,9 @@ class OrderActionService
         return $this->applyLocalStatus($order, 'closed', 'closed');
     }
 
-    private function applyLocalStatus(Order $order, string $status, string $realStatus): array
+    private function applyStatus(Order $order, string $realStatus, string $statusName, string $context): array
     {
-        $novoStatus = $this->statusService->discoveryStatus($status, $realStatus, 'order');
+        $novoStatus = $this->statusService->discoveryStatus($realStatus, $statusName, $context);
 
         if (!$novoStatus) {
             return ['errno' => 1, 'errmsg' => 'Status não encontrado: ' . $realStatus];
@@ -293,5 +367,15 @@ class OrderActionService
         $this->entityManager->flush();
 
         return ['errno' => 0, 'errmsg' => 'ok'];
+    }
+
+    private function applyLocalStatus(Order $order, string $realStatus, string $statusName): array
+    {
+        return $this->applyStatus($order, $realStatus, $statusName, 'order');
+    }
+
+    private function applyDeliveryStatus(Order $order, string $realStatus, string $statusName): array
+    {
+        return $this->applyStatus($order, $realStatus, $statusName, 'delivery');
     }
 }

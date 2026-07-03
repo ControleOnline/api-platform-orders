@@ -275,8 +275,6 @@ class DeliveryOrderPushService implements EventSubscriberInterface
             'accept',
             'confirmed',
             'confirmado',
-            'preparando',
-            'preparing',
         ]) || $this->hasDeliveryPeople($order)) {
             return 'accepted';
         }

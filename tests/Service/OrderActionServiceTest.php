@@ -158,4 +158,152 @@ class OrderActionServiceTest extends TestCase
         self::assertSame(Order::ORDER_TYPE_SALE, $order->getOrderType());
         self::assertSame($closedStatus, $order->getStatus());
     }
+
+    public function testConfirmDeliveryOrderUsesDeliveryAcceptedStatusWithoutPromotingCart(): void
+    {
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $statusService = $this->createMock(StatusService::class);
+        $orderService = $this->createMock(OrderService::class);
+        $acceptedStatus = $this->createMock(Status::class);
+
+        $statusService
+            ->expects(self::once())
+            ->method('discoveryStatus')
+            ->with('accepted', 'aceito', 'delivery')
+            ->willReturn($acceptedStatus);
+
+        $order = new Order();
+        $order->setApp('DELIVERY');
+        $order->setOrderType(Order::ORDER_TYPE_DELIVERY);
+
+        $orderService
+            ->expects(self::never())
+            ->method('convertDraftOrderToSale');
+
+        $orderService
+            ->expects(self::never())
+            ->method('dispatchOrderCreated');
+
+        $entityManager
+            ->expects(self::once())
+            ->method('persist')
+            ->with(self::callback(function (mixed $entity) use ($acceptedStatus): bool {
+                return $entity instanceof Order
+                    && $entity->getStatus() === $acceptedStatus
+                    && $entity->getOrderType() === Order::ORDER_TYPE_DELIVERY;
+            }));
+
+        $entityManager
+            ->expects(self::once())
+            ->method('flush');
+
+        $service = new OrderActionService(
+            $entityManager,
+            $statusService,
+            $orderService,
+        );
+
+        $result = $service->confirm($order);
+
+        self::assertSame(0, $result['errno']);
+        self::assertSame('ok', $result['errmsg']);
+        self::assertSame(Order::ORDER_TYPE_DELIVERY, $order->getOrderType());
+        self::assertSame($acceptedStatus, $order->getStatus());
+    }
+
+    public function testDeliveredDeliveryOrderUsesDeliveryClosedStatus(): void
+    {
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $statusService = $this->createMock(StatusService::class);
+        $orderService = $this->createMock(OrderService::class);
+        $closedStatus = $this->createMock(Status::class);
+
+        $statusService
+            ->expects(self::once())
+            ->method('discoveryStatus')
+            ->with('closed', 'closed', 'delivery')
+            ->willReturn($closedStatus);
+
+        $order = new Order();
+        $order->setApp('DELIVERY');
+        $order->setOrderType(Order::ORDER_TYPE_DELIVERY);
+
+        $orderService
+            ->expects(self::never())
+            ->method('convertDraftOrderToSale');
+
+        $entityManager
+            ->expects(self::once())
+            ->method('persist')
+            ->with(self::callback(function (mixed $entity) use ($closedStatus): bool {
+                return $entity instanceof Order
+                    && $entity->getStatus() === $closedStatus
+                    && $entity->getOrderType() === Order::ORDER_TYPE_DELIVERY;
+            }));
+
+        $entityManager
+            ->expects(self::once())
+            ->method('flush');
+
+        $service = new OrderActionService(
+            $entityManager,
+            $statusService,
+            $orderService,
+        );
+
+        $result = $service->delivered($order);
+
+        self::assertSame(0, $result['errno']);
+        self::assertSame('ok', $result['errmsg']);
+        self::assertSame(Order::ORDER_TYPE_DELIVERY, $order->getOrderType());
+        self::assertSame($closedStatus, $order->getStatus());
+    }
+
+    public function testCancelDeliveryOrderUsesDeliveryCanceledStatus(): void
+    {
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $statusService = $this->createMock(StatusService::class);
+        $orderService = $this->createMock(OrderService::class);
+        $canceledStatus = $this->createMock(Status::class);
+
+        $statusService
+            ->expects(self::once())
+            ->method('discoveryStatus')
+            ->with('canceled', 'canceled', 'delivery')
+            ->willReturn($canceledStatus);
+
+        $order = new Order();
+        $order->setApp('DELIVERY');
+        $order->setOrderType(Order::ORDER_TYPE_DELIVERY);
+
+        $orderService
+            ->expects(self::never())
+            ->method('convertDraftOrderToSale');
+
+        $entityManager
+            ->expects(self::once())
+            ->method('persist')
+            ->with(self::callback(function (mixed $entity) use ($canceledStatus): bool {
+                return $entity instanceof Order
+                    && $entity->getStatus() === $canceledStatus
+                    && $entity->getOrderType() === Order::ORDER_TYPE_DELIVERY;
+            }));
+
+        $entityManager
+            ->expects(self::once())
+            ->method('flush');
+
+        $service = new OrderActionService(
+            $entityManager,
+            $statusService,
+            $orderService,
+        );
+
+        $result = $service->cancel($order);
+
+        self::assertSame(0, $result['errno']);
+        self::assertSame('ok', $result['errmsg']);
+        self::assertSame(Order::ORDER_TYPE_DELIVERY, $order->getOrderType());
+        self::assertSame($canceledStatus, $order->getStatus());
+    }
 }

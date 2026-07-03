@@ -6,6 +6,7 @@ use ControleOnline\Entity\DeviceConfig;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
 use ControleOnline\Event\EntityChangedEvent;
+use ControleOnline\Service\Client\WebsocketClient;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -28,6 +29,7 @@ class DeliveryOrderPushService implements EventSubscriberInterface
     public function __construct(
         private EntityManagerInterface $manager,
         private FirebaseCloudMessagingService $firebaseCloudMessagingService,
+        private WebsocketClient $websocketClient,
         private LoggerInterface $logger,
     ) {}
 
@@ -45,14 +47,14 @@ class DeliveryOrderPushService implements EventSubscriberInterface
         }
 
         $order = $event->getEntity();
-        if (!$order instanceof Order || !$this->shouldNotify($event, $order)) {
+        if (!$order instanceof Order) {
             return;
         }
 
         try {
-            $this->sendAwaitingAcceptanceNotification($order);
+            $this->sendDeliveryLifecycleNotification($event, $order);
         } catch (Throwable $throwable) {
-            $this->logger->warning('Unable to send delivery awaiting acceptance push notification.', [
+            $this->logger->warning('Unable to send delivery lifecycle push notification.', [
                 'orderId' => $order->getId(),
                 'deliveryPeopleId' => $order->getDeliveryPeople()?->getId(),
                 'exceptionClass' => $throwable::class,
@@ -62,21 +64,44 @@ class DeliveryOrderPushService implements EventSubscriberInterface
         }
     }
 
-    public function sendAwaitingAcceptanceNotification(Order $order): int
+    public function sendDeliveryLifecycleNotification(EntityChangedEvent $event, Order $order): int
     {
-        if (!$this->isDeliveryAwaitingAcceptance($order)) {
+        if (!$this->isDeliveryOrder($order)) {
             return 0;
         }
 
-        $orderId = (int) ($order->getId() ?? 0);
         $deliveryPeople = $order->getDeliveryPeople();
-        if ($orderId <= 0 || !$deliveryPeople instanceof People || !$deliveryPeople->getId()) {
+        if (!$deliveryPeople instanceof People || !$deliveryPeople->getId()) {
             return 0;
         }
 
-        $tokens = $this->resolveDeliveryDeviceTokens($deliveryPeople);
-        if ($tokens === []) {
+        $currentState = $this->resolveLifecycleState($order);
+        if ($currentState === '') {
             return 0;
+        }
+
+        $oldEntity = $event->getOldEntity();
+        if ($event->getPhase() === 'postUpdate' && $oldEntity instanceof Order) {
+            $oldState = $this->resolveLifecycleState($oldEntity);
+
+            if ($oldState === $currentState) {
+                return 0;
+            }
+        }
+
+        $message = $this->buildLifecycleMessage($order, $currentState);
+        if ($message === null) {
+            return 0;
+        }
+
+        return $this->broadcastLifecycleMessage($order, $deliveryPeople, $message);
+    }
+
+    private function buildLifecycleMessage(Order $order, string $state): ?array
+    {
+        $orderId = (int) ($order->getId() ?? 0);
+        if ($orderId <= 0) {
+            return null;
         }
 
         $providerLabel = trim((string) (
@@ -85,36 +110,111 @@ class DeliveryOrderPushService implements EventSubscriberInterface
             ?: $order->getProvider()?->getId()
         ));
 
-        $title = sprintf('Pedido #%s aguardando aceite', $orderId);
-        $body = $providerLabel !== ''
-            ? sprintf('%s: aceite a corrida para assumir a entrega.', $providerLabel)
-            : 'Aceite a corrida para assumir a entrega.';
+        $event = match ($state) {
+            'awaiting_acceptance' => 'delivery.awaiting_acceptance',
+            'accepted' => 'delivery.accepted',
+            'in_route' => 'delivery.in_route',
+            'delivered' => 'delivery.delivered',
+            'rejected' => 'delivery.rejected',
+            default => '',
+        };
+
+        if ($event === '') {
+            return null;
+        }
+
+        $title = match ($state) {
+            'awaiting_acceptance' => sprintf('Pedido #%s aguardando aceite', $orderId),
+            'accepted' => sprintf('Pedido #%s aceito', $orderId),
+            'in_route' => sprintf('Pedido #%s em rota', $orderId),
+            'delivered' => sprintf('Pedido #%s entregue', $orderId),
+            'rejected' => sprintf('Pedido #%s recusado', $orderId),
+            default => sprintf('Pedido #%s atualizado', $orderId),
+        };
+
+        $body = match ($state) {
+            'awaiting_acceptance' => $providerLabel !== ''
+                ? sprintf('%s: aceite a corrida para assumir a entrega.', $providerLabel)
+                : 'Aceite a corrida para assumir a entrega.',
+            'accepted' => 'Corrida confirmada. Fique na tela para acompanhar a entrega.',
+            'in_route' => 'Corrida em andamento. Marque cada parada como entregue para seguir.',
+            'delivered' => 'Parada concluida. O app vai liberar a proxima entrega.',
+            'rejected' => 'Corrida recusada. A entrega voltara para a fila.',
+            default => 'Status da entrega atualizado.',
+        };
+
         $data = [
-            'event' => 'delivery.awaiting_acceptance',
+            'event' => $event,
             'route' => self::ROUTE_NAME,
             'routeName' => self::ROUTE_NAME,
             'screen' => self::ROUTE_NAME,
             'orderId' => (string) $orderId,
             'order' => (string) $orderId,
             'companyId' => (string) ($order->getProvider()?->getId() ?? ''),
-            'deliveryPeopleId' => (string) $deliveryPeople->getId(),
+            'deliveryPeopleId' => (string) ($order->getDeliveryPeople()?->getId() ?? ''),
+            'orderType' => Order::ORDER_TYPE_DELIVERY,
+            'deliveryState' => $state,
+            'status' => $this->normalizeText($order->getStatus()?->getStatus()),
+            'realStatus' => $this->normalizeText($order->getStatus()?->getRealStatus()),
         ];
 
+        return [
+            'event' => $event,
+            'title' => $title,
+            'body' => $body,
+            'data' => $data,
+        ];
+    }
+
+    private function broadcastLifecycleMessage(Order $order, People $deliveryPeople, array $message): int
+    {
+        $deviceConfigs = $this->resolveDeliveryDeviceConfigs($deliveryPeople);
+        if ($deviceConfigs === []) {
+            return 0;
+        }
+
         $sentCount = 0;
-        foreach ($tokens as $token) {
+        foreach ($deviceConfigs as $deviceConfig) {
+            if (!$deviceConfig instanceof DeviceConfig) {
+                continue;
+            }
+
+            $device = $deviceConfig->getDevice();
+            if (!$device) {
+                continue;
+            }
+
+            $token = $this->extractDeliveryAndroidToken($device->getMetadata());
+            if ($token !== '') {
+                try {
+                    $this->firebaseCloudMessagingService->sendNotificationToToken(
+                        $token,
+                        $message['title'],
+                        $message['body'],
+                        $message['data']
+                    );
+                    $sentCount++;
+                } catch (Throwable $throwable) {
+                    $this->logger->warning('Unable to send delivery lifecycle notification.', [
+                        'orderId' => $order->getId(),
+                        'deliveryPeopleId' => $deliveryPeople->getId(),
+                        'tokenHash' => hash('sha256', $token),
+                        'exceptionClass' => $throwable::class,
+                        'exceptionMessage' => $throwable->getMessage(),
+                        'exception' => $throwable,
+                    ]);
+                }
+            }
+
             try {
-                $this->firebaseCloudMessagingService->sendNotificationToToken(
-                    $token,
-                    $title,
-                    $body,
-                    $data
-                );
-                $sentCount++;
+                $payload = json_encode([$message['data']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if ($payload !== false) {
+                    $this->websocketClient->push($device, $payload);
+                }
             } catch (Throwable $throwable) {
-                $this->logger->warning('Unable to send delivery awaiting acceptance notification.', [
-                    'orderId' => $orderId,
+                $this->logger->warning('Unable to send delivery lifecycle websocket event.', [
+                    'orderId' => $order->getId(),
                     'deliveryPeopleId' => $deliveryPeople->getId(),
-                    'tokenHash' => hash('sha256', $token),
                     'exceptionClass' => $throwable::class,
                     'exceptionMessage' => $throwable->getMessage(),
                     'exception' => $throwable,
@@ -125,48 +225,87 @@ class DeliveryOrderPushService implements EventSubscriberInterface
         return $sentCount;
     }
 
-    private function shouldNotify(EntityChangedEvent $event, Order $order): bool
+    private function resolveDeliveryDeviceConfigs(People $deliveryPeople): array
     {
-        if (!$this->isDeliveryAwaitingAcceptance($order)) {
-            return false;
-        }
-
-        if ($event->getPhase() === 'postPersist') {
-            return true;
-        }
-
-        $oldEntity = $event->getOldEntity();
-        if (!$oldEntity instanceof Order) {
-            return true;
-        }
-
-        $currentState = $this->resolveNotificationState($order);
-        $oldState = $this->resolveNotificationState($oldEntity);
-
-        if (!$oldState['eligible']) {
-            return true;
-        }
-
-        return $oldState['deliveryPeopleId'] !== $currentState['deliveryPeopleId'];
+        return $this->manager->getRepository(DeviceConfig::class)->findBy([
+            'people' => $deliveryPeople,
+        ]);
     }
 
-    private function resolveNotificationState(Order $order): array
+    private function resolveLifecycleState(Order $order): string
     {
-        $deliveryPeople = $order->getDeliveryPeople();
-        $deliveryPeopleId = $deliveryPeople instanceof People ? (int) $deliveryPeople->getId() : 0;
-        $eligible = $this->isDeliveryOrder($order)
-            && $deliveryPeopleId > 0
-            && $this->containsAwaitingAcceptanceStatus($this->collectStatusTokens($order));
+        $statusTokens = $this->collectStatusTokens($order);
 
-        return [
-            'eligible' => $eligible,
-            'deliveryPeopleId' => $deliveryPeopleId,
-        ];
+        if ($this->containsAwaitingAcceptanceStatus($statusTokens)) {
+            return 'awaiting_acceptance';
+        }
+
+        if ($this->containsAnyStatusToken($statusTokens, [
+            'closed',
+            'fechado',
+            'delivered',
+            'entregue',
+            'finished',
+            'finalizado',
+        ])) {
+            return 'delivered';
+        }
+
+        if ($this->containsAnyStatusToken($statusTokens, [
+            'canceled',
+            'cancelled',
+            'cancelado',
+        ])) {
+            return 'rejected';
+        }
+
+        if ($this->containsAnyStatusToken($statusTokens, [
+            'way',
+            'away',
+            'en route',
+            'in route',
+            'on route',
+        ])) {
+            return 'in_route';
+        }
+
+        if ($this->containsAnyStatusToken($statusTokens, [
+            'aceito',
+            'accepted',
+            'accept',
+            'confirmed',
+            'confirmado',
+            'preparando',
+            'preparing',
+        ]) || $this->hasDeliveryPeople($order)) {
+            return 'accepted';
+        }
+
+        return '';
+    }
+
+    private function hasDeliveryPeople(Order $order): bool
+    {
+        return $order->getDeliveryPeople() instanceof People || (int) ($order->getDeliveryPeople()?->getId() ?? 0) > 0;
+    }
+
+    private function containsAnyStatusToken(array $statusTokens, array $markers): bool
+    {
+        foreach ($statusTokens as $statusToken) {
+            $normalizedStatusToken = strtolower($statusToken);
+            foreach ($markers as $marker) {
+                if (str_contains($normalizedStatusToken, strtolower($marker))) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function isDeliveryAwaitingAcceptance(Order $order): bool
     {
-        return $this->resolveNotificationState($order)['eligible'];
+        return $this->resolveLifecycleState($order) === 'awaiting_acceptance';
     }
 
     private function isDeliveryOrder(Order $order): bool
@@ -176,15 +315,7 @@ class DeliveryOrderPushService implements EventSubscriberInterface
 
     private function containsAwaitingAcceptanceStatus(array $statusTokens): bool
     {
-        foreach ($statusTokens as $statusToken) {
-            foreach (self::AWAITING_ACCEPTANCE_MARKERS as $marker) {
-                if (str_contains($statusToken, $marker)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return $this->containsAnyStatusToken($statusTokens, self::AWAITING_ACCEPTANCE_MARKERS);
     }
 
     private function collectStatusTokens(Order $order): array
@@ -222,9 +353,7 @@ class DeliveryOrderPushService implements EventSubscriberInterface
 
     private function resolveDeliveryDeviceTokens(People $deliveryPeople): array
     {
-        $deviceConfigs = $this->manager->getRepository(DeviceConfig::class)->findBy([
-            'people' => $deliveryPeople,
-        ]);
+        $deviceConfigs = $this->resolveDeliveryDeviceConfigs($deliveryPeople);
 
         $tokens = [];
         foreach ($deviceConfigs as $deviceConfig) {

@@ -11,6 +11,6 @@
 - A promocao de `cart` para `sale` deve materializar imediatamente as filas que foram ignoradas durante o rascunho.
 - Itens de pedido so podem ser adicionados, ter quantidade alterada, ser substituidos ou removidos enquanto o pedido ainda estiver em `cart` e nao for terminal; `sale` e estados finais ficam read-only para `order_products`.
 - `PUT /orders/{id}` nao e editor livre de estado. O controller desse recurso so pode aceitar mudanca de dados de negocio e normalizacao controlada entre `cart` e `sale`; `status` nao deve descancelar nem reabrir pedido por esse caminho.
-- Para `orderType=delivery`, `confirm` deve resolver para `delivery/aceito`, `delivered` para `delivery/closed` e `cancel` para `delivery/canceled`; `preparando` nao pertence a esse contrato nem deve ser criado para esse contexto.
+- Para `orderType=delivery`, `confirm` deve resolver para `delivery/aceito`, `delivered` para `delivery/closed` e `cancel` para `delivery/canceled`; `rejected` e um estado distinto, usado para recusa de aceite, e nao pode ser tratado como cancelamento. `preparando` nao pertence a esse contrato nem deve ser criado para esse contexto.
 - `DeliveryOrderPushService` deve tratar entrega `delivery` em `aguardando aceite` como um fluxo separado do `order.created`: o push precisa mirar o motoboy vinculado ao pedido e resolver `device_config` por `people`, nunca por empresa.
 - O contrato do push de aceite da entrega nao pode reutilizar o escopo do dono da empresa; o destinatario operacional e sempre o entregador associado ao pedido.

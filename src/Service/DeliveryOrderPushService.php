@@ -105,6 +105,7 @@ class DeliveryOrderPushService implements EventSubscriberInterface
             'accepted' => 'delivery.accepted',
             'in_route' => 'delivery.in_route',
             'delivered' => 'delivery.delivered',
+            'canceled' => 'delivery.canceled',
             'rejected' => 'delivery.rejected',
             default => '',
         };
@@ -118,6 +119,7 @@ class DeliveryOrderPushService implements EventSubscriberInterface
             'accepted' => sprintf('Pedido #%s aceito', $orderId),
             'in_route' => sprintf('Pedido #%s em rota', $orderId),
             'delivered' => sprintf('Pedido #%s entregue', $orderId),
+            'canceled' => sprintf('Pedido #%s cancelado', $orderId),
             'rejected' => sprintf('Pedido #%s recusado', $orderId),
             default => sprintf('Pedido #%s atualizado', $orderId),
         };
@@ -129,6 +131,7 @@ class DeliveryOrderPushService implements EventSubscriberInterface
             'accepted' => 'Corrida confirmada. Fique na tela para acompanhar a entrega.',
             'in_route' => 'Corrida em andamento. Marque cada parada como entregue para seguir.',
             'delivered' => 'Parada concluida. O app vai liberar a proxima entrega.',
+            'canceled' => 'Corrida cancelada. A entrega voltara para a fila.',
             'rejected' => 'Corrida recusada. A entrega voltara para a fila.',
             default => 'Status da entrega atualizado.',
         };
@@ -236,7 +239,8 @@ class DeliveryOrderPushService implements EventSubscriberInterface
             'accepted' => 'accepted',
             'way', 'away' => 'in_route',
             'closed', 'delivered' => 'delivered',
-            'canceled', 'cancelled' => 'rejected',
+            'canceled', 'cancelled' => 'canceled',
+            'rejected' => 'rejected',
             default => '',
         };
     }

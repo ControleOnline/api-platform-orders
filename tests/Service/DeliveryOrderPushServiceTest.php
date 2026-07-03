@@ -374,6 +374,168 @@ class DeliveryOrderPushServiceTest extends TestCase
         );
     }
 
+    public function testPostUpdateBroadcastsCanceledLifecycleMessage(): void
+    {
+        $courier = $this->people(20, 'Courier');
+        $provider = $this->people(10, 'Store');
+        $currentOrder = $this->order(100, $provider, $courier, $this->createStatus('canceled', 'canceled'));
+        $currentOrder->setOrderType(Order::ORDER_TYPE_DELIVERY);
+
+        $previousOrder = $this->order(100, $provider, $courier, $this->createStatus('accepted', 'accepted'));
+        $previousOrder->setOrderType(Order::ORDER_TYPE_DELIVERY);
+
+        $device = new Device();
+        $device->setDevice('android-delivery');
+        $device->setMetadata([
+            'pushTokens' => [
+                'delivery' => [
+                    'android' => [
+                        'deviceToken' => 'fcm-token-5',
+                    ],
+                ],
+            ],
+        ]);
+
+        $deviceConfig = (new DeviceConfig())
+            ->setPeople($courier)
+            ->setDevice($device)
+            ->setType('DELIVERY');
+
+        $repository = $this->createMock(EntityRepository::class);
+        $repository
+            ->expects(self::once())
+            ->method('findBy')
+            ->with(['people' => $courier])
+            ->willReturn([$deviceConfig]);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager
+            ->expects(self::once())
+            ->method('getRepository')
+            ->with(DeviceConfig::class)
+            ->willReturn($repository);
+
+        $firebaseCloudMessagingService = $this->createMock(FirebaseCloudMessagingService::class);
+        $firebaseCloudMessagingService
+            ->expects(self::once())
+            ->method('sendNotificationToToken')
+            ->with(
+                'fcm-token-5',
+                'Pedido #100 cancelado',
+                'Corrida cancelada. A entrega voltara para a fila.',
+                self::callback(static function (array $data): bool {
+                    return ($data['event'] ?? null) === 'delivery.canceled';
+                })
+            );
+
+        $websocketClient = $this->createMock(WebsocketClient::class);
+        $websocketClient
+            ->expects(self::once())
+            ->method('push')
+            ->with(
+                $device,
+                self::callback(static function (string $payload): bool {
+                    $decoded = json_decode($payload, true);
+
+                    return is_array($decoded)
+                        && ($decoded[0]['event'] ?? null) === 'delivery.canceled';
+                })
+            )
+            ->willReturn($this->createStub(Integration::class));
+
+        $service = new DeliveryOrderPushService(
+            $entityManager,
+            $firebaseCloudMessagingService,
+            $websocketClient,
+            $this->createStub(LoggerInterface::class)
+        );
+
+        $service->onEntityChanged(
+            new EntityChangedEvent($currentOrder, 'postUpdate', $previousOrder)
+        );
+    }
+
+    public function testPostUpdateBroadcastsRejectedLifecycleMessage(): void
+    {
+        $courier = $this->people(20, 'Courier');
+        $provider = $this->people(10, 'Store');
+        $currentOrder = $this->order(100, $provider, $courier, $this->createStatus('rejected', 'rejected'));
+        $currentOrder->setOrderType(Order::ORDER_TYPE_DELIVERY);
+
+        $previousOrder = $this->order(100, $provider, $courier, $this->createStatus('accepted', 'accepted'));
+        $previousOrder->setOrderType(Order::ORDER_TYPE_DELIVERY);
+
+        $device = new Device();
+        $device->setDevice('android-delivery');
+        $device->setMetadata([
+            'pushTokens' => [
+                'delivery' => [
+                    'android' => [
+                        'deviceToken' => 'fcm-token-6',
+                    ],
+                ],
+            ],
+        ]);
+
+        $deviceConfig = (new DeviceConfig())
+            ->setPeople($courier)
+            ->setDevice($device)
+            ->setType('DELIVERY');
+
+        $repository = $this->createMock(EntityRepository::class);
+        $repository
+            ->expects(self::once())
+            ->method('findBy')
+            ->with(['people' => $courier])
+            ->willReturn([$deviceConfig]);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager
+            ->expects(self::once())
+            ->method('getRepository')
+            ->with(DeviceConfig::class)
+            ->willReturn($repository);
+
+        $firebaseCloudMessagingService = $this->createMock(FirebaseCloudMessagingService::class);
+        $firebaseCloudMessagingService
+            ->expects(self::once())
+            ->method('sendNotificationToToken')
+            ->with(
+                'fcm-token-6',
+                'Pedido #100 recusado',
+                'Corrida recusada. A entrega voltara para a fila.',
+                self::callback(static function (array $data): bool {
+                    return ($data['event'] ?? null) === 'delivery.rejected';
+                })
+            );
+
+        $websocketClient = $this->createMock(WebsocketClient::class);
+        $websocketClient
+            ->expects(self::once())
+            ->method('push')
+            ->with(
+                $device,
+                self::callback(static function (string $payload): bool {
+                    $decoded = json_decode($payload, true);
+
+                    return is_array($decoded)
+                        && ($decoded[0]['event'] ?? null) === 'delivery.rejected';
+                })
+            )
+            ->willReturn($this->createStub(Integration::class));
+
+        $service = new DeliveryOrderPushService(
+            $entityManager,
+            $firebaseCloudMessagingService,
+            $websocketClient,
+            $this->createStub(LoggerInterface::class)
+        );
+
+        $service->onEntityChanged(
+            new EntityChangedEvent($currentOrder, 'postUpdate', $previousOrder)
+        );
+    }
+
     private function order(
         int $id,
         People $provider,

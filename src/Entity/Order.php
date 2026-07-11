@@ -39,7 +39,7 @@ use stdClass;
 #[ApiResource(
     operations: [
     new Get(
-            security: 'is_granted(\'ROLE_HUMAN\')',
+            security: 'is_granted(\'ROLE_HUMAN\') or is_granted(\'ROLE_CLIENT\')',
             provider: HydratedReadProvider::class,
             normalizationContext: ['groups' => ['order_details:read']],
         ),
@@ -49,7 +49,7 @@ use stdClass;
             controller: DiscoveryCart::class
         ),
         new GetCollection(
-            security: 'is_granted(\'ROLE_HUMAN\')',
+            security: 'is_granted(\'ROLE_HUMAN\') or is_granted(\'ROLE_CLIENT\')',
             provider: HydratedReadProvider::class,
             normalizationContext: ['groups' => ['order:read']],
         ),

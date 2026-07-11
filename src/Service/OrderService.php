@@ -785,6 +785,32 @@ class OrderService
     {
         $request = $this->request;
         $companies   = $this->peopleService->getMyCompanies();
+        $currentPeople = $this->peopleService->getMyPeople();
+        $isClientUser = $this->currentUserHasRole('ROLE_CLIENT');
+
+        if ($isClientUser && $currentPeople instanceof People) {
+            $queryBuilder->andWhere(sprintf(
+                '(%s.client = :currentPeople OR %s.payer = :currentPeople)',
+                $rootAlias,
+                $rootAlias,
+            ));
+            $queryBuilder->setParameter('currentPeople', $currentPeople);
+
+            if ($provider = $request?->query->get('provider', null)) {
+                $queryBuilder->andWhere(sprintf('%s.provider IN(:provider)', $rootAlias));
+                $queryBuilder->setParameter('provider', preg_replace("/[^0-9]/", "", $provider));
+            }
+
+            if ($client = $request?->query->get('client', null)) {
+                $requestedClientId = preg_replace("/[^0-9]/", "", $client);
+                $currentPeopleId = (string) $currentPeople->getId();
+                if ($requestedClientId !== '' && $requestedClientId !== $currentPeopleId) {
+                    $queryBuilder->andWhere('1 = 0');
+                }
+            }
+
+            return;
+        }
 
         if ($companies === []) {
             $queryBuilder->andWhere('1 = 0');
@@ -814,6 +840,16 @@ class OrderService
             $queryBuilder->andWhere(sprintf('%s.orderType = :displayOrderType', $rootAlias));
             $queryBuilder->setParameter('displayOrderType', self::ORDER_TYPE_SALE);
         }
+    }
+
+    private function currentUserHasRole(string $role): bool
+    {
+        $token = $this->security->getToken();
+        if (!$token || !method_exists($token, 'getRoleNames')) {
+            return false;
+        }
+
+        return in_array($role, $token->getRoleNames(), true);
     }
 
     public function postPersist(Order $order): void

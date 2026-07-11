@@ -28,6 +28,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Serializer\SerializerInterface;
@@ -576,6 +577,99 @@ class OrderServiceTest extends TestCase
         self::assertSame('77', $parameters['provider']);
     }
 
+    public function testSecurityFilterAllowsClientUsersToReadOnlyTheirOwnOrders(): void
+    {
+        $currentPeople = new People();
+        $this->setEntityId(People::class, $currentPeople, 31484);
+
+        $service = $this->buildService(
+            '/orders',
+            null,
+            null,
+            null,
+            null,
+            [],
+            [],
+            $currentPeople,
+            ['provider' => '/people/9'],
+            null,
+            ['ROLE_CLIENT'],
+        );
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+
+        $whereClauses = [];
+        $parameters = [];
+
+        $queryBuilder
+            ->expects(self::exactly(2))
+            ->method('andWhere')
+            ->willReturnCallback(function (string $expression) use (&$whereClauses, $queryBuilder) {
+                $whereClauses[] = $expression;
+                return $queryBuilder;
+            });
+
+        $queryBuilder
+            ->expects(self::exactly(2))
+            ->method('setParameter')
+            ->willReturnCallback(function (string $name, mixed $value) use (&$parameters, $queryBuilder) {
+                $parameters[$name] = $value;
+                return $queryBuilder;
+            });
+
+        $service->securityFilter($queryBuilder, null, null, 'orders');
+
+        self::assertContains('(orders.client = :currentPeople OR orders.payer = :currentPeople)', $whereClauses);
+        self::assertContains('orders.provider IN(:provider)', $whereClauses);
+        self::assertSame($currentPeople, $parameters['currentPeople']);
+        self::assertSame('9', $parameters['provider']);
+    }
+
+    public function testSecurityFilterBlocksClientUsersFromRequestingAnotherClientId(): void
+    {
+        $currentPeople = new People();
+        $this->setEntityId(People::class, $currentPeople, 31484);
+
+        $service = $this->buildService(
+            '/orders',
+            null,
+            null,
+            null,
+            null,
+            [],
+            [],
+            $currentPeople,
+            ['client' => '/people/999'],
+            null,
+            ['ROLE_CLIENT'],
+        );
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+
+        $whereClauses = [];
+        $parameters = [];
+
+        $queryBuilder
+            ->expects(self::exactly(2))
+            ->method('andWhere')
+            ->willReturnCallback(function (string $expression) use (&$whereClauses, $queryBuilder) {
+                $whereClauses[] = $expression;
+                return $queryBuilder;
+            });
+
+        $queryBuilder
+            ->expects(self::once())
+            ->method('setParameter')
+            ->willReturnCallback(function (string $name, mixed $value) use (&$parameters, $queryBuilder) {
+                $parameters[$name] = $value;
+                return $queryBuilder;
+            });
+
+        $service->securityFilter($queryBuilder, null, null, 'orders');
+
+        self::assertContains('(orders.client = :currentPeople OR orders.payer = :currentPeople)', $whereClauses);
+        self::assertContains('1 = 0', $whereClauses);
+        self::assertSame($currentPeople, $parameters['currentPeople']);
+    }
+
     public function testPreferredProductGroupProductLinkUsesHiddenMappingFirst(): void
     {
         $service = $this->buildService('/orders');
@@ -709,6 +803,7 @@ class OrderServiceTest extends TestCase
         ?People $currentPeople = null,
         array $query = [],
         ?SerializerInterface $serializer = null,
+        array $roleNames = ['ROLE_HUMAN'],
     ): OrderService
     {
         $peopleService = $this->createMock(PeopleService::class);
@@ -730,9 +825,19 @@ class OrderServiceTest extends TestCase
         $requestStack = new RequestStack();
         $requestStack->push(Request::create($path, 'GET', $query));
 
+        $token = $this->createMock(TokenInterface::class);
+        $token
+            ->method('getRoleNames')
+            ->willReturn($roleNames);
+
+        $tokenStorage = $this->createMock(TokenStorageInterface::class);
+        $tokenStorage
+            ->method('getToken')
+            ->willReturn($token);
+
         return new OrderService(
             $entityManager ?? $this->createMock(EntityManagerInterface::class),
-            $this->createMock(TokenStorageInterface::class),
+            $tokenStorage,
             $peopleService,
             $statusService ?? $this->createMock(StatusService::class),
             $orderProductQueueService ?? $this->createMock(OrderProductQueueService::class),

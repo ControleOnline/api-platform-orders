@@ -1,60 +1,7 @@
 <?php
 
-namespace ControleOnline\Entity {
-    class People
-    {
-        public function __construct(private ?int $id = null) {}
-
-        public function getId(): ?int
-        {
-            return $this->id;
-        }
-    }
-
-    class Order
-    {
-        public function __construct(
-            private ?int $id = null,
-            private ?People $provider = null,
-            private ?string $app = null,
-        ) {}
-
-        public function getId(): ?int
-        {
-            return $this->id;
-        }
-
-        public function getProvider(): ?People
-        {
-            return $this->provider;
-        }
-
-        public function getApp(): ?string
-        {
-            return $this->app;
-        }
-    }
-}
-
-namespace ControleOnline\Service {
-    class OrderPrintService
-    {
-        public function printConferenceCopies(
-            \ControleOnline\Entity\Order $order,
-            ?array $devices = [],
-            ?array $aditionalData = []
-        ): int {
-            return 0;
-        }
-    }
-
-    class LoggerService
-    {
-        public function getLogger(string $channel): ?\Psr\Log\LoggerInterface
-        {
-            return null;
-        }
-    }
+namespace {
+    require_once __DIR__ . '/../Fixtures/OrderPrintDoubles.php';
 }
 
 namespace ControleOnline\Orders\Tests\Service {

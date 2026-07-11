@@ -1,106 +1,7 @@
 <?php
 
-namespace ControleOnline\Entity {
-    class People
-    {
-        public function __construct(private ?int $id = null) {}
-
-        public function getId(): ?int
-        {
-            return $this->id;
-        }
-    }
-
-    class Spool
-    {
-        public function __construct(private ?int $id = null) {}
-
-        public function getId(): ?int
-        {
-            return $this->id;
-        }
-    }
-
-    class Order
-    {
-        public function __construct(
-            private ?int $id = null,
-            private ?People $provider = null,
-            private array|string|null $otherInformations = null,
-        ) {}
-
-        public function getId(): ?int
-        {
-            return $this->id;
-        }
-
-        public function getProvider(): ?People
-        {
-            return $this->provider;
-        }
-
-        public function getOtherInformations($decode = false)
-        {
-            if (!$decode) {
-                return $this->otherInformations;
-            }
-
-            if (is_array($this->otherInformations)) {
-                return (object) json_decode(json_encode($this->otherInformations));
-            }
-
-            if (is_string($this->otherInformations) && trim($this->otherInformations) !== '') {
-                return json_decode($this->otherInformations) ?: new \stdClass();
-            }
-
-            return new \stdClass();
-        }
-
-        public function setOtherInformations($otherInformations): self
-        {
-            $normalized = json_decode(json_encode($otherInformations), true);
-            $this->otherInformations = is_array($normalized) ? $normalized : [];
-
-            return $this;
-        }
-
-        public function getStoredOtherInformations(): array
-        {
-            if (is_array($this->otherInformations)) {
-                return $this->otherInformations;
-            }
-
-            if (is_string($this->otherInformations) && trim($this->otherInformations) !== '') {
-                $decoded = json_decode($this->otherInformations, true);
-                return is_array($decoded) ? $decoded : [];
-            }
-
-            return [];
-        }
-    }
-}
-
-namespace ControleOnline\Service {
-    use ControleOnline\Entity\Order;
-    use ControleOnline\Entity\Spool;
-
-    class OrderPrintService
-    {
-        public array $calls = [];
-        public ?Spool $spoolToReturn = null;
-
-        public function generatePrintDataFromPayload(
-            Order $order,
-            array $payload
-        ): ?Spool {
-            $this->calls[] = [
-                'order' => $order,
-                'payload' => $payload,
-            ];
-
-            return $this->spoolToReturn;
-        }
-    }
+namespace {
+    require_once __DIR__ . '/../Fixtures/OrderPrintDoubles.php';
 }
 
 namespace ControleOnline\Orders\Tests\Service {
@@ -138,8 +39,23 @@ namespace ControleOnline\Orders\Tests\Service {
         public function testAutoPrintIfNeededMarksOrderAfterSuccessfulConferencePrint(): void
         {
             $order = new Order(321, new People(99));
-            $orderPrintService = new OrderPrintService();
-            $orderPrintService->spoolToReturn = new Spool(77);
+            $orderPrintService = $this->getMockBuilder(OrderPrintService::class)
+                ->disableOriginalConstructor()
+                ->onlyMethods(['generatePrintDataFromPayload'])
+                ->getMock();
+            $orderPrintService
+                ->expects(self::once())
+                ->method('generatePrintDataFromPayload')
+                ->with(
+                    $order,
+                    [
+                        'device' => 'device-printer-1',
+                        'type' => 'printer',
+                        'displayId' => '/displays/12',
+                        'source' => 'display-auto',
+                    ]
+                )
+                ->willReturn(new Spool(77));
             $connection = $this->createConnectionMock();
 
             $entityManager = $this->createMock(EntityManagerInterface::class);
@@ -176,7 +92,6 @@ namespace ControleOnline\Orders\Tests\Service {
             self::assertSame(77, $result['spoolId']);
             self::assertSame(321, $result['orderId']);
             self::assertNotEmpty($result['printedAt']);
-            self::assertCount(1, $orderPrintService->calls);
 
             $state = $order->getStoredOtherInformations()['conference_print'] ?? [];
 
@@ -199,8 +114,13 @@ namespace ControleOnline\Orders\Tests\Service {
                     'spool_id' => 44,
                 ],
             ]);
-            $orderPrintService = new OrderPrintService();
-            $orderPrintService->spoolToReturn = new Spool(91);
+            $orderPrintService = $this->getMockBuilder(OrderPrintService::class)
+                ->disableOriginalConstructor()
+                ->onlyMethods(['generatePrintDataFromPayload'])
+                ->getMock();
+            $orderPrintService
+                ->expects(self::never())
+                ->method('generatePrintDataFromPayload');
             $connection = $this->createConnectionMock();
 
             $entityManager = $this->createMock(EntityManagerInterface::class);
@@ -234,7 +154,6 @@ namespace ControleOnline\Orders\Tests\Service {
             self::assertSame(44, $result['spoolId']);
             self::assertSame('2026-04-27T12:00:00+00:00', $result['printedAt']);
             self::assertSame(654, $result['orderId']);
-            self::assertCount(0, $orderPrintService->calls);
         }
     }
 }

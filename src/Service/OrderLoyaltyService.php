@@ -19,6 +19,7 @@ class OrderLoyaltyService implements EventSubscriberInterface
 
     private const INFO_REQUIRED_SALES = 'loyalty_required_sales';
     private const INFO_GIFT_PRODUCT_ID = 'loyalty_gift_product_id';
+    private const INFO_CARD_ID = 'loyalty_card_id';
     private const INFO_REWARD_ORDER_ID = 'loyalty_reward_order_id';
     private const INFO_REWARD_PRODUCT_ID = 'loyalty_reward_product_id';
     private const INFO_REWARD_RESERVED_AT = 'loyalty_reward_reserved_at';
@@ -120,9 +121,7 @@ class OrderLoyaltyService implements EventSubscriberInterface
             return;
         }
 
-        if ($sale->getMainOrderId()) {
-            return;
-        }
+        $sale->setOrderType(Order::ORDER_TYPE_SALE);
 
         $card = $this->findCurrentCard($sale, $settings)
             ?? $this->createCard($sale, $settings);
@@ -130,8 +129,15 @@ class OrderLoyaltyService implements EventSubscriberInterface
             return;
         }
 
-        $sale->setMainOrder($card);
-        $sale->setMainOrderId($card->getId());
+        $cardId = (int) $card->getId();
+        $info = $this->readOrderInfo($sale);
+        $info[self::INFO_CARD_ID] = $cardId;
+        $this->writeOrderInfo($sale, $info);
+
+        if (!$sale->getMainOrderId()) {
+            $sale->setMainOrder($card);
+            $sale->setMainOrderId($cardId);
+        }
 
         $this->manager->persist($sale);
         $this->manager->flush();
@@ -273,6 +279,15 @@ class OrderLoyaltyService implements EventSubscriberInterface
 
     private function resolveLinkedFidelityCard(Order $order): ?Order
     {
+        $info = $this->readOrderInfo($order);
+        $cardId = $this->normalizeId($info[self::INFO_CARD_ID] ?? null);
+        if ($cardId !== null) {
+            $card = $this->manager->getRepository(Order::class)->find($cardId);
+            if ($card instanceof Order && $this->isFidelityOrder($card)) {
+                return $card;
+            }
+        }
+
         $mainOrder = $order->getMainOrder();
         if ($mainOrder instanceof Order && $this->isFidelityOrder($mainOrder)) {
             return $mainOrder;
@@ -292,15 +307,67 @@ class OrderLoyaltyService implements EventSubscriberInterface
 
     private function countCardStamps(Order $card): int
     {
-        $sales = $this->manager->getRepository(Order::class)->findBy([
-            'mainOrderId' => $card->getId(),
-            'orderType' => Order::ORDER_TYPE_SALE,
-        ]);
+        $repository = $this->manager->getRepository(Order::class);
+        $sales = array_merge(
+            $repository->findBy([
+                'mainOrderId' => $card->getId(),
+                'orderType' => Order::ORDER_TYPE_SALE,
+            ]),
+            $repository->findBy(
+                [
+                    'provider' => $card->getProvider(),
+                    'client' => $card->getClient(),
+                    'orderType' => Order::ORDER_TYPE_SALE,
+                ],
+                ['orderDate' => 'DESC'],
+                200,
+            ),
+        );
 
-        return count(array_filter(
-            $sales,
-            fn($sale) => $sale instanceof Order && $this->isPaidOrder($sale)
-        ));
+        $count = 0;
+        $seen = [];
+        foreach ($sales as $sale) {
+            if (
+                !$sale instanceof Order
+                || !$this->isPaidOrder($sale)
+                || !$this->isSaleLinkedToCard($sale, $card)
+            ) {
+                continue;
+            }
+
+            $saleId = $this->normalizeId($sale->getId()) ?? spl_object_hash($sale);
+            if (isset($seen[$saleId])) {
+                continue;
+            }
+
+            $seen[$saleId] = true;
+            $count++;
+        }
+
+        return $count;
+    }
+
+    private function isSaleLinkedToCard(Order $sale, Order $card): bool
+    {
+        $cardId = (int) ($card->getId() ?? 0);
+        if ($cardId <= 0) {
+            return false;
+        }
+
+        $info = $this->readOrderInfo($sale);
+        if ($this->normalizeId($info[self::INFO_CARD_ID] ?? null) === $cardId) {
+            return true;
+        }
+
+        if ($this->normalizeId($sale->getMainOrderId()) === $cardId) {
+            return true;
+        }
+
+        $mainOrder = $sale->getMainOrder();
+
+        return $mainOrder instanceof Order
+            && $this->isFidelityOrder($mainOrder)
+            && (int) ($mainOrder->getId() ?? 0) === $cardId;
     }
 
     private function cartHasLoyaltyGift(Order $cart, Product $giftProduct): bool

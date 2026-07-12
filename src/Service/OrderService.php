@@ -17,7 +17,7 @@
  * - Quando um fluxo tocar pedido e pagamento, a regra do pedido fica aqui e a camada financeira/integracao fica nos modulos correspondentes.
  * - Em venda, o rascunho/carrinho canonico do pedido usa `orderType = cart`. `quote` nao deve mais representar carrinho de venda.
  * - A confirmacao de pedido do `SHOP` deve recusar carrinho sem `addressDestination`; o carrinho pode existir como rascunho, mas nao pode virar venda sem endereco de entrega.
- * - Em atendimento por `tab/table`, o pedido financeiro raiz continua sendo um `Order` do proprio modulo `orders`. Pedidos filhos e invoices devem convergir para essa raiz, sem contrato paralelo fora de `mainOrderId` e `OrderInvoice`.
+ * - Em atendimento por `tab/table/stamp`, o pedido financeiro raiz continua sendo um `Order` do proprio modulo `orders`. Pedidos filhos e invoices devem convergir para essa raiz, sem contrato paralelo fora de `mainOrderId` e `OrderInvoice`.
  * - O serializer de leitura de `Order` deve expor `mainOrder.externalCode` nos groups usados por listagem e detalhe. Esse valor e o numero da comanda e nao deve depender de `otherInformations` no frontend.
  * - `ready`, `cancel` e `delivered` devem nascer pelo fluxo principal de acoes do pedido (`OrderActionService`/`OrderActionController`). Nao criar caminhos paralelos de mudanca de status para KDS, marketplace ou device.
  * - `PUT /orders/{id}` nao e editor livre de estado. Esse fluxo so pode atualizar campos de negocio nao operacionais e normalizar `quote`/`cart`/`sale` quando a regra permitir; trocas de `status` ficam nos fluxos de acao e financeiro.
@@ -77,6 +77,7 @@ class OrderService
     public const ORDER_TYPE_SALE = Order::ORDER_TYPE_SALE;
     public const ORDER_TYPE_TAB = Order::ORDER_TYPE_TAB;
     public const ORDER_TYPE_TABLE = Order::ORDER_TYPE_TABLE;
+    public const ORDER_TYPE_STAMP = Order::ORDER_TYPE_STAMP;
     public const ORDER_TYPE_FIDELITY = Order::ORDER_TYPE_FIDELITY;
 
     private const DRAFT_ORDER_APPS = [
@@ -86,6 +87,7 @@ class OrderService
     private const SETTLEMENT_ORDER_TYPES = [
         self::ORDER_TYPE_TAB,
         self::ORDER_TYPE_TABLE,
+        self::ORDER_TYPE_STAMP,
     ];
 
     private string $displayDeviceType = 'DISPLAY';

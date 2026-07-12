@@ -111,6 +111,17 @@ class OrderServiceTest extends TestCase
         self::assertSame($pendingStatus, $order->getStatus());
     }
 
+    public function testStampIsTreatedAsSettlementOrderType(): void
+    {
+        $service = $this->buildService('/orders');
+
+        $order = new Order();
+        $order->setOrderType(OrderService::ORDER_TYPE_STAMP);
+
+        self::assertTrue($service->isSettlementOrderType(OrderService::ORDER_TYPE_STAMP));
+        self::assertTrue($service->isSettlementOrder($order));
+    }
+
     public function testNormalizeDraftCartOrderConvertsLegacyQuoteToCart(): void
     {
         $queueService = $this->createMock(OrderProductQueueService::class);

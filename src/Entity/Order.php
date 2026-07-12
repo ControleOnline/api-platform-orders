@@ -182,6 +182,7 @@ class Order
     public const ORDER_TYPE_SALE = 'sale';
     public const ORDER_TYPE_TAB = 'tab';
     public const ORDER_TYPE_TABLE = 'table';
+    public const ORDER_TYPE_STAMP = 'stamp';
     public const ORDER_TYPE_PURCHASE = 'purchase';
     public const ORDER_TYPE_FIDELITY = 'fidelity';
 

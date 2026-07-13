@@ -5,10 +5,11 @@ namespace ControleOnline\Controller;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\PeopleLink;
 use ControleOnline\Entity\User;
-use ControleOnline\Repository\OrderRepository;
 use ControleOnline\Service\PeopleRoleService;
+use ControleOnline\Service\OrderLoyaltySnapshotService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
 
@@ -16,13 +17,13 @@ class FidelityByIdController
 {
     public function __construct(
         private readonly EntityManagerInterface $manager,
-        private readonly OrderRepository $orderRepository,
         private readonly PeopleRoleService $peopleRoleService,
+        private readonly OrderLoyaltySnapshotService $orderLoyaltySnapshotService,
         private readonly Security $security,
     ) {
     }
 
-    public function __invoke(string $id): JsonResponse
+    public function __invoke(string $id, Request $request): JsonResponse
     {
         $clientId = (int) preg_replace('/\D+/', '', $id);
         if ($clientId <= 0) {
@@ -57,16 +58,21 @@ class FidelityByIdController
             );
         }
 
-        $rows = $this->orderRepository->findOpenFidelityByClientAndProvider(
-            $clientId,
-            $providerId,
+        $showHistory = filter_var(
+            $request->query->get('history'),
+            FILTER_VALIDATE_BOOL,
+        );
+        $cards = $this->orderLoyaltySnapshotService->buildForClient(
+            $provider,
+            $client,
+            $showHistory,
         );
 
         return new JsonResponse([
             'clientId' => $clientId,
             'providerId' => $providerId,
-            'count' => count($rows),
-            'member' => $rows,
+            'count' => count($cards),
+            'member' => $cards,
         ]);
     }
 

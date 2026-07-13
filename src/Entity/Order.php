@@ -18,6 +18,7 @@ use ControleOnline\Controller\AddProductsOrderAction;
 use ControleOnline\Controller\AutoConferencePrintOrderAction;
 use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Controller\DiscoveryCart;
+use ControleOnline\Controller\FidelityByIdController;
 use ControleOnline\Controller\OrderConferenceController;
 use ControleOnline\Controller\PrintOrderAction;
 use ControleOnline\Controller\ReplaceProductsOrderAction;
@@ -64,6 +65,13 @@ use stdClass;
             uriTemplate: '/orders-queue',
             security: 'is_granted(\'ROLE_HUMAN\')',
             normalizationContext: ['groups' => ['orders-queue:read', 'orders-queue-tree:read']],
+        ),
+        new GetCollection(
+            uriTemplate: '/orders/fidelityById/{id}',
+            security: 'is_granted(\'ROLE_HUMAN\') or is_granted(\'ROLE_CLIENT\')',
+            controller: FidelityByIdController::class,
+            read: false,
+            paginationEnabled: false,
         ),
         new Post(
             security: 'is_granted(\'ROLE_HUMAN\')',

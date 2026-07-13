@@ -820,6 +820,64 @@ class OrderRepository extends ServiceEntityRepository
     ];
   }
 
+  public function findOpenFidelityByClientAndProvider(
+    int $clientId,
+    int $providerId,
+    int $fidelityStatusId = 119,
+    int $stampStatusId = 125
+  ): array {
+    if ($clientId <= 0 || $providerId <= 0) {
+      return [];
+    }
+
+    $connection = $this->getEntityManager()->getConnection();
+    $rows = $connection->fetchAllAssociative(
+      'SELECT
+          OP.client_id AS clientId,
+          OP.provider_id AS providerId,
+          OP.id AS fidelityOrderId,
+          OP.order_type AS fidelityOrderType,
+          OP.order_date AS fidelityOrderDate,
+          OP.status_id AS fidelityStatusId,
+          OF.id AS stampOrderId,
+          OF.order_type AS stampOrderType,
+          OF.main_order_id AS stampMainOrderId,
+          OF.order_date AS stampOrderDate,
+          OF.status_id AS stampStatusId
+        FROM orders OP
+        JOIN orders OF ON OP.id = OF.main_order_id
+        WHERE OP.client_id = :clientId
+          AND OP.provider_id = :providerId
+          AND OP.order_type = :fidelityOrderType
+          AND OP.status_id = :fidelityStatusId
+          AND OF.status_id = :stampStatusId
+        ORDER BY OF.order_date ASC, OF.id ASC',
+      [
+        'clientId' => $clientId,
+        'providerId' => $providerId,
+        'fidelityOrderType' => Order::ORDER_TYPE_FIDELITY,
+        'fidelityStatusId' => $fidelityStatusId,
+        'stampStatusId' => $stampStatusId,
+      ],
+    );
+
+    return array_values(array_map(static function (array $row): array {
+      return [
+        'clientId' => isset($row['clientId']) ? (int) $row['clientId'] : 0,
+        'providerId' => isset($row['providerId']) ? (int) $row['providerId'] : 0,
+        'fidelityOrderId' => isset($row['fidelityOrderId']) ? (int) $row['fidelityOrderId'] : 0,
+        'fidelityOrderType' => (string) ($row['fidelityOrderType'] ?? ''),
+        'fidelityOrderDate' => $row['fidelityOrderDate'] ?? null,
+        'fidelityStatusId' => isset($row['fidelityStatusId']) ? (int) $row['fidelityStatusId'] : 0,
+        'stampOrderId' => isset($row['stampOrderId']) ? (int) $row['stampOrderId'] : 0,
+        'stampOrderType' => (string) ($row['stampOrderType'] ?? ''),
+        'stampMainOrderId' => isset($row['stampMainOrderId']) ? (int) $row['stampMainOrderId'] : 0,
+        'stampOrderDate' => $row['stampOrderDate'] ?? null,
+        'stampStatusId' => isset($row['stampStatusId']) ? (int) $row['stampStatusId'] : 0,
+      ];
+    }, $rows));
+  }
+
   private function normalizeSalesDate(mixed $value): ?\DateTimeImmutable
   {
     if ($value instanceof \DateTimeImmutable) {

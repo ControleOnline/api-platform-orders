@@ -20,6 +20,48 @@ use PHPUnit\Framework\TestCase;
 #[AllowMockObjectsWithoutExpectations]
 class OrderLoyaltyServiceTest extends TestCase
 {
+    public function testNonEligiblePaidSaleDoesNotCreateFidelityCard(): void
+    {
+        $provider = $this->people(10);
+        $client = $this->people(20);
+        $nonEligibleProduct = $this->product(99, 25.0);
+        $sale = $this->order(100, Order::ORDER_TYPE_SALE, $provider, $client, $this->orderStatus('paid', 'paid'));
+        $sale->setPrice(25.0);
+        $sale->addOrderProduct($this->orderProduct($sale, $nonEligibleProduct, 25.0));
+
+        $orderRepository = $this->createMock(EntityRepository::class);
+        $orderRepository
+            ->method('findBy')
+            ->willReturnCallback(fn(array $criteria) => match ($criteria['orderType'] ?? null) {
+                Order::ORDER_TYPE_FIDELITY => [],
+                default => [],
+            });
+
+        $productRepository = $this->createMock(EntityRepository::class);
+        $productRepository
+            ->method('find')
+            ->with(40)
+            ->willReturn($this->product(40, 12.0));
+
+        $manager = $this->manager([
+            Order::class => $orderRepository,
+            Product::class => $productRepository,
+        ]);
+        $manager->expects(self::never())->method('persist');
+
+        $service = new OrderLoyaltyService(
+            $manager,
+            $this->configService('[30]', '3', '40'),
+            $this->statusService(),
+        );
+
+        $service->onEntityChanged(new EntityChangedEvent($sale, 'postUpdate'));
+
+        self::assertSame(Order::ORDER_TYPE_SALE, $sale->getOrderType());
+        self::assertNull($sale->getMainOrderId());
+        self::assertSame('', (string) $sale->getOtherInformations());
+    }
+
     public function testPaidSaleCreatesFidelityCardAndLinksSale(): void
     {
         $provider = $this->people(10);
@@ -214,6 +256,77 @@ class OrderLoyaltyServiceTest extends TestCase
         self::assertCount(1, $giftItems);
         self::assertSame(200, $cardInfo['loyalty_reward_order_id']);
         self::assertSame(40, $cardInfo['loyalty_reward_product_id']);
+    }
+
+    public function testIneligiblePaidSaleDoesNotCountTowardRewardCard(): void
+    {
+        $provider = $this->people(10);
+        $client = $this->people(20);
+        $eligibleProduct = $this->product(30, 25.0);
+        $nonEligibleProduct = $this->product(99, 25.0);
+        $giftProduct = $this->product(40, 12.0);
+        $openStatus = $this->orderStatus('open', 'open');
+        $paidStatus = $this->orderStatus('paid', 'paid');
+        $card = $this->order(500, Order::ORDER_TYPE_FIDELITY, $provider, $client, $openStatus);
+        $card->setOtherInformations((object) ['loyalty_required_sales' => 2]);
+        $eligibleSale = $this->order(101, Order::ORDER_TYPE_SALE, $provider, $client, $paidStatus);
+        $ineligibleSale = $this->order(102, Order::ORDER_TYPE_SALE, $provider, $client, $paidStatus);
+        $eligibleSale->setMainOrderId(500);
+        $ineligibleSale->setMainOrderId(500);
+        $eligibleSale->addOrderProduct($this->orderProduct($eligibleSale, $eligibleProduct, 25.0));
+        $ineligibleSale->addOrderProduct($this->orderProduct($ineligibleSale, $nonEligibleProduct, 25.0));
+        $cart = $this->order(200, Order::ORDER_TYPE_CART, $provider, $client, $openStatus);
+
+        $orderRepository = $this->createMock(EntityRepository::class);
+        $orderRepository
+            ->method('findBy')
+            ->willReturnCallback(function (array $criteria) use ($card, $eligibleSale, $ineligibleSale, $provider, $client): array {
+                if (($criteria['orderType'] ?? null) === Order::ORDER_TYPE_FIDELITY) {
+                    return [$card];
+                }
+
+                if (($criteria['mainOrderId'] ?? null) === 500) {
+                    return [$eligibleSale, $ineligibleSale];
+                }
+
+                if (
+                    ($criteria['orderType'] ?? null) === Order::ORDER_TYPE_SALE
+                    && ($criteria['provider'] ?? null) === $provider
+                    && ($criteria['client'] ?? null) === $client
+                ) {
+                    return [$eligibleSale, $ineligibleSale];
+                }
+
+                return [];
+            });
+
+        $productRepository = $this->createMock(EntityRepository::class);
+        $productRepository
+            ->method('find')
+            ->with(40)
+            ->willReturn($giftProduct);
+
+        $manager = $this->manager([
+            Order::class => $orderRepository,
+            Product::class => $productRepository,
+        ]);
+
+        $service = new OrderLoyaltyService(
+            $manager,
+            $this->configService('[30]', '2', '40'),
+            $this->statusService(),
+        );
+
+        $service->onEntityChanged(new EntityChangedEvent($cart, 'postPersist'));
+
+        $giftItems = array_values(array_filter(
+            $cart->getOrderProducts()->toArray(),
+            fn($item) => $item instanceof OrderProduct
+                && $item->getProduct() === $giftProduct
+                && $item->getComment() === OrderProductService::LOYALTY_GIFT_COMMENT
+        ));
+
+        self::assertCount(0, $giftItems);
     }
 
     public function testFullFidelityCardCountsSalesLinkedByLoyaltyMetadata(): void

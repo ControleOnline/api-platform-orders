@@ -219,7 +219,7 @@ class OrderLoyaltyService implements EventSubscriberInterface
                 continue;
             }
 
-            if ($this->countCardStamps($card) >= $this->getCardRequiredSales($card, $settings)) {
+            if ($this->countCardStamps($card, $settings) >= $this->getCardRequiredSales($card, $settings)) {
                 return $card;
             }
         }
@@ -239,7 +239,7 @@ class OrderLoyaltyService implements EventSubscriberInterface
                 continue;
             }
 
-            if ($this->countCardStamps($card) < $this->getCardRequiredSales($card, $settings)) {
+            if ($this->countCardStamps($card, $settings) < $this->getCardRequiredSales($card, $settings)) {
                 return $card;
             }
         }
@@ -305,7 +305,7 @@ class OrderLoyaltyService implements EventSubscriberInterface
             : null;
     }
 
-    private function countCardStamps(Order $card): int
+    private function countCardStamps(Order $card, array $settings): int
     {
         $repository = $this->manager->getRepository(Order::class);
         $sales = array_merge(
@@ -331,6 +331,7 @@ class OrderLoyaltyService implements EventSubscriberInterface
                 !$sale instanceof Order
                 || !$this->isPaidOrder($sale)
                 || !$this->isSaleLinkedToCard($sale, $card)
+                || !$this->isEligibleSale($sale, $settings)
             ) {
                 continue;
             }

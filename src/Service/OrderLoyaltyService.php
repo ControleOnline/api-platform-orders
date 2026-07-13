@@ -51,7 +51,8 @@ class OrderLoyaltyService implements EventSubscriberInterface
     {
         /*
          * @agents Loyalty updates run as a single-pass side effect of order persistence.
-         * The guard prevents recursive updates when the subscriber writes back to the same order tree.
+         * This subscriber listens to the shared EntityChangedEvent emitted by DefaultEventListener,
+         * so the rule stays decoupled from order services and avoids circular dependencies.
          */
         if (
             $this->handling ||
@@ -109,10 +110,6 @@ class OrderLoyaltyService implements EventSubscriberInterface
          * @agents A closed eligible sale follows one of two paths:
          * either it closes a full card with the configured gift, or it stamps the next open card.
          */
-        if (!$this->isEligibleSale($sale, $settings)) {
-            return;
-        }
-
         $giftProduct = $settings['giftProduct'] ?? null;
         $hasGiftProduct = $giftProduct instanceof Product && $this->saleHasGiftProduct($sale, $giftProduct);
         $rewardableCard = $this->findRewardableCard($sale, $settings);
@@ -121,6 +118,10 @@ class OrderLoyaltyService implements EventSubscriberInterface
             $this->linkSaleToCard($sale, $rewardableCard);
             $this->closeCardWithReward($rewardableCard, $sale, $giftProduct);
 
+            return;
+        }
+
+        if (!$this->isEligibleSale($sale, $settings)) {
             return;
         }
 

@@ -392,6 +392,101 @@ class OrderLoyaltyServiceTest extends TestCase
         self::assertNotEmpty($cardInfo['loyalty_reward_redeemed_at']);
     }
 
+    public function testClosedGiftOnlySaleClosesLatestFullCard(): void
+    {
+        $provider = $this->people(10);
+        $client = $this->people(20);
+        $eligibleProduct = $this->product(30, 25.0);
+        $giftProduct = $this->product(40, 12.0);
+        $openStatus = $this->orderStatus('open', 'open');
+        $closedStatus = $this->orderStatus('closed', 'closed');
+
+        $card = $this->order(500, Order::ORDER_TYPE_FIDELITY, $provider, $client, $openStatus);
+        $card->setOtherInformations((object) [
+            'loyalty_required_sales' => 3,
+            'loyalty_gift_product_id' => 40,
+        ]);
+
+        $firstSale = $this->order(401, Order::ORDER_TYPE_SALE, $provider, $client, $closedStatus);
+        $secondSale = $this->order(402, Order::ORDER_TYPE_SALE, $provider, $client, $closedStatus);
+        $thirdSale = $this->order(403, Order::ORDER_TYPE_SALE, $provider, $client, $closedStatus);
+        foreach ([$firstSale, $secondSale, $thirdSale] as $stampSale) {
+            $stampSale->setMainOrderId(500);
+            $stampSale->addOrderProduct($this->orderProduct($stampSale, $eligibleProduct, 25.0));
+        }
+
+        $sale = $this->order(404, Order::ORDER_TYPE_SALE, $provider, $client, $closedStatus);
+        $sale->setPrice(0);
+        $sale->addOrderProduct($this->orderProduct($sale, $giftProduct, 0.0, OrderProductService::LOYALTY_GIFT_COMMENT));
+
+        $orderRepository = $this->createMock(EntityRepository::class);
+        $orderRepository
+            ->method('findBy')
+            ->willReturnCallback(function (array $criteria) use (
+                $card,
+                $firstSale,
+                $secondSale,
+                $thirdSale,
+                $provider,
+                $client,
+            ): array {
+                if (
+                    ($criteria['orderType'] ?? null) === Order::ORDER_TYPE_FIDELITY &&
+                    ($criteria['provider'] ?? null) === $provider &&
+                    ($criteria['client'] ?? null) === $client
+                ) {
+                    return [$card];
+                }
+
+                if (($criteria['mainOrderId'] ?? null) === 500) {
+                    return [$firstSale, $secondSale, $thirdSale];
+                }
+
+                if (
+                    ($criteria['orderType'] ?? null) === Order::ORDER_TYPE_SALE &&
+                    ($criteria['provider'] ?? null) === $provider &&
+                    ($criteria['client'] ?? null) === $client
+                ) {
+                    return [$firstSale, $secondSale, $thirdSale];
+                }
+
+                return [];
+            });
+        $orderRepository
+            ->method('find')
+            ->willReturnCallback(function (int $id) use ($card): ?Order {
+                return $id === 500 ? $card : null;
+            });
+
+        $productRepository = $this->createMock(EntityRepository::class);
+        $productRepository
+            ->method('find')
+            ->with(40)
+            ->willReturn($giftProduct);
+
+        $manager = $this->manager([
+            Order::class => $orderRepository,
+            Product::class => $productRepository,
+        ]);
+
+        $service = new OrderLoyaltyService(
+            $manager,
+            $this->configService('[30]', '3', '40'),
+            $this->statusService(),
+        );
+
+        $service->onEntityChanged(new EntityChangedEvent($sale, 'postUpdate'));
+
+        self::assertSame(500, $sale->getMainOrderId());
+        self::assertSame($card, $sale->getMainOrder());
+        self::assertSame('closed', $card->getStatus()->getRealStatus());
+
+        $cardInfo = json_decode((string) $card->getOtherInformations(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(404, $cardInfo['loyalty_reward_order_id']);
+        self::assertSame(40, $cardInfo['loyalty_reward_product_id']);
+        self::assertNotEmpty($cardInfo['loyalty_reward_redeemed_at']);
+    }
+
     public function testClosedEligibleSaleOverridesCommercialParentLinkWithFidelityCard(): void
     {
         $provider = $this->people(10);

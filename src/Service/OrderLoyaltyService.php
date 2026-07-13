@@ -11,7 +11,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 /**
- * Shop loyalty lifecycle.
+ * @agents Shop loyalty lifecycle.
  *
  * Closed eligible sales stamp the latest open fidelity card.
  * When a card is already full, the next closed eligible sale with the configured gift closes that card.
@@ -50,6 +50,10 @@ class OrderLoyaltyService implements EventSubscriberInterface
 
     public function onEntityChanged(EntityChangedEvent $event): void
     {
+        /*
+         * @agents Loyalty updates run as a single-pass side effect of order persistence.
+         * The guard prevents recursive updates when the subscriber writes back to the same order tree.
+         */
         if (
             $this->handling ||
             !in_array($event->getPhase(), ['postPersist', 'postUpdate'], true)
@@ -90,7 +94,7 @@ class OrderLoyaltyService implements EventSubscriberInterface
     }
 
     /**
-     * Closed eligible sales only touch loyalty. Any other order type stays outside this lifecycle.
+     * @agents Closed eligible sales only touch loyalty. Any other order type stays outside this lifecycle.
      *
      * @param array{
      *     enabled:bool,
@@ -102,6 +106,10 @@ class OrderLoyaltyService implements EventSubscriberInterface
      */
     private function processClosedSale(Order $sale, array $settings): void
     {
+        /*
+         * @agents A closed eligible sale follows one of two paths:
+         * either it closes a full card with the configured gift, or it stamps the next open card.
+         */
         if (!$this->isEligibleSale($sale, $settings)) {
             return;
         }
@@ -136,6 +144,10 @@ class OrderLoyaltyService implements EventSubscriberInterface
      */
     private function findRewardableCard(Order $sale, array $settings): ?Order
     {
+        /*
+         * @agents Only already-full open cards can be closed by a gift-bearing sale.
+         * Cards that already redeemed a reward are skipped so the reward is not applied twice.
+         */
         foreach ($this->findOpenCards($sale) as $card) {
             $info = $this->readOrderInfo($card);
             if (!empty($info[self::INFO_REWARD_REDEEMED_AT])) {
@@ -161,6 +173,10 @@ class OrderLoyaltyService implements EventSubscriberInterface
      */
     private function findStampCard(Order $sale, array $settings): ?Order
     {
+        /*
+         * @agents Prefer the oldest open card that still has room for stamps.
+         * If none exists, the caller creates a new fidelity card and links the sale to it.
+         */
         foreach ($this->findOpenCards($sale) as $card) {
             $info = $this->readOrderInfo($card);
             if (!empty($info[self::INFO_REWARD_REDEEMED_AT])) {
@@ -210,6 +226,10 @@ class OrderLoyaltyService implements EventSubscriberInterface
      */
     private function createCard(Order $sale, array $settings): Order
     {
+        /*
+         * @agents New fidelity cards are born open and carry the rule metadata
+         * so the snapshot service can rebuild progress without guessing from raw orders.
+         */
         $status = $this->statusService->discoveryStatus('open', 'open', 'order');
 
         $card = new Order();
@@ -239,8 +259,10 @@ class OrderLoyaltyService implements EventSubscriberInterface
             return;
         }
 
-        // Preserve any existing commercial parent. The loyalty card is still stored in metadata
-        // so the snapshot service and the UI can read the card even when mainOrderId belongs to another flow.
+        /*
+         * @agents Preserve any existing commercial parent. The loyalty card stays mirrored in metadata
+         * so the snapshot service and UI can still resolve the fidelity chain when another flow owns mainOrderId.
+         */
         $currentMainOrderId = $this->normalizeId($sale->getMainOrderId());
         $currentMainOrder = $sale->getMainOrder();
         if (
@@ -261,6 +283,10 @@ class OrderLoyaltyService implements EventSubscriberInterface
 
     private function closeCardWithReward(Order $card, Order $rewardSale, Product $giftProduct): void
     {
+        /*
+         * @agents Closing the card marks the reward as reserved and redeemed at the same time.
+         * That keeps the snapshot stable and prevents the same reward sale from being counted again.
+         */
         $rewardSaleId = $this->normalizeId($rewardSale->getId());
         $giftProductId = $this->normalizeId($giftProduct->getId());
         if ($rewardSaleId === null || $giftProductId === null) {
@@ -292,6 +318,9 @@ class OrderLoyaltyService implements EventSubscriberInterface
      */
     private function countCardStamps(Order $card, array $settings): int
     {
+        /*
+         * @agents Only closed, eligible, non-reward child sales count as stamps on the current card.
+         */
         $repository = $this->manager->getRepository(Order::class);
         $sales = array_merge(
             $repository->findBy([
@@ -424,6 +453,10 @@ class OrderLoyaltyService implements EventSubscriberInterface
      */
     private function isEligibleSale(Order $sale, array $settings): bool
     {
+        /*
+         * @agents Eligibility is driven by root-level products with positive value.
+         * Gift lines are ignored so the reward item itself never increments the stamp count.
+         */
         $eligibleProductIds = $settings['productIds'] ?? [];
         if (empty($eligibleProductIds)) {
             return false;
@@ -512,6 +545,10 @@ class OrderLoyaltyService implements EventSubscriberInterface
 
     private function resolveLinkedFidelityCard(Order $order): ?Order
     {
+        /*
+         * @agents Resolve the canonical card from metadata first, then fall back to the linked main order.
+         * This keeps the fidelity chain readable even when another business flow owns the parent link.
+         */
         $info = $this->readOrderInfo($order);
         $cardId = $this->normalizeId($info[self::INFO_CARD_ID] ?? null);
         if ($cardId !== null) {

@@ -58,7 +58,9 @@ class FidelityByIdController
             );
         }
 
-        // History mode is explicit; default mode keeps the payload to the latest open card.
+        /*
+         * @agents History mode is explicit; default mode keeps the payload to the latest open card.
+         */
         $showHistory = filter_var(
             $request->query->get('history'),
             FILTER_VALIDATE_BOOL,

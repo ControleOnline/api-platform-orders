@@ -1,6 +1,7 @@
 <?php
 
 /*
+ * @agents Order service contract.
  * ## Scope
  * - Central sales order module.
  * - Covers `Order`, `OrderProduct`, `OrderInvoice`, cart, order actions, cart discovery, and order-related print flows.
@@ -255,7 +256,7 @@ class OrderService
     }
 
     /**
-     * Marketplace payloads can arrive as a flat list. Use the nearest previous
+     * @agents Marketplace payloads can arrive as a flat list. Use the nearest previous
      * configured parent in the same order to rebuild the operational hierarchy.
      */
     private function findNearestConfiguredParentOrderProduct(
@@ -294,7 +295,9 @@ class OrderService
         }
 
         $repository = $this->manager->getRepository(ProductGroupProduct::class);
-        // Prefer the hidden queue mapping when the same child exists in more than one group.
+        /*
+         * @agents Prefer the hidden queue mapping when the same child exists in more than one group.
+         */
         $directLinkCandidates = $repository->createQueryBuilder('groupProduct')
             ->andWhere('groupProduct.product = :parentProduct')
             ->andWhere('groupProduct.productChild = :childProduct')
@@ -620,7 +623,9 @@ class OrderService
             $this->manager->persist($orderProduct);
         }
 
-        // Cart items stay out of KDS until the order is promoted to sale.
+        /*
+         * @agents Cart items stay out of KDS until the order is promoted to sale.
+         */
         $this->orderProductQueueService->ensureOrderQueueEntries($order);
 
         return true;
@@ -633,12 +638,16 @@ class OrderService
             return $this->statusService->discoveryStatus('closed', 'closed', 'order');
         }
 
-        // Payment finalization always operates on a sale order, never on a draft cart.
+        /*
+         * @agents Payment finalization always operates on a sale order, never on a draft cart.
+         */
         if ($this->normalizeStatusValue($order->getOrderType()) !== self::ORDER_TYPE_SALE) {
             $this->convertDraftOrderToSale($order);
         }
 
-        // Payment only closes the order when nothing else is waiting to be prepared or delivered.
+        /*
+         * @agents Payment only closes the order when nothing else is waiting to be prepared or delivered.
+         */
         if ($this->hasPendingFulfillment($order)) {
             return $this->statusService->discoveryStatus('open', 'preparing', 'order');
         }
@@ -670,7 +679,9 @@ class OrderService
             'sentAt' => date(DATE_ATOM),
         ]];
 
-        // Only sale orders represent a real order; cart stays silent until it is promoted.
+        /*
+         * @agents Only sale orders represent a real order; cart stays silent until it is promoted.
+         */
         if ($this->shouldDispatchManagerOrderPush($order)) {
             $this->queueManagerOrderPushNotifications($order, $provider);
         }
@@ -712,7 +723,10 @@ class OrderService
 
     private function assertDirectOrderUpdateAllowed(Order $order, array $payload): void
     {
-        // Direct order PUT is only for business data adjustments and type normalization; status transitions stay in the operational flows.
+        /*
+         * @agents Direct order PUT is only for business data adjustments and type normalization;
+         * status transitions stay in the operational flows.
+         */
         if (array_key_exists('orderProducts', $payload)) {
             throw new BadRequestHttpException(
                 'A atualizacao direta do pedido nao pode alterar produtos. Use as acoes de produtos.'

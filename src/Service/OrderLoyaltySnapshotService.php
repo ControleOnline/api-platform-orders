@@ -23,7 +23,7 @@ class OrderLoyaltySnapshotService
     }
 
     /**
-     * Build the loyalty card snapshot for the current customer.
+     * @agents Build the loyalty card snapshot for the current customer.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -32,13 +32,19 @@ class OrderLoyaltySnapshotService
         People $client,
         bool $showHistory = false,
     ): array {
+        /*
+         * @agents The snapshot is the canonical source for the shop loyalty screen.
+         * The UI can ask for history, but it never rebuilds the card chain from raw orders.
+         */
         $settings = $this->resolveSettings($provider);
         if (!$settings['enabled']) {
             return [];
         }
 
-        // The default snapshot always shows only the most recent open card.
-        // When the screen asks for history, we return the full chain for auditability.
+        /*
+         * The default snapshot always shows only the most recent open card.
+         * When the screen asks for history, we return the full chain for auditability.
+         */
         $cards = $this->findCards($provider, $client);
         if ($cards === []) {
             return [];
@@ -138,6 +144,10 @@ class OrderLoyaltySnapshotService
      */
     private function findEligibleStamps(Order $card, array $settings): array
     {
+        /*
+         * @agents Only closed eligible sales linked to the card count as visible stamps.
+         * Reward orders are intentionally excluded so the progress bar stays faithful to the business rule.
+         */
         if (!$card->getId()) {
             return [];
         }
@@ -188,6 +198,10 @@ class OrderLoyaltySnapshotService
      */
     private function getCardRequiredSales(Order $card, array $settings): int
     {
+        /*
+         * @agents The required sales value can be overridden per card through metadata.
+         * When the card has no override, the provider configuration becomes the fallback.
+         */
         $info = $this->readOrderInfo($card);
         $requiredSales = (int) ($info['loyalty_required_sales'] ?? 0);
 
@@ -196,6 +210,10 @@ class OrderLoyaltySnapshotService
 
     private function isOpenCard(Order $card): bool
     {
+        /*
+         * @agents A card is considered open by both persisted status and real status
+         * so transitional states still render the current open card correctly.
+         */
         $status = $this->normalizeText($card->getStatus()?->getStatus());
         $realStatus = $this->normalizeText($card->getStatus()?->getRealStatus());
 
@@ -204,6 +222,10 @@ class OrderLoyaltySnapshotService
 
     private function isClosedStampOrder(Order $order): bool
     {
+        /*
+         * @agents Stamps only come from closed sales.
+         * Pending or transitional orders stay out of the visible loyalty counter.
+         */
         $status = $this->normalizeText($order->getStatus()?->getStatus());
         $realStatus = $this->normalizeText($order->getStatus()?->getRealStatus());
 
@@ -212,6 +234,9 @@ class OrderLoyaltySnapshotService
 
     private function isSaleLinkedToCard(Order $sale, Order $card): bool
     {
+        /*
+         * @agents Legacy cards can still be resolved by metadata when the main order link is shared with another flow.
+         */
         $cardId = $this->normalizeId($card->getId());
         if ($cardId === null) {
             return false;
@@ -233,6 +258,9 @@ class OrderLoyaltySnapshotService
 
     private function isRewardOrderForCard(Order $sale, Order $card): bool
     {
+        /*
+         * @agents Reward sales are visible in the card history, but they do not count as stamps.
+         */
         $saleId = $this->normalizeId($sale->getId());
         if ($saleId === null) {
             return false;
@@ -249,6 +277,10 @@ class OrderLoyaltySnapshotService
      */
     private function isEligibleSale(Order $sale, array $settings): bool
     {
+        /*
+         * @agents Eligibility requires a positive root product that belongs to the configured participant list.
+         * Gift lines and nested customization items are ignored by design.
+         */
         $eligibleProductIds = $settings['productIds'] ?? [];
         if ($eligibleProductIds === []) {
             return false;
@@ -284,6 +316,10 @@ class OrderLoyaltySnapshotService
      */
     private function normalizeOrderSnapshot(Order $order): array
     {
+        /*
+         * @agents Keep the snapshot intentionally small: the loyalty screen only needs order identity,
+         * type, timing, state, amount, comments, and the loyalty metadata block.
+         */
         $status = $order->getStatus();
         $otherInformations = $this->readOrderInfo($order);
 

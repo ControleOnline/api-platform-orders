@@ -55,6 +55,7 @@ class OrderProductService
         $this->checkInventory($OProduct);
         $this->applyDefaultStatus($OProduct);
         $this->manager->persist($OProduct);
+        $order->addOrderProduct($OProduct);
         $this->manager->flush();
 
         $this->orderProductQueueService->addProductToQueue($OProduct);
@@ -69,8 +70,22 @@ class OrderProductService
                 throw new \InvalidArgumentException('Product not found');
             }
 
-            $quantity = $item['quantity'] ?? 0;
+            $quantity = (float) ($item['quantity'] ?? 0);
             $price = $product->getPrice();
+            $equivalentOrderProduct = $this->findEquivalentSimpleOrderProduct(
+                $order,
+                $product
+            );
+
+            if ($equivalentOrderProduct instanceof OrderProduct) {
+                $nextQuantity = (float) $equivalentOrderProduct->getQuantity() + $quantity;
+                $equivalentOrderProduct->setQuantity($nextQuantity);
+                $equivalentOrderProduct->setTotal(
+                    (float) $equivalentOrderProduct->getPrice() * $nextQuantity
+                );
+                continue;
+            }
+
             $this->addOrderProduct($order, $product, $quantity, $price);
         }
 
@@ -109,6 +124,42 @@ class OrderProductService
         self::$mainProduct = true;
 
         return $order;
+    }
+
+    private function findEquivalentSimpleOrderProduct(
+        Order $order,
+        Product $product
+    ): ?OrderProduct {
+        foreach ($order->getOrderProducts() as $orderProduct) {
+            if (!$orderProduct instanceof OrderProduct) {
+                continue;
+            }
+
+            $currentProduct = $orderProduct->getProduct();
+            $isSameProduct = $currentProduct === $product
+                || (
+                    $currentProduct instanceof Product
+                    && $currentProduct->getId()
+                    && $currentProduct->getId() === $product->getId()
+                );
+
+            if (!$isSameProduct) {
+                continue;
+            }
+
+            if (
+                $orderProduct->getOrderProduct() instanceof OrderProduct
+                || $orderProduct->getParentProduct() instanceof Product
+                || $orderProduct->getProductGroup() instanceof ProductGroup
+                || !$orderProduct->getOrderProductComponents()->isEmpty()
+            ) {
+                continue;
+            }
+
+            return $orderProduct;
+        }
+
+        return null;
     }
 
     public function replaceProductsToOrderFromContent(

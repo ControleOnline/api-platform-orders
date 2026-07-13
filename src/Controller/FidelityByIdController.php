@@ -35,12 +35,22 @@ class FidelityByIdController
                 $showHistory,
             );
 
+            /*
+             * @agents The response summary carries the empty-history flag so the shop can
+             * keep "no open card" and "no history found" as separate empty states.
+             */
+            $summary = [
+                'historyRequested' => $showHistory,
+                'historyEmpty' => $showHistory && $cards === [],
+            ];
+
             $payload = $this->hydratorService->collectionData(
                 $cards,
                 Order::class,
                 'order:read',
                 [],
                 count($cards),
+                $summary,
             );
 
             return new JsonResponse($payload, Response::HTTP_OK);

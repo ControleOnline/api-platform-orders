@@ -72,21 +72,29 @@ class OrderProductService
 
             $quantity = (float) ($item['quantity'] ?? 0);
             $price = $product->getPrice();
-            $equivalentOrderProduct = $this->findEquivalentSimpleOrderProduct(
+            $subProducts = $this->normalizeRequestedSubProducts($item, $quantity);
+            $equivalentOrderProduct = $this->findEquivalentOrderProduct(
                 $order,
-                $product
+                $product,
+                $subProducts,
             );
 
             if ($equivalentOrderProduct instanceof OrderProduct) {
-                $nextQuantity = (float) $equivalentOrderProduct->getQuantity() + $quantity;
-                $equivalentOrderProduct->setQuantity($nextQuantity);
-                $equivalentOrderProduct->setTotal(
-                    (float) $equivalentOrderProduct->getPrice() * $nextQuantity
+                $this->incrementEquivalentOrderProduct(
+                    $equivalentOrderProduct,
+                    $quantity,
+                    $subProducts,
                 );
                 continue;
             }
 
-            $this->addOrderProduct($order, $product, $quantity, $price);
+            $rootOrderProduct = $this->addOrderProduct(
+                $order,
+                $product,
+                $quantity,
+                $price,
+            );
+            $this->addRequestedSubProducts($rootOrderProduct, $subProducts);
         }
 
         $this->manager->flush();
@@ -126,10 +134,16 @@ class OrderProductService
         return $order;
     }
 
-    private function findEquivalentSimpleOrderProduct(
+    /**
+     * @param array<string, array{product: int, productGroup: int, quantity: float, unitQuantity: string}> $subProducts
+     */
+    private function findEquivalentOrderProduct(
         Order $order,
-        Product $product
+        Product $product,
+        array $subProducts,
     ): ?OrderProduct {
+        $requestedSignature = $this->buildRequestedSubProductsSignature($subProducts);
+
         foreach ($order->getOrderProducts() as $orderProduct) {
             if (!$orderProduct instanceof OrderProduct) {
                 continue;
@@ -151,15 +165,205 @@ class OrderProductService
                 $orderProduct->getOrderProduct() instanceof OrderProduct
                 || $orderProduct->getParentProduct() instanceof Product
                 || $orderProduct->getProductGroup() instanceof ProductGroup
-                || !$orderProduct->getOrderProductComponents()->isEmpty()
             ) {
                 continue;
             }
 
-            return $orderProduct;
+            if (
+                $this->buildPersistedSubProductsSignature($orderProduct)
+                === $requestedSignature
+            ) {
+                return $orderProduct;
+            }
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, array{product: int, productGroup: int, quantity: float, unitQuantity: string}> $subProducts
+     */
+    private function incrementEquivalentOrderProduct(
+        OrderProduct $orderProduct,
+        float $quantity,
+        array $subProducts,
+    ): void {
+        $nextQuantity = (float) $orderProduct->getQuantity() + $quantity;
+        $orderProduct->setQuantity($nextQuantity);
+        $orderProduct->setTotal((float) $orderProduct->getPrice() * $nextQuantity);
+
+        $componentsBySignatureKey = [];
+        foreach ($orderProduct->getOrderProductComponents() as $component) {
+            if (!$component instanceof OrderProduct) {
+                continue;
+            }
+
+            $signatureKey = $this->buildSubProductSignatureKey(
+                $component->getProductGroup(),
+                $component->getProduct(),
+            );
+            if ($signatureKey !== '') {
+                $componentsBySignatureKey[$signatureKey] = $component;
+            }
+        }
+
+        foreach ($subProducts as $signatureKey => $subProduct) {
+            $component = $componentsBySignatureKey[$signatureKey] ?? null;
+            if (!$component instanceof OrderProduct) {
+                continue;
+            }
+
+            $nextComponentQuantity = (float) $component->getQuantity()
+                + $subProduct['quantity'];
+            $component->setQuantity($nextComponentQuantity);
+            $component->setTotal(
+                (float) $component->getPrice() * $nextComponentQuantity,
+            );
+        }
+    }
+
+    /**
+     * @return array<string, array{product: int, productGroup: int, quantity: float, unitQuantity: string}>
+     */
+    private function normalizeRequestedSubProducts(array $item, float $rootQuantity): array
+    {
+        $normalizedSubProducts = [];
+        $quantityDivisor = $rootQuantity > 0 ? $rootQuantity : 1.0;
+
+        foreach (($item['sub_products'] ?? []) as $subProduct) {
+            if (!is_array($subProduct)) {
+                continue;
+            }
+
+            $productId = $this->normalizeReferenceId($subProduct['product'] ?? null);
+            $productGroupId = $this->normalizeReferenceId(
+                $subProduct['productGroup'] ?? null,
+            );
+            $quantity = (float) ($subProduct['quantity'] ?? 0);
+
+            if ($productId <= 0 || $productGroupId <= 0 || $quantity <= 0) {
+                continue;
+            }
+
+            $signatureKey = sprintf('%d:%d', $productGroupId, $productId);
+            $normalizedSubProducts[$signatureKey] ??= [
+                'product' => $productId,
+                'productGroup' => $productGroupId,
+                'quantity' => 0.0,
+                'unitQuantity' => '0',
+            ];
+            $normalizedSubProducts[$signatureKey]['quantity'] += $quantity;
+            $normalizedSubProducts[$signatureKey]['unitQuantity'] =
+                $this->normalizeSignatureQuantity(
+                    $normalizedSubProducts[$signatureKey]['quantity'] / $quantityDivisor,
+                );
+        }
+
+        ksort($normalizedSubProducts);
+
+        return $normalizedSubProducts;
+    }
+
+    /**
+     * @param array<string, array{product: int, productGroup: int, quantity: float, unitQuantity: string}> $subProducts
+     *
+     * @return array<string, string>
+     */
+    private function buildRequestedSubProductsSignature(array $subProducts): array
+    {
+        return array_map(
+            static fn (array $subProduct): string => $subProduct['unitQuantity'],
+            $subProducts,
+        );
+    }
+
+    /** @return array<string, string> */
+    private function buildPersistedSubProductsSignature(
+        OrderProduct $orderProduct,
+    ): array {
+        $signature = [];
+        $rootQuantity = (float) $orderProduct->getQuantity();
+        $quantityDivisor = $rootQuantity > 0 ? $rootQuantity : 1.0;
+
+        foreach ($orderProduct->getOrderProductComponents() as $component) {
+            if (!$component instanceof OrderProduct) {
+                continue;
+            }
+
+            $signatureKey = $this->buildSubProductSignatureKey(
+                $component->getProductGroup(),
+                $component->getProduct(),
+            );
+            if ($signatureKey === '') {
+                $signature['invalid:' . count($signature)] = 'invalid';
+                continue;
+            }
+
+            $componentUnitQuantity = (float) $component->getQuantity()
+                / $quantityDivisor;
+            $signature[$signatureKey] = $this->normalizeSignatureQuantity(
+                isset($signature[$signatureKey])
+                    ? (float) $signature[$signatureKey] + $componentUnitQuantity
+                    : $componentUnitQuantity,
+            );
+        }
+
+        ksort($signature);
+
+        return $signature;
+    }
+
+    private function buildSubProductSignatureKey(
+        mixed $productGroup,
+        mixed $product,
+    ): string {
+        if (!$productGroup instanceof ProductGroup || !$product instanceof Product) {
+            return '';
+        }
+
+        $productGroupId = (int) $productGroup->getId();
+        $productId = (int) $product->getId();
+
+        return $productGroupId > 0 && $productId > 0
+            ? sprintf('%d:%d', $productGroupId, $productId)
+            : '';
+    }
+
+    private function normalizeSignatureQuantity(float $quantity): string
+    {
+        $normalizedQuantity = rtrim(
+            rtrim(number_format($quantity, 6, '.', ''), '0'),
+            '.',
+        );
+
+        return $normalizedQuantity !== '' ? $normalizedQuantity : '0';
+    }
+
+    /**
+     * @param array<string, array{product: int, productGroup: int, quantity: float, unitQuantity: string}> $subProducts
+     */
+    private function addRequestedSubProducts(
+        OrderProduct $orderProduct,
+        array $subProducts,
+    ): void {
+        foreach ($subProducts as $subProduct) {
+            $product = $this->manager->getRepository(Product::class)->find(
+                $subProduct['product'],
+            );
+            $productGroup = $this->manager->getRepository(ProductGroup::class)->find(
+                $subProduct['productGroup'],
+            );
+            if (!$product instanceof Product || !$productGroup instanceof ProductGroup) {
+                continue;
+            }
+
+            $this->addSubproduct(
+                $orderProduct,
+                $product,
+                $productGroup,
+                $subProduct['quantity'],
+            );
+        }
     }
 
     public function replaceProductsToOrderFromContent(
@@ -186,7 +390,7 @@ class OrderProductService
         $this->applyDefaultStatus($orderProduct);
     }
 
-    public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity)
+    public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity): OrderProduct
     {
         $productGroupProduct = $this->manager->getRepository(ProductGroupProduct::class)->findOneBy([
             'product' => $orderProduct->getProduct(),
@@ -216,9 +420,12 @@ class OrderProductService
         $this->checkInventory($OProduct);
         $this->applyDefaultStatus($OProduct);
         $this->manager->persist($OProduct);
+        $orderProduct->addOrderProductComponent($OProduct);
+        $orderProduct->getOrder()->addOrderProduct($OProduct);
         $this->manager->flush();
 
         $this->orderProductQueueService->addProductToQueue($OProduct);
+        return $OProduct;
     }
 
     private function shouldShowInParentQueue(?ProductGroup $productGroup, ?Product $parentProduct, ?Product $childProduct): bool

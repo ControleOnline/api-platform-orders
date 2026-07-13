@@ -56,7 +56,11 @@ use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
             uriTemplate: '/order_products/{id}/check',
             controller: MarkOrderProductCheckedAction::class
         ),
-        new Put(security: "is_granted('ROLE_HUMAN')"),
+        new Put(
+            security: "is_granted('ROLE_HUMAN')",
+            normalizationContext: ['groups' => ['order_product_mutation:read']],
+            forceEager: false,
+        ),
         new Delete(
             security: "is_granted('ROLE_HUMAN')",
             output: false,
@@ -96,7 +100,7 @@ class OrderProduct
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: 'integer')]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_conference:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_conference:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read', 'order_product_mutation:read'])]
     private $id;
 
     #[ORM\ManyToOne(targetEntity: Order::class)]
@@ -149,15 +153,15 @@ class OrderProduct
     private $orderProductQueues;
 
     #[ORM\Column(type: 'float')]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_conference:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_conference:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read', 'order_product_mutation:read'])]
     private $quantity = 1;
 
     #[ORM\Column(type: 'float')]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_conference:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_conference:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read', 'order_product_mutation:read'])]
     private $price = 0;
 
     #[ORM\Column(type: 'float')]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_conference:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_conference:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read', 'order_product_mutation:read'])]
     private $total = 0;
 
     #[ORM\Column(name: 'comment', type: 'string',  nullable: true)]

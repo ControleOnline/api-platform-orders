@@ -5,6 +5,8 @@ namespace ControleOnline\Orders\Tests\Service;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Product;
+use ControleOnline\Entity\ProductGroup;
+use ControleOnline\Entity\ProductGroupProduct;
 use ControleOnline\Entity\Status;
 use ControleOnline\Service\InvoiceService;
 use ControleOnline\Service\OrderProductQueueService;
@@ -91,18 +93,190 @@ class OrderProductServiceConsolidationTest extends TestCase
         self::assertSame(1.0, (float) $persistedOrderProducts[0]->getQuantity());
     }
 
+    public function testAddingEquivalentCustomizedProductIncrementsTheWholeTree(): void
+    {
+        $order = $this->createCartOrder();
+        $rootProduct = $this->createProduct(55, 10.0);
+        $childProduct = $this->createProduct(102, 2.5);
+        $productGroup = $this->createProductGroup(50);
+        $existingRoot = $this->createOrderProduct($order, $rootProduct, 1, 10.0);
+        $existingChild = $this->createOrderProduct($order, $childProduct, 1, 2.5);
+        $existingChild->setParentProduct($rootProduct);
+        $existingChild->setProductGroup($productGroup);
+        $existingRoot->addOrderProductComponent($existingChild);
+        $order->addOrderProduct($existingRoot);
+        $order->addOrderProduct($existingChild);
+
+        [$service, $persistedOrderProducts] = $this->buildService(
+            [55 => $rootProduct, 102 => $childProduct],
+            [50 => $productGroup],
+        );
+
+        $service->addProductsToOrder($order, [[
+            'product' => '/products/55',
+            'quantity' => 1,
+            'sub_products' => [[
+                'product' => '/products/102',
+                'productGroup' => '/product_groups/50',
+                'quantity' => 1,
+            ]],
+        ]]);
+
+        self::assertSame(2.0, (float) $existingRoot->getQuantity());
+        self::assertSame(20.0, (float) $existingRoot->getTotal());
+        self::assertSame(2.0, (float) $existingChild->getQuantity());
+        self::assertSame(5.0, (float) $existingChild->getTotal());
+        self::assertCount(
+            0,
+            $persistedOrderProducts,
+            'An equivalent customization must reuse the persisted root and children.',
+        );
+    }
+
+    public function testAddingDifferentCustomizedProductPersistsAnotherTree(): void
+    {
+        $order = $this->createCartOrder();
+        $rootProduct = $this->createProduct(55, 10.0);
+        $firstChildProduct = $this->createProduct(102, 2.5);
+        $secondChildProduct = $this->createProduct(103, 3.0);
+        $productGroup = $this->createProductGroup(50);
+        $existingRoot = $this->createOrderProduct($order, $rootProduct, 1, 10.0);
+        $existingChild = $this->createOrderProduct($order, $firstChildProduct, 1, 2.5);
+        $existingChild->setParentProduct($rootProduct);
+        $existingChild->setProductGroup($productGroup);
+        $existingRoot->addOrderProductComponent($existingChild);
+        $order->addOrderProduct($existingRoot);
+        $order->addOrderProduct($existingChild);
+        $newLink = $this->createProductGroupProduct(
+            $rootProduct,
+            $secondChildProduct,
+            $productGroup,
+            3.0,
+        );
+
+        [$service, $persistedOrderProducts] = $this->buildService(
+            [
+                55 => $rootProduct,
+                102 => $firstChildProduct,
+                103 => $secondChildProduct,
+            ],
+            [50 => $productGroup],
+            [$newLink],
+        );
+
+        $service->addProductsToOrder($order, [[
+            'product' => '/products/55',
+            'quantity' => 1,
+            'sub_products' => [[
+                'product' => '/products/103',
+                'productGroup' => '/product_groups/50',
+                'quantity' => 1,
+            ]],
+        ]]);
+
+        self::assertSame(1.0, (float) $existingRoot->getQuantity());
+        self::assertSame(1.0, (float) $existingChild->getQuantity());
+        self::assertCount(2, $persistedOrderProducts);
+        self::assertSame($rootProduct, $persistedOrderProducts[0]->getProduct());
+        self::assertSame($secondChildProduct, $persistedOrderProducts[1]->getProduct());
+        self::assertSame($persistedOrderProducts[0], $persistedOrderProducts[1]->getOrderProduct());
+    }
+
+    public function testSameCustomizationWithDifferentComponentQuantityStaysSeparate(): void
+    {
+        $order = $this->createCartOrder();
+        $rootProduct = $this->createProduct(55, 10.0);
+        $childProduct = $this->createProduct(102, 2.5);
+        $productGroup = $this->createProductGroup(50);
+        $existingRoot = $this->createOrderProduct($order, $rootProduct, 1, 10.0);
+        $existingChild = $this->createOrderProduct($order, $childProduct, 1, 2.5);
+        $existingChild->setParentProduct($rootProduct);
+        $existingChild->setProductGroup($productGroup);
+        $existingRoot->addOrderProductComponent($existingChild);
+        $order->addOrderProduct($existingRoot);
+        $order->addOrderProduct($existingChild);
+        $link = $this->createProductGroupProduct(
+            $rootProduct,
+            $childProduct,
+            $productGroup,
+            2.5,
+        );
+
+        [$service, $persistedOrderProducts] = $this->buildService(
+            [55 => $rootProduct, 102 => $childProduct],
+            [50 => $productGroup],
+            [$link],
+        );
+
+        $service->addProductsToOrder($order, [[
+            'product' => '/products/55',
+            'quantity' => 1,
+            'sub_products' => [[
+                'product' => '/products/102',
+                'productGroup' => '/product_groups/50',
+                'quantity' => 2,
+            ]],
+        ]]);
+
+        self::assertSame(1.0, (float) $existingRoot->getQuantity());
+        self::assertSame(1.0, (float) $existingChild->getQuantity());
+        self::assertCount(2, $persistedOrderProducts);
+        self::assertSame(2.0, (float) $persistedOrderProducts[1]->getQuantity());
+    }
+
     /**
      * @param array<int, Product> $productsById
+     * @param array<int, ProductGroup> $productGroupsById
+     * @param list<ProductGroupProduct> $productGroupProducts
      *
      * @return array{0: OrderProductService, 1: \ArrayObject<int, OrderProduct>}
      */
-    private function buildService(array $productsById): array
+    private function buildService(
+        array $productsById,
+        array $productGroupsById = [],
+        array $productGroupProducts = [],
+    ): array
     {
         $productRepository = $this->createMock(EntityRepository::class);
         $productRepository
             ->method('find')
             ->willReturnCallback(
                 static fn (int $id): ?Product => $productsById[$id] ?? null,
+            );
+
+        $productGroupRepository = $this->createMock(EntityRepository::class);
+        $productGroupRepository
+            ->method('find')
+            ->willReturnCallback(
+                static fn (int $id): ?ProductGroup => $productGroupsById[$id] ?? null,
+            );
+
+        $productGroupProductRepository = $this->createMock(EntityRepository::class);
+        $productGroupProductRepository
+            ->method('findOneBy')
+            ->willReturnCallback(
+                static function (array $criteria) use ($productGroupProducts): ?ProductGroupProduct {
+                    foreach ($productGroupProducts as $productGroupProduct) {
+                        if (
+                            isset($criteria['product'])
+                            && $criteria['product'] !== $productGroupProduct->getProduct()
+                        ) {
+                            continue;
+                        }
+                        if (
+                            ($criteria['productChild'] ?? null)
+                            !== $productGroupProduct->getProductChild()
+                            || ($criteria['productGroup'] ?? null)
+                            !== $productGroupProduct->getProductGroup()
+                        ) {
+                            continue;
+                        }
+
+                        return $productGroupProduct;
+                    }
+
+                    return null;
+                },
             );
 
         $persistedOrderProducts = new \ArrayObject();
@@ -112,6 +286,8 @@ class OrderProductServiceConsolidationTest extends TestCase
             ->willReturnCallback(
                 static fn (string $className): EntityRepository => match ($className) {
                     Product::class => $productRepository,
+                    ProductGroup::class => $productGroupRepository,
+                    ProductGroupProduct::class => $productGroupProductRepository,
                     default => throw new \LogicException('Unexpected repository: ' . $className),
                 },
             );
@@ -163,6 +339,31 @@ class OrderProductServiceConsolidationTest extends TestCase
         $product->setPrice($price);
 
         return $product;
+    }
+
+    private function createProductGroup(int $id): ProductGroup
+    {
+        $productGroup = new ProductGroup();
+        $idProperty = new \ReflectionProperty(ProductGroup::class, 'id');
+        $idProperty->setAccessible(true);
+        $idProperty->setValue($productGroup, $id);
+
+        return $productGroup;
+    }
+
+    private function createProductGroupProduct(
+        Product $rootProduct,
+        Product $childProduct,
+        ProductGroup $productGroup,
+        float $price,
+    ): ProductGroupProduct {
+        $productGroupProduct = new ProductGroupProduct();
+        $productGroupProduct->setProduct($rootProduct);
+        $productGroupProduct->setProductChild($childProduct);
+        $productGroupProduct->setProductGroup($productGroup);
+        $productGroupProduct->setPrice($price);
+
+        return $productGroupProduct;
     }
 
     private function createOrderProduct(

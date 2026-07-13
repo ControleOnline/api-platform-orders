@@ -13,7 +13,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 /**
  * @agents Shop loyalty lifecycle.
  *
- * Closed eligible sales stamp the latest open fidelity card.
+ * Closed eligible sales stamp the latest open fidelity card through the direct main order link.
  * When a card is already full, the next closed eligible sale with the configured gift closes that card.
  * When that next sale does not carry the gift, it starts the next open card instead.
  */
@@ -26,7 +26,6 @@ class OrderLoyaltyService implements EventSubscriberInterface
 
     private const INFO_REQUIRED_SALES = 'loyalty_required_sales';
     private const INFO_GIFT_PRODUCT_ID = 'loyalty_gift_product_id';
-    private const INFO_CARD_ID = 'loyalty_card_id';
     private const INFO_REWARD_ORDER_ID = 'loyalty_reward_order_id';
     private const INFO_REWARD_PRODUCT_ID = 'loyalty_reward_product_id';
     private const INFO_REWARD_RESERVED_AT = 'loyalty_reward_reserved_at';
@@ -260,22 +259,11 @@ class OrderLoyaltyService implements EventSubscriberInterface
         }
 
         /*
-         * @agents Preserve any existing commercial parent. The loyalty card stays mirrored in metadata
-         * so the snapshot service and UI can still resolve the fidelity chain when another flow owns mainOrderId.
+         * @agents The direct main order link is the only source of truth for loyalty stamps.
+         * Do not mirror the card id in metadata.
          */
-        $currentMainOrderId = $this->normalizeId($sale->getMainOrderId());
-        $currentMainOrder = $sale->getMainOrder();
-        if (
-            $currentMainOrderId === null ||
-            ($currentMainOrder instanceof Order && $this->isFidelityOrder($currentMainOrder))
-        ) {
-            $sale->setMainOrder($card);
-            $sale->setMainOrderId($cardId);
-        }
-
-        $info = $this->readOrderInfo($sale);
-        $info[self::INFO_CARD_ID] = $cardId;
-        $this->writeOrderInfo($sale, $info);
+        $sale->setMainOrder($card);
+        $sale->setMainOrderId($cardId);
 
         $this->manager->persist($sale);
         $this->manager->flush();
@@ -319,25 +307,18 @@ class OrderLoyaltyService implements EventSubscriberInterface
     private function countCardStamps(Order $card, array $settings): int
     {
         /*
-         * @agents Only closed, eligible, non-reward child sales count as stamps on the current card.
+         * @agents Only closed, eligible, non-reward child sales linked directly to the current card count as stamps.
          */
         $repository = $this->manager->getRepository(Order::class);
-        $sales = array_merge(
-            $repository->findBy([
+        $sales = $repository->findBy(
+            [
                 'mainOrderId' => $card->getId(),
                 'orderType' => Order::ORDER_TYPE_SALE,
-            ]),
-            $repository->findBy(
-                [
-                    'provider' => $card->getProvider(),
-                    'client' => $card->getClient(),
-                    'orderType' => Order::ORDER_TYPE_SALE,
-                ],
-                [
-                    'orderDate' => 'DESC',
-                ],
-                200,
-            ),
+            ],
+            [
+                'orderDate' => 'DESC',
+            ],
+            200,
         );
 
         $count = 0;
@@ -400,11 +381,6 @@ class OrderLoyaltyService implements EventSubscriberInterface
         $cardId = (int) ($card->getId() ?? 0);
         if ($cardId <= 0) {
             return false;
-        }
-
-        $info = $this->readOrderInfo($sale);
-        if ($this->normalizeId($info[self::INFO_CARD_ID] ?? null) === $cardId) {
-            return true;
         }
 
         if ($this->normalizeId($sale->getMainOrderId()) === $cardId) {
@@ -546,18 +522,8 @@ class OrderLoyaltyService implements EventSubscriberInterface
     private function resolveLinkedFidelityCard(Order $order): ?Order
     {
         /*
-         * @agents Resolve the canonical card from metadata first, then fall back to the linked main order.
-         * This keeps the fidelity chain readable even when another business flow owns the parent link.
+         * @agents Resolve the canonical card only from the direct main order link.
          */
-        $info = $this->readOrderInfo($order);
-        $cardId = $this->normalizeId($info[self::INFO_CARD_ID] ?? null);
-        if ($cardId !== null) {
-            $card = $this->manager->getRepository(Order::class)->find($cardId);
-            if ($card instanceof Order && $this->isFidelityOrder($card)) {
-                return $card;
-            }
-        }
-
         $mainOrder = $order->getMainOrder();
         if ($mainOrder instanceof Order && $this->isFidelityOrder($mainOrder)) {
             return $mainOrder;

@@ -111,9 +111,7 @@ class OrderLoyaltyServiceTest extends TestCase
 
         self::assertSame(500, $sale->getMainOrderId());
         self::assertSame($createdCard, $sale->getMainOrder());
-
-        $saleInfo = json_decode((string) $sale->getOtherInformations(), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame(500, $saleInfo['loyalty_card_id']);
+        self::assertSame('{}', (string) $sale->getOtherInformations());
     }
 
     public function testClosedEligibleSaleStampsLatestOpenFidelityCard(): void
@@ -194,7 +192,7 @@ class OrderLoyaltyServiceTest extends TestCase
         self::assertSame('open', $card->getStatus()->getRealStatus());
         $cardInfo = json_decode((string) $card->getOtherInformations(), true, 512, JSON_THROW_ON_ERROR);
         self::assertArrayNotHasKey('loyalty_reward_order_id', $cardInfo);
-        self::assertSame(500, json_decode((string) $sale->getOtherInformations(), true, 512, JSON_THROW_ON_ERROR)['loyalty_card_id']);
+        self::assertSame('{}', (string) $sale->getOtherInformations());
     }
 
     public function testClosedEligibleSaleStartsNewCardWhenTheCurrentOneIsFullWithoutGift(): void
@@ -394,7 +392,7 @@ class OrderLoyaltyServiceTest extends TestCase
         self::assertNotEmpty($cardInfo['loyalty_reward_redeemed_at']);
     }
 
-    public function testClosedEligibleSalePreservesCommercialParentLinkWhenPresent(): void
+    public function testClosedEligibleSaleOverridesCommercialParentLinkWithFidelityCard(): void
     {
         $provider = $this->people(10);
         $client = $this->people(20);
@@ -475,11 +473,9 @@ class OrderLoyaltyServiceTest extends TestCase
 
         $service->onEntityChanged(new EntityChangedEvent($sale, 'postUpdate'));
 
-        self::assertSame(99, $sale->getMainOrderId());
-        self::assertSame($parentSale, $sale->getMainOrder());
-
-        $saleInfo = json_decode((string) $sale->getOtherInformations(), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame(500, $saleInfo['loyalty_card_id']);
+        self::assertSame(500, $sale->getMainOrderId());
+        self::assertSame($card, $sale->getMainOrder());
+        self::assertSame('{}', (string) $sale->getOtherInformations());
     }
 
     private function configService(string $productIds, string $requiredSales, string $giftProductId): ConfigService

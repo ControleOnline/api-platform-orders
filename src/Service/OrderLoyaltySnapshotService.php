@@ -235,7 +235,7 @@ class OrderLoyaltySnapshotService
     private function isSaleLinkedToCard(Order $sale, Order $card): bool
     {
         /*
-         * @agents Legacy cards can still be resolved by metadata when the main order link is shared with another flow.
+         * @agents Only the direct main order relation can bind a sale to a fidelity card.
          */
         $cardId = $this->normalizeId($card->getId());
         if ($cardId === null) {
@@ -247,13 +247,10 @@ class OrderLoyaltySnapshotService
         }
 
         $mainOrder = $sale->getMainOrder();
-        if ($mainOrder instanceof Order && $this->normalizeId($mainOrder->getId()) === $cardId) {
-            return true;
-        }
 
-        $info = $this->readOrderInfo($sale);
-
-        return $this->normalizeId($info['loyalty_card_id'] ?? null) === $cardId;
+        return $mainOrder instanceof Order
+            && $this->isFidelityOrder($mainOrder)
+            && $this->normalizeId($mainOrder->getId()) === $cardId;
     }
 
     private function isRewardOrderForCard(Order $sale, Order $card): bool

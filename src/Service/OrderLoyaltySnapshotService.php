@@ -37,8 +37,8 @@ class OrderLoyaltySnapshotService
             return [];
         }
 
-        // O snapshot default sempre mostra apenas o cartao aberto mais recente.
-        // Quando a tela pede history, devolvemos a cadeia completa para auditoria.
+        // The default snapshot always shows only the most recent open card.
+        // When the screen asks for history, we return the full chain for auditability.
         $cards = $this->findCards($provider, $client);
         if ($cards === []) {
             return [];

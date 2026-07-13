@@ -1,47 +1,47 @@
 <?php
 
 /*
- * ## Escopo
- * - Modulo central de pedidos de venda.
- * - Cobre `Order`, `OrderProduct`, `OrderInvoice`, carrinho, acoes do pedido, descoberta de carrinho e fluxos de impressao ligados ao pedido.
+ * ## Scope
+ * - Central sales order module.
+ * - Covers `Order`, `OrderProduct`, `OrderInvoice`, cart, order actions, cart discovery, and order-related print flows.
  *
- * ## Quando usar
- * - Prompts sobre pedido, item de pedido, checkout operacional, impressao de pedido, acoes de pedido e ciclo de vida comercial do pedido.
+ * ## When to use
+ * - Prompts about order, order item, operational checkout, order printing, order actions, and the commercial order lifecycle.
  *
- * ## Limites
- * - `orders` e o dono da regra operacional do pedido.
- * - `financial` continua dono de `Invoice`, `Wallet` e meios de pagamento.
- * - `integration` continua dono de webhooks e gateways externos.
- * - `extra_data` e `extra_fields` nao podem guardar snapshot rico de pedido, entrega, pagamento ou status operacional quando o dado ja tiver destino canonico em `Order`, `OrderInvoice` ou `Invoice`. Nesta camada, esses campos so podem carregar IDs e codigos remotos que ainda nao tenham coluna materializada equivalente.
- * - Quando um fluxo tocar pedido e pagamento, a regra do pedido fica aqui e a camada financeira/integracao fica nos modulos correspondentes.
- * - Em venda, o rascunho/carrinho canonico do pedido usa `orderType = cart`. `quote` nao deve mais representar carrinho de venda.
- * - A confirmacao de pedido do `SHOP` deve recusar carrinho sem `addressDestination`; o carrinho pode existir como rascunho, mas nao pode virar venda sem endereco de entrega.
- * - Em atendimento por `tab/table/stamp`, o pedido financeiro raiz continua sendo um `Order` do proprio modulo `orders`. Pedidos filhos e invoices devem convergir para essa raiz, sem contrato paralelo fora de `mainOrderId` e `OrderInvoice`.
- * - O serializer de leitura de `Order` deve expor `mainOrder.externalCode` nos groups usados por listagem e detalhe. Esse valor e o numero da comanda e nao deve depender de `otherInformations` no frontend.
- * - `ready`, `cancel` e `delivered` devem nascer pelo fluxo principal de acoes do pedido (`OrderActionService`/`OrderActionController`). Nao criar caminhos paralelos de mudanca de status para KDS, marketplace ou device.
- * - `PUT /orders/{id}` nao e editor livre de estado. Esse fluxo so pode atualizar campos de negocio nao operacionais e normalizar `quote`/`cart`/`sale` quando a regra permitir; trocas de `status` ficam nos fluxos de acao e financeiro.
- * - O nome canonico da integracao da 99 no backend e `Food99` quando o pedido ou contexto precisar identificar a plataforma.
- * - O recurso `/orders-queue`, consumido por displays/KDS, deve expor apenas pedidos de venda (`orderType = sale`). Rascunhos e carrinhos (`cart`) nao pertencem a essa visao operacional.
- * - O recurso `/orders-queue` pode expor a arvore visual de componentes via group dedicado `orders-queue-tree:read`. Esse group nao deve incluir backrefs ciclicos como `orderProduct`.
- * - `orders` e `tv` continuam consumindo a arvore completa de `OrderProduct`; o `showInParentQueue` so decide a hierarquia visual do consumidor, nao a existencia do item na colecao.
- * - A visao operacional nao deve sintetizar filhos nem regravar fila para simular ocultacao visual no pai.
- * - Na impressao do pedido, `ProductGroup.showInDisplay=false` deve ocultar apenas o titulo do grupo. Os itens e componentes continuam sendo impressos e agrupados.
- * - A impressao em papel das filas deve espelhar o display correspondente: itens materializados nao devem exibir `2x`, enquanto itens internos nao materializados so podem exibir prefixo de quantidade acima de 1.
- * - Fidelidade do shop usa um pedido raiz `orderType = fidelity`. Pedidos `sale` fechados e elegiveis entram como filhos por `mainOrderId`; quando o cartao ja esta cheio, a proxima venda fechada com o brinde fecha esse cartao e uma venda fechada sem brinde abre o proximo cartao.
- * - A colecao de `OrderProduct` precisa responder no payload padrao interno (`member`, `totalItems`, `search`, `@context`, `@id`, `@type`) mesmo quando a leitura vier do fluxo padrao da API Platform. Nao empurrar fallback de formato para o frontend.
- * - `OrderProduct` deve continuar exposto como entidade da API Platform. Nao usar controller dedicada apenas para reformatar colecao; essa adaptacao pertence a normalizers/infra comum.
- * - `GET /orders/{id}` deve continuar estavel e enxuto para abrir o detalhe do pedido. Nao expandir nesse payload relacoes de agrupamento (`orderProduct`, `parentProduct`, `productGroup`) se isso aumentar risco de serializacao pesada ou ciclica.
- * - Consultas agregadas de report e TV devem nascer no `OrderRepository`, nao em services. `OrderReportSummaryResolver` so orquestra o retorno e pode expor blocos extras como `operationalInsights`, mas as queries continuam no dominio de `orders`.
- * - Quando a TV pedir um `insight` especifico, `OrderReportSummaryResolver` deve devolver apenas o bloco solicitado dentro de `operationalInsights`, mantendo o contrato completo apenas para as telas que pedirem o summary inteiro.
- * - `delivery_people_id` e o campo canônico do pedido para o entregador escolhido pela loja e deve ser mantido pela propria regra de `orders`.
- * - A visao de delivery usa a colecao padrao `/orders` com `provider` do motoboy logado e `orderType=delivery`, preservando o recorte por `people_link` de tipo `courier`.
- * - Em pedidos filhos de logistica `Food99`, `provider` e o motoboy, `payer` e `99 Food`, `client` e a empresa do pedido pai, `deliveryContact` e o cliente do pedido pai, `addressOrigin` deve ser preenchido sempre e o filho nao deve copiar `otherInformations`.
- * - Quando a hierarquia completa de customizacao for necessaria no frontend, a fonte rica deve ser a colecao de `OrderProduct`, mantendo o serializer de `Order` seguro e previsivel.
- * - Em `/order_invoices`, dados expandidos de `Invoice` para o frontend devem usar um group dedicado e minimo, separado de `invoice:read`. Nao reutilizar o serializer completo de `Invoice` nessa colecao, para evitar joins excessivos e erro `1116 Too many tables`.
- * - Em `PUT /order_products/{id}`, quando vier `sub_products`, o backend deve substituir a colecao atual de componentes do item pai. Nao acumular filhos antigos com novos durante a reabertura da customizacao.
- * - Em `DELETE /order_products/{id}`, a remocao de item customizavel deve apagar primeiro a arvore de componentes e filas pelo vinculo `orderProduct`. Nao usar `parentProduct` para decidir quais filhos remover.
- * - Listagens de `Order` consumidas por `DefaultTable` React precisam de `CustomOrFilter`, `OrderFilter` e `DateFilter` alinhados ao store, com ordenacao de datas pelo valor persistido no backend.
- * - Dados agregados para mapa operacional de entregas devem sair do endpoint unico `/orders-delivery-map`, mantendo no backend a regra: status `way`/`away` sem corte diario e `closed` limitado aos 10 pedidos fechados mais recentes, sem filtro de data.
+ * ## Boundaries
+ * - `orders` owns the operational order rule.
+ * - `financial` still owns `Invoice`, `Wallet`, and payment methods.
+ * - `integration` still owns webhooks and external gateways.
+ * - `extra_data` and `extra_fields` must not store rich snapshots of order, delivery, payment, or operational status when the data already has a canonical destination in `Order`, `OrderInvoice`, or `Invoice`. In this layer, those fields may only carry remote IDs and codes that do not yet have a materialized column equivalent.
+ * - When a flow touches both order and payment, the order rule stays here and the financial/integration layer stays in the corresponding modules.
+ * - For sales, the canonical draft/cart order uses `orderType = cart`. `quote` should no longer represent a sales cart.
+ * - `SHOP` order confirmation must reject carts without `addressDestination`; the cart can exist as a draft, but it cannot become a sale without a delivery address.
+ * - In `tab/table/stamp` flows, the root financial order remains an `Order` in the `orders` module. Child orders and invoices must converge on that root, without a parallel contract outside `mainOrderId` and `OrderInvoice`.
+ * - The `Order` read serializer must expose `mainOrder.externalCode` in the groups used by list and detail views. That value is the table number and must not depend on `otherInformations` in the frontend.
+ * - `ready`, `cancel`, and `delivered` must come from the main order action flow (`OrderActionService`/`OrderActionController`). Do not create parallel status-change paths for KDS, marketplace, or device flows.
+ * - `PUT /orders/{id}` is not a free-form state editor. That flow can only update non-operational business fields and normalize `quote`/`cart`/`sale` when the rule allows it; status changes stay in action and financial flows.
+ * - The canonical 99 integration name in the backend is `Food99` whenever the order or context needs to identify the platform.
+ * - `/orders-queue`, consumed by displays/KDS, must expose only sales orders (`orderType = sale`). Drafts and carts (`cart`) do not belong in that operational view.
+ * - `/orders-queue` can expose the visual component tree through the dedicated `orders-queue-tree:read` group. That group must not include cyclical backrefs such as `orderProduct`.
+ * - `orders` and `tv` continue to consume the full `OrderProduct` tree; `showInParentQueue` only decides the visual hierarchy on the consumer side, not whether the item exists in the collection.
+ * - The operational view must not synthesize children or rewrite the queue to simulate hidden parent items.
+ * - In order printing, `ProductGroup.showInDisplay=false` must hide only the group title. Items and components continue to be printed and grouped.
+ * - Paper queue printing must mirror the matching display: materialized items must not show `2x`, while internal non-materialized items may only show a quantity prefix above 1.
+ * - Shop loyalty uses a root order with `orderType = fidelity`. Closed and eligible `sale` orders are linked as children through `mainOrderId`; when the card is already full, the next closed sale with the gift closes that card and a closed sale without the gift opens the next card.
+ * - The `OrderProduct` collection must answer with the internal default payload (`member`, `totalItems`, `search`, `@context`, `@id`, `@type`) even when the read comes from the standard API Platform flow. Do not push format fallbacks to the frontend.
+ * - `OrderProduct` must remain exposed as an API Platform entity. Do not use a dedicated controller just to reformat the collection; that adaptation belongs in normalizers/shared infrastructure.
+ * - `GET /orders/{id}` must stay stable and lean for opening the order details. Do not expand grouping relations (`orderProduct`, `parentProduct`, `productGroup`) in that payload if it increases heavy or cyclical serialization risk.
+ * - Aggregated report and TV queries must originate in `OrderRepository`, not in services. `OrderReportSummaryResolver` only orchestrates the return and may expose extra blocks such as `operationalInsights`, but the queries remain in the `orders` domain.
+ * - When TV requests a specific `insight`, `OrderReportSummaryResolver` must return only that block inside `operationalInsights`, while keeping the full contract only for screens that request the full summary.
+ * - `delivery_people_id` is the canonical order field for the courier chosen by the store and must be maintained by the `orders` rule itself.
+ * - The delivery view uses the standard `/orders` collection with the logged courier as `provider` and `orderType=delivery`, preserving the `people_link` restriction for `courier`.
+ * - In `Food99` logistics child orders, `provider` is the courier, `payer` is `99 Food`, `client` is the parent order company, `deliveryContact` is the parent order client, `addressOrigin` must always be filled, and the child must not copy `otherInformations`.
+ * - When the full customization hierarchy is needed in the frontend, the rich source must be the `OrderProduct` collection, keeping the `Order` serializer safe and predictable.
+ * - In `/order_invoices`, expanded `Invoice` data for the frontend must use a dedicated minimal group, separate from `invoice:read`. Do not reuse the full `Invoice` serializer in this collection, to avoid excessive joins and the `1116 Too many tables` error.
+ * - In `PUT /order_products/{id}`, when `sub_products` is provided, the backend must replace the item's current component collection. Do not accumulate old children with new ones when reopening customization.
+ * - In `DELETE /order_products/{id}`, removing a customizable item must delete the component tree and queues first through the `orderProduct` link. Do not use `parentProduct` to decide which children to remove.
+ * - `Order` lists consumed by React `DefaultTable` need aligned `CustomOrFilter`, `OrderFilter`, and `DateFilter` support in the store, with date ordering based on the persisted backend value.
+ * - Aggregated data for the operational delivery map must come from the single `/orders-delivery-map` endpoint, keeping the backend rule: `way`/`away` statuses are not day-limited and `closed` is limited to the 10 most recent closed orders, without a date filter.
  */
 
 
@@ -712,7 +712,7 @@ class OrderService
 
     private function assertDirectOrderUpdateAllowed(Order $order, array $payload): void
     {
-        // PUT do pedido e para ajustes de cadastro e normalizacao de tipo; transicao de status fica nos fluxos operacionais.
+        // Direct order PUT is only for business data adjustments and type normalization; status transitions stay in the operational flows.
         if (array_key_exists('orderProducts', $payload)) {
             throw new BadRequestHttpException(
                 'A atualizacao direta do pedido nao pode alterar produtos. Use as acoes de produtos.'

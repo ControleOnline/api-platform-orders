@@ -44,21 +44,23 @@ class FidelityByIdController
             );
 
             return new JsonResponse($payload, Response::HTTP_OK);
+        } catch (\InvalidArgumentException $exception) {
+            $status = Response::HTTP_BAD_REQUEST;
+        } catch (\RuntimeException $exception) {
+            $status = Response::HTTP_FORBIDDEN;
         } catch (\Throwable $exception) {
-            $status = $exception instanceof \RuntimeException && $exception->getMessage() === 'Você não possui vínculo com esse cliente'
-                ? Response::HTTP_FORBIDDEN
-                : Response::HTTP_BAD_REQUEST;
-
-            return new JsonResponse(
-                $this->hydratorService->error(
-                    new \Exception(
-                        $exception->getMessage(),
-                        (int) $exception->getCode(),
-                        $exception,
-                    ),
-                ),
-                $status,
-            );
+            $status = Response::HTTP_INTERNAL_SERVER_ERROR;
         }
+
+        return new JsonResponse(
+            $this->hydratorService->error(
+                new \Exception(
+                    $exception->getMessage(),
+                    (int) $exception->getCode(),
+                    $exception,
+                ),
+            ),
+            $status,
+        );
     }
 }

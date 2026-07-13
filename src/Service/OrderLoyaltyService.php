@@ -174,7 +174,7 @@ class OrderLoyaltyService implements EventSubscriberInterface
     private function findStampCard(Order $sale, array $settings): ?Order
     {
         /*
-         * @agents Prefer the oldest open card that still has room for stamps.
+         * @agents Prefer the latest open card that still has room for stamps.
          * If none exists, the caller creates a new fidelity card and links the sale to it.
          */
         foreach ($this->findOpenCards($sale) as $card) {

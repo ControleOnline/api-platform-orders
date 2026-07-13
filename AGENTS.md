@@ -1,17 +1,4 @@
 ## Orders
-- A relacao de anexos do pedido e `order_file`; cada par `order + file` deve permanecer unico.
-- O detalhe do pedido precisa serializar `orderFiles` e os metadados de `File` com suporte a `order_file:read`.
-- O contexto de upload usado pela biblioteca do pedido e `order-attachments`.
-- Nao usar fluxo de produto para gravar, remover ou listar anexos de pedido.
-- O endpoint `PUT /orders/{id}/replace-products` e o contrato canonico para o modo `single-item` do POS; ele deve substituir os produtos raiz do pedido, recalcular totais e deixar apenas um item principal por vez.
-- No fluxo de pedido, `cart` continua sendo rascunho; a criacao real do pedido e o `order.created` pertencem a `sale`.
-- No POS/SHOP, quando o pagamento for o unico gatilho de encerramento, a resolucao final deve escolher `closed` se nao houver entrega nem fila pendente, e `preparando` se ainda existir trabalho em aberto.
-- Qualquer transicao operacional para `preparando` ou `closed` no POS/SHOP deve primeiro promover `cart` para `sale`; nenhum pedido pode permanecer como `cart` ao entrar nessas condicoes.
-- Produtos adicionados em `cart` nao entram em KDS nem criam fila de producao; a fila so passa a existir quando o pedido ja for `sale`.
-- A promocao de `cart` para `sale` deve materializar imediatamente as filas que foram ignoradas durante o rascunho.
-- Itens de pedido so podem ser adicionados, ter quantidade alterada, ser substituidos ou removidos enquanto o pedido ainda estiver em `cart` e nao for terminal; `sale` e estados finais ficam read-only para `order_products`.
-- `PUT /orders/{id}` nao e editor livre de estado. O controller desse recurso so pode aceitar mudanca de dados de negocio e normalizacao controlada entre `cart` e `sale`; `status` nao deve descancelar nem reabrir pedido por esse caminho.
-- Para `orderType=delivery`, `confirm` deve resolver para `delivery/aceito`, `delivered` para `delivery/closed` e `cancel` para `delivery/canceled`; `rejected` e um estado distinto, usado para recusa de aceite, e nao pode ser tratado como cancelamento. `preparando` nao pertence a esse contrato nem deve ser criado para esse contexto.
-- Fidelidade do shop usa um pedido raiz `orderType = fidelity`. Pedidos `sale` fechados e elegiveis entram como filhos por `mainOrderId`; quando o cartao ja esta cheio, a proxima venda fechada com o brinde fecha esse cartao e uma venda fechada sem brinde abre o proximo cartao.
-- `DeliveryOrderPushService` deve tratar entrega `delivery` em `aguardando aceite` como um fluxo separado do `order.created`: o push precisa mirar o motoboy vinculado ao pedido e resolver `device_config` por `people`, nunca por empresa.
-- O contrato do push de aceite da entrega nao pode reutilizar o escopo do dono da empresa; o destinatario operacional e sempre o entregador associado ao pedido.
+- Keep this module focused on order-domain ownership, lifecycle boundaries, and thin controller orchestration.
+- Keep business-specific decisions close to the implementation in English code comments; use AGENTS for reusable patterns and operating modes only.
+- Keep tests under this module and update the root AGENTS when a rule truly spans modules.

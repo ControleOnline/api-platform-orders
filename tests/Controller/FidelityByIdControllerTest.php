@@ -3,12 +3,10 @@
 namespace ControleOnline\Orders\Tests\Controller;
 
 use ControleOnline\Controller\FidelityByIdController;
-use ControleOnline\Entity\People;
+use ControleOnline\Entity\Order;
 use ControleOnline\Entity\User;
-use ControleOnline\Service\OrderLoyaltySnapshotService;
-use ControleOnline\Service\PeopleRoleService;
-use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\EntityRepository;
+use ControleOnline\Service\FidelityByIdService;
+use ControleOnline\Service\HydratorService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,15 +16,9 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInt
 #[AllowMockObjectsWithoutExpectations]
 class FidelityByIdControllerTest extends TestCase
 {
-    public function testReturnsSnapshotPayloadForTheAccessingClient(): void
+    public function testReturnsHydratedSnapshotPayloadForTheAccessingClient(): void
     {
-        $client = $this->people(20);
-        $provider = $this->people(10);
-
         $user = $this->createMock(User::class);
-        $user
-            ->method('getPeople')
-            ->willReturn($client);
 
         $token = $this->createMock(TokenInterface::class);
         $token
@@ -38,31 +30,11 @@ class FidelityByIdControllerTest extends TestCase
             ->method('getToken')
             ->willReturn($token);
 
-        $peopleRepository = $this->createMock(EntityRepository::class);
-        $peopleRepository
-            ->method('find')
-            ->with(20)
-            ->willReturn($client);
-
-        $manager = $this->createMock(EntityManagerInterface::class);
-        $manager
-            ->method('getRepository')
-            ->willReturnCallback(function (string $class) use ($peopleRepository) {
-                return match ($class) {
-                    People::class => $peopleRepository,
-                    default => $this->createMock(EntityRepository::class),
-                };
-            });
-
-        $peopleRoleService = $this->createMock(PeopleRoleService::class);
-        $peopleRoleService
-            ->method('getMainCompany')
-            ->willReturn($provider);
-
-        $snapshotService = $this->createMock(OrderLoyaltySnapshotService::class);
-        $snapshotService
-            ->method('buildForClient')
-            ->with($provider, $client, true)
+        $fidelityService = $this->createMock(FidelityByIdService::class);
+        $fidelityService
+            ->expects(self::once())
+            ->method('buildSnapshot')
+            ->with('20', $user, true)
             ->willReturn([
                 [
                     'card' => ['id' => 500],
@@ -71,10 +43,45 @@ class FidelityByIdControllerTest extends TestCase
                 ],
             ]);
 
+        $hydratorService = $this->createMock(HydratorService::class);
+        $hydratorService
+            ->expects(self::once())
+            ->method('collectionData')
+            ->with(
+                [
+                    [
+                        'card' => ['id' => 500],
+                        'requiredSales' => 3,
+                        'stamps' => [['id' => 701]],
+                    ],
+                ],
+                Order::class,
+                'order:read',
+                [],
+                1,
+            )
+            ->willReturn([
+                '@context' => '/contexts/Order',
+                '@id' => '/orders',
+                '@type' => 'Collection',
+                'view' => [
+                    '@id' => '/orders/fidelityById/20?history=1',
+                    '@type' => 'PartialCollectionView',
+                ],
+                'member' => [
+                    [
+                        'card' => ['id' => 500],
+                        'requiredSales' => 3,
+                        'stamps' => [['id' => 701]],
+                    ],
+                ],
+                'search' => [],
+                'totalItems' => 1,
+            ]);
+
         $controller = new FidelityByIdController(
-            $manager,
-            $peopleRoleService,
-            $snapshotService,
+            $fidelityService,
+            $hydratorService,
             $security,
         );
 
@@ -83,9 +90,13 @@ class FidelityByIdControllerTest extends TestCase
         self::assertSame(200, $response->getStatusCode());
         self::assertSame(
             [
-                'clientId' => 20,
-                'providerId' => 10,
-                'count' => 1,
+                '@context' => '/contexts/Order',
+                '@id' => '/orders',
+                '@type' => 'Collection',
+                'view' => [
+                    '@id' => '/orders/fidelityById/20?history=1',
+                    '@type' => 'PartialCollectionView',
+                ],
                 'member' => [
                     [
                         'card' => ['id' => 500],
@@ -93,26 +104,59 @@ class FidelityByIdControllerTest extends TestCase
                         'stamps' => [['id' => 701]],
                     ],
                 ],
+                'search' => [],
+                'totalItems' => 1,
             ],
             json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR),
         );
     }
 
-    private function people(int $id): People
+    public function testReturnsHydratedErrorWhenSnapshotServiceRejectsClient(): void
     {
-        $people = new People();
-        $reflection = new \ReflectionObject($people);
-        while ($reflection) {
-            if ($reflection->hasProperty('id')) {
-                $property = $reflection->getProperty('id');
-                $property->setAccessible(true);
-                $property->setValue($people, $id);
-                return $people;
-            }
+        $token = $this->createMock(TokenInterface::class);
+        $token
+            ->method('getUser')
+            ->willReturn($this->createMock(User::class));
 
-            $reflection = $reflection->getParentClass();
-        }
+        $security = $this->createMock(Security::class);
+        $security
+            ->method('getToken')
+            ->willReturn($token);
 
-        return $people;
+        $fidelityService = $this->createMock(FidelityByIdService::class);
+        $fidelityService
+            ->expects(self::once())
+            ->method('buildSnapshot')
+            ->willThrowException(new \InvalidArgumentException('Client inválido'));
+
+        $hydratorService = $this->createMock(HydratorService::class);
+        $hydratorService
+            ->expects(self::once())
+            ->method('error')
+            ->willReturn([
+                '@context' => '/contexts/Error',
+                '@type' => 'Error',
+                'hydra:title' => 'An error occurred',
+                'hydra:description' => 'Client inválido',
+            ]);
+
+        $controller = new FidelityByIdController(
+            $fidelityService,
+            $hydratorService,
+            $security,
+        );
+
+        $response = $controller->__invoke('20', Request::create('/orders/fidelityById/20?history=1', 'GET'));
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame(
+            [
+                '@context' => '/contexts/Error',
+                '@type' => 'Error',
+                'hydra:title' => 'An error occurred',
+                'hydra:description' => 'Client inválido',
+            ],
+            json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR),
+        );
     }
 }

@@ -138,6 +138,123 @@ class OrderLoyaltySnapshotServiceTest extends TestCase
         ));
     }
 
+    public function testBuildForClientIgnoresRewardOrderWhenCountingStamps(): void
+    {
+        $provider = $this->people(10);
+        $client = $this->people(20);
+        $eligibleProduct = $this->product(30, 25.0);
+        $rewardProduct = $this->product(40, 0.0);
+
+        $card = $this->order(
+            600,
+            Order::ORDER_TYPE_FIDELITY,
+            $provider,
+            $client,
+            $this->orderStatus('open', 'open'),
+            '2026-07-12T10:00:00Z',
+        );
+        $card->setOtherInformations((object) [
+            'loyalty_required_sales' => 3,
+            'loyalty_reward_order_id' => 704,
+        ]);
+
+        $firstStamp = $this->order(
+            701,
+            Order::ORDER_TYPE_SALE,
+            $provider,
+            $client,
+            $this->orderStatus('closed', 'closed'),
+            '2026-07-12T11:00:00Z',
+        );
+        $firstStamp->setMainOrderId(600);
+        $firstStamp->addOrderProduct($this->orderProduct($firstStamp, $eligibleProduct, 25.0));
+
+        $secondStamp = $this->order(
+            702,
+            Order::ORDER_TYPE_SALE,
+            $provider,
+            $client,
+            $this->orderStatus('closed', 'closed'),
+            '2026-07-12T12:00:00Z',
+        );
+        $secondStamp->setMainOrderId(600);
+        $secondStamp->addOrderProduct($this->orderProduct($secondStamp, $eligibleProduct, 25.0));
+
+        $thirdStamp = $this->order(
+            703,
+            Order::ORDER_TYPE_SALE,
+            $provider,
+            $client,
+            $this->orderStatus('closed', 'closed'),
+            '2026-07-12T13:00:00Z',
+        );
+        $thirdStamp->setMainOrderId(600);
+        $thirdStamp->addOrderProduct($this->orderProduct($thirdStamp, $eligibleProduct, 25.0));
+
+        $rewardSale = $this->order(
+            704,
+            Order::ORDER_TYPE_SALE,
+            $provider,
+            $client,
+            $this->orderStatus('closed', 'closed'),
+            '2026-07-12T14:00:00Z',
+        );
+        $rewardSale->setMainOrderId(600);
+        $rewardSale->addOrderProduct($this->orderProduct($rewardSale, $eligibleProduct, 25.0));
+        $rewardSale->addOrderProduct($this->orderProduct($rewardSale, $rewardProduct, 0.0));
+
+        $orderRepository = $this->createMock(EntityRepository::class);
+        $orderRepository
+            ->method('findBy')
+            ->willReturnCallback(function (
+                array $criteria,
+                array $orderBy = [],
+                $limit = null,
+                $offset = null,
+            ) use (
+                $card,
+                $firstStamp,
+                $secondStamp,
+                $thirdStamp,
+                $rewardSale,
+                $provider,
+                $client,
+            ): array {
+                if (
+                    ($criteria['orderType'] ?? null) === Order::ORDER_TYPE_FIDELITY &&
+                    ($criteria['provider'] ?? null) === $provider &&
+                    ($criteria['client'] ?? null) === $client
+                ) {
+                    return [$card];
+                }
+
+                if (($criteria['mainOrderId'] ?? null) === 600) {
+                    return [$firstStamp, $secondStamp, $thirdStamp, $rewardSale];
+                }
+
+                if (
+                    ($criteria['orderType'] ?? null) === Order::ORDER_TYPE_SALE &&
+                    ($criteria['provider'] ?? null) === $provider &&
+                    ($criteria['client'] ?? null) === $client
+                ) {
+                    return [$firstStamp, $secondStamp, $thirdStamp, $rewardSale];
+                }
+
+                return [];
+            });
+
+        $manager = $this->manager([Order::class => $orderRepository]);
+        $service = new OrderLoyaltySnapshotService($manager, $this->configService());
+
+        $cards = $service->buildForClient($provider, $client);
+
+        self::assertCount(1, $cards);
+        self::assertSame([701, 702, 703], array_map(
+            static fn (array $stamp): int => (int) $stamp['id'],
+            $cards[0]['stamps'],
+        ));
+    }
+
     public function testBuildForClientReturnsEmptyWhenNoOpenCardExists(): void
     {
         $provider = $this->people(10);

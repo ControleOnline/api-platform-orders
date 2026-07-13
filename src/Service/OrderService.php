@@ -1,7 +1,6 @@
 <?php
 
 /*
- * Contract imported from AGENTS.md
  * ## Escopo
  * - Modulo central de pedidos de venda.
  * - Cobre `Order`, `OrderProduct`, `OrderInvoice`, carrinho, acoes do pedido, descoberta de carrinho e fluxos de impressao ligados ao pedido.
@@ -28,7 +27,7 @@
  * - A visao operacional nao deve sintetizar filhos nem regravar fila para simular ocultacao visual no pai.
  * - Na impressao do pedido, `ProductGroup.showInDisplay=false` deve ocultar apenas o titulo do grupo. Os itens e componentes continuam sendo impressos e agrupados.
  * - A impressao em papel das filas deve espelhar o display correspondente: itens materializados nao devem exibir `2x`, enquanto itens internos nao materializados so podem exibir prefixo de quantidade acima de 1.
- * - Fidelidade do shop usa um pedido raiz `orderType = fidelity`. Pedidos `sale` pagos entram como filhos por `mainOrderId`; quando o cartao atinge a meta, o backend reserva o brinde no proximo `cart` do mesmo cliente/loja com item de preco zero e fecha o cartao quando esse pedido e pago.
+ * - Fidelidade do shop usa um pedido raiz `orderType = fidelity`. Pedidos `sale` fechados e elegiveis entram como filhos por `mainOrderId`; quando o cartao ja esta cheio, a proxima venda fechada com o brinde fecha esse cartao e uma venda fechada sem brinde abre o proximo cartao.
  * - A colecao de `OrderProduct` precisa responder no payload padrao interno (`member`, `totalItems`, `search`, `@context`, `@id`, `@type`) mesmo quando a leitura vier do fluxo padrao da API Platform. Nao empurrar fallback de formato para o frontend.
  * - `OrderProduct` deve continuar exposto como entidade da API Platform. Nao usar controller dedicada apenas para reformatar colecao; essa adaptacao pertence a normalizers/infra comum.
  * - `GET /orders/{id}` deve continuar estavel e enxuto para abrir o detalhe do pedido. Nao expandir nesse payload relacoes de agrupamento (`orderProduct`, `parentProduct`, `productGroup`) se isso aumentar risco de serializacao pesada ou ciclica.

@@ -10,6 +10,13 @@ use ControleOnline\Event\EntityChangedEvent;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
+/**
+ * Shop loyalty lifecycle.
+ *
+ * Closed eligible sales stamp the latest open fidelity card.
+ * When a card is already full, the next closed eligible sale with the configured gift closes that card.
+ * When that next sale does not carry the gift, it starts the next open card instead.
+ */
 class OrderLoyaltyService implements EventSubscriberInterface
 {
     private const CONFIG_ENABLED = 'shop-loyalty-coupons-enabled';
@@ -31,7 +38,8 @@ class OrderLoyaltyService implements EventSubscriberInterface
         private EntityManagerInterface $manager,
         private ConfigService $configService,
         private StatusService $statusService,
-    ) {}
+    ) {
+    }
 
     public static function getSubscribedEvents(): array
     {
@@ -43,8 +51,8 @@ class OrderLoyaltyService implements EventSubscriberInterface
     public function onEntityChanged(EntityChangedEvent $event): void
     {
         if (
-            $this->handling
-            || !in_array($event->getPhase(), ['postPersist', 'postUpdate'], true)
+            $this->handling ||
+            !in_array($event->getPhase(), ['postPersist', 'postUpdate'], true)
         ) {
             return;
         }
@@ -65,104 +73,141 @@ class OrderLoyaltyService implements EventSubscriberInterface
             return;
         }
 
+        if (
+            !$this->isSaleOrder($order) ||
+            !$this->isClosedOrder($order) ||
+            $this->resolveLinkedFidelityCard($order) instanceof Order
+        ) {
+            return;
+        }
+
         $this->handling = true;
         try {
-            if ($this->isCartOrder($order)) {
-                $this->applyRewardToCart($order, $settings);
-            }
-
-            if ($this->isSaleOrder($order)) {
-                $this->processPaidSale($order, $settings);
-            }
+            $this->processClosedSale($order, $settings);
         } finally {
             $this->handling = false;
         }
     }
 
-    private function applyRewardToCart(Order $cart, array $settings): void
+    /**
+     * Closed eligible sales only touch loyalty. Any other order type stays outside this lifecycle.
+     *
+     * @param array{
+     *     enabled:bool,
+     *     giftProduct:?Product,
+     *     giftProductId:?int,
+     *     productIds:array<int,bool>,
+     *     requiredSales:int
+     * } $settings
+     */
+    private function processClosedSale(Order $sale, array $settings): void
     {
-        $giftProduct = $settings['giftProduct'] ?? null;
-        if (!$giftProduct instanceof Product) {
-            return;
-        }
-
-        $card = $this->findRewardableCard($cart, $settings);
-        if (!$card instanceof Order) {
-            return;
-        }
-
-        if (!$this->cartHasLoyaltyGift($cart, $giftProduct)) {
-            $this->addGiftProductToCart($cart, $giftProduct);
-        }
-
-        $info = $this->readOrderInfo($card);
-        $info[self::INFO_REWARD_ORDER_ID] = (int) $cart->getId();
-        $info[self::INFO_REWARD_PRODUCT_ID] = (int) $giftProduct->getId();
-        $info[self::INFO_REWARD_RESERVED_AT] = (new \DateTimeImmutable())->format(DATE_ATOM);
-        $this->writeOrderInfo($card, $info);
-
-        $this->manager->persist($card);
-        $this->manager->flush();
-    }
-
-    private function processPaidSale(Order $sale, array $settings): void
-    {
-        if (!$this->isPaidOrder($sale)) {
-            return;
-        }
-
-        $this->redeemPendingRewardForSale($sale);
-
         if (!$this->isEligibleSale($sale, $settings)) {
             return;
         }
 
-        if ($this->resolveLinkedFidelityCard($sale) instanceof Order) {
+        $giftProduct = $settings['giftProduct'] ?? null;
+        $hasGiftProduct = $giftProduct instanceof Product && $this->saleHasGiftProduct($sale, $giftProduct);
+        $rewardableCard = $this->findRewardableCard($sale, $settings);
+
+        if ($rewardableCard instanceof Order && $hasGiftProduct) {
+            $this->linkSaleToCard($sale, $rewardableCard);
+            $this->closeCardWithReward($rewardableCard, $sale, $giftProduct);
+
             return;
         }
 
-        $sale->setOrderType(Order::ORDER_TYPE_SALE);
-
-        $card = $this->findCurrentCard($sale, $settings)
-            ?? $this->createCard($sale, $settings);
-        if (!$card instanceof Order || !$card->getId()) {
-            return;
+        $stampCard = $this->findStampCard($sale, $settings);
+        if (!$stampCard instanceof Order) {
+            $stampCard = $this->createCard($sale, $settings);
         }
 
-        $cardId = (int) $card->getId();
-        $info = $this->readOrderInfo($sale);
-        $info[self::INFO_CARD_ID] = $cardId;
-        $this->writeOrderInfo($sale, $info);
-
-        if (!$sale->getMainOrderId()) {
-            $sale->setMainOrder($card);
-            $sale->setMainOrderId($cardId);
-        }
-
-        $this->manager->persist($sale);
-        $this->manager->flush();
+        $this->linkSaleToCard($sale, $stampCard);
     }
 
-    private function redeemPendingRewardForSale(Order $sale): void
+    /**
+     * @param array{
+     *     enabled:bool,
+     *     giftProduct:?Product,
+     *     giftProductId:?int,
+     *     productIds:array<int,bool>,
+     *     requiredSales:int
+     * } $settings
+     */
+    private function findRewardableCard(Order $sale, array $settings): ?Order
     {
-        $card = $this->findPendingRewardCardForOrder($sale);
-        if (!$card instanceof Order) {
-            return;
+        foreach ($this->findOpenCards($sale) as $card) {
+            $info = $this->readOrderInfo($card);
+            if (!empty($info[self::INFO_REWARD_REDEEMED_AT])) {
+                continue;
+            }
+
+            if ($this->countCardStamps($card, $settings) >= $this->getCardRequiredSales($card, $settings)) {
+                return $card;
+            }
         }
 
-        $info = $this->readOrderInfo($card);
-        if (!empty($info[self::INFO_REWARD_REDEEMED_AT])) {
-            return;
-        }
-
-        $info[self::INFO_REWARD_REDEEMED_AT] = (new \DateTimeImmutable())->format(DATE_ATOM);
-        $this->writeOrderInfo($card, $info);
-        $card->setStatus($this->statusService->discoveryStatus('closed', 'redeemed', 'order'));
-
-        $this->manager->persist($card);
-        $this->manager->flush();
+        return null;
     }
 
+    /**
+     * @param array{
+     *     enabled:bool,
+     *     giftProduct:?Product,
+     *     giftProductId:?int,
+     *     productIds:array<int,bool>,
+     *     requiredSales:int
+     * } $settings
+     */
+    private function findStampCard(Order $sale, array $settings): ?Order
+    {
+        foreach ($this->findOpenCards($sale) as $card) {
+            $info = $this->readOrderInfo($card);
+            if (!empty($info[self::INFO_REWARD_REDEEMED_AT])) {
+                continue;
+            }
+
+            if ($this->countCardStamps($card, $settings) < $this->getCardRequiredSales($card, $settings)) {
+                return $card;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return Order[]
+     */
+    private function findOpenCards(Order $order): array
+    {
+        $cards = $this->manager->getRepository(Order::class)->findBy(
+            [
+                'provider' => $order->getProvider(),
+                'client' => $order->getClient(),
+                'orderType' => Order::ORDER_TYPE_FIDELITY,
+            ],
+            [
+                'orderDate' => 'DESC',
+                'id' => 'DESC',
+            ],
+            50,
+        );
+
+        return array_values(array_filter(
+            $cards,
+            fn ($card): bool => $card instanceof Order && $this->isOpenCard($card),
+        ));
+    }
+
+    /**
+     * @param array{
+     *     enabled:bool,
+     *     giftProduct:?Product,
+     *     giftProductId:?int,
+     *     productIds:array<int,bool>,
+     *     requiredSales:int
+     * } $settings
+     */
     private function createCard(Order $sale, array $settings): Order
     {
         $status = $this->statusService->discoveryStatus('open', 'open', 'order');
@@ -187,94 +232,282 @@ class OrderLoyaltyService implements EventSubscriberInterface
         return $card;
     }
 
-    private function addGiftProductToCart(Order $cart, Product $giftProduct): void
+    private function linkSaleToCard(Order $sale, Order $card): void
     {
-        $orderProduct = new OrderProduct();
-        $orderProduct->setOrder($cart);
-        $orderProduct->setProduct($giftProduct);
-        $orderProduct->setQuantity(1);
-        $orderProduct->setPrice(0);
-        $orderProduct->setTotal(0);
-        $orderProduct->setComment(OrderProductService::LOYALTY_GIFT_COMMENT);
-        $cart->addOrderProduct($orderProduct);
+        $cardId = $this->normalizeId($card->getId());
+        if ($cardId === null) {
+            return;
+        }
 
-        $this->manager->persist($orderProduct);
+        // Preserve any existing commercial parent. The loyalty card is still stored in metadata
+        // so the snapshot service and the UI can read the card even when mainOrderId belongs to another flow.
+        $currentMainOrderId = $this->normalizeId($sale->getMainOrderId());
+        $currentMainOrder = $sale->getMainOrder();
+        if (
+            $currentMainOrderId === null ||
+            ($currentMainOrder instanceof Order && $this->isFidelityOrder($currentMainOrder))
+        ) {
+            $sale->setMainOrder($card);
+            $sale->setMainOrderId($cardId);
+        }
+
+        $info = $this->readOrderInfo($sale);
+        $info[self::INFO_CARD_ID] = $cardId;
+        $this->writeOrderInfo($sale, $info);
+
+        $this->manager->persist($sale);
         $this->manager->flush();
     }
 
-    private function findRewardableCard(Order $cart, array $settings): ?Order
+    private function closeCardWithReward(Order $card, Order $rewardSale, Product $giftProduct): void
     {
-        foreach ($this->findCards($cart) as $card) {
-            if (!$this->isOpenCard($card)) {
-                continue;
-            }
-
-            $info = $this->readOrderInfo($card);
-            if (!empty($info[self::INFO_REWARD_REDEEMED_AT])) {
-                continue;
-            }
-
-            $rewardOrderId = $this->normalizeId($info[self::INFO_REWARD_ORDER_ID] ?? null);
-            if ($rewardOrderId !== null && $rewardOrderId !== (int) $cart->getId()) {
-                continue;
-            }
-
-            if ($this->countCardStamps($card, $settings) >= $this->getCardRequiredSales($card, $settings)) {
-                return $card;
-            }
+        $rewardSaleId = $this->normalizeId($rewardSale->getId());
+        $giftProductId = $this->normalizeId($giftProduct->getId());
+        if ($rewardSaleId === null || $giftProductId === null) {
+            return;
         }
 
-        return null;
-    }
+        $now = (new \DateTimeImmutable())->format(DATE_ATOM);
+        $info = $this->readOrderInfo($card);
+        $info[self::INFO_REWARD_ORDER_ID] = $rewardSaleId;
+        $info[self::INFO_REWARD_PRODUCT_ID] = $giftProductId;
+        $info[self::INFO_REWARD_RESERVED_AT] = $now;
+        $info[self::INFO_REWARD_REDEEMED_AT] = $now;
+        $this->writeOrderInfo($card, $info);
 
-    private function findCurrentCard(Order $sale, array $settings): ?Order
-    {
-        foreach ($this->findCards($sale) as $card) {
-            if (!$this->isOpenCard($card)) {
-                continue;
-            }
+        $card->setStatus($this->statusService->discoveryStatus('closed', 'closed', 'order'));
 
-            $info = $this->readOrderInfo($card);
-            if (!empty($info[self::INFO_REWARD_ORDER_ID])) {
-                continue;
-            }
-
-            if ($this->countCardStamps($card, $settings) < $this->getCardRequiredSales($card, $settings)) {
-                return $card;
-            }
-        }
-
-        return null;
-    }
-
-    private function findPendingRewardCardForOrder(Order $order): ?Order
-    {
-        foreach ($this->findCards($order) as $card) {
-            $info = $this->readOrderInfo($card);
-            if ($this->normalizeId($info[self::INFO_REWARD_ORDER_ID] ?? null) === (int) $order->getId()) {
-                return $card;
-            }
-        }
-
-        return null;
+        $this->manager->persist($card);
+        $this->manager->flush();
     }
 
     /**
-     * @return Order[]
+     * @param array{
+     *     enabled:bool,
+     *     giftProduct:?Product,
+     *     giftProductId:?int,
+     *     productIds:array<int,bool>,
+     *     requiredSales:int
+     * } $settings
      */
-    private function findCards(Order $order): array
+    private function countCardStamps(Order $card, array $settings): int
     {
-        $cards = $this->manager->getRepository(Order::class)->findBy(
-            [
-                'provider' => $order->getProvider(),
-                'client' => $order->getClient(),
-                'orderType' => Order::ORDER_TYPE_FIDELITY,
-            ],
-            ['orderDate' => 'DESC'],
-            20,
+        $repository = $this->manager->getRepository(Order::class);
+        $sales = array_merge(
+            $repository->findBy([
+                'mainOrderId' => $card->getId(),
+                'orderType' => Order::ORDER_TYPE_SALE,
+            ]),
+            $repository->findBy(
+                [
+                    'provider' => $card->getProvider(),
+                    'client' => $card->getClient(),
+                    'orderType' => Order::ORDER_TYPE_SALE,
+                ],
+                [
+                    'orderDate' => 'DESC',
+                ],
+                200,
+            ),
         );
 
-        return array_values(array_filter($cards, fn($card) => $card instanceof Order));
+        $count = 0;
+        $seen = [];
+        foreach ($sales as $sale) {
+            if (
+                !$sale instanceof Order ||
+                !$this->isClosedOrder($sale) ||
+                !$this->isSaleLinkedToCard($sale, $card) ||
+                !$this->isEligibleSale($sale, $settings) ||
+                $this->isRewardOrderForCard($sale, $card)
+            ) {
+                continue;
+            }
+
+            $saleId = $this->normalizeId($sale->getId()) ?? spl_object_hash($sale);
+            if (isset($seen[$saleId])) {
+                continue;
+            }
+
+            $seen[$saleId] = true;
+            $count++;
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array{
+     *     enabled:bool,
+     *     giftProduct:?Product,
+     *     giftProductId:?int,
+     *     productIds:array<int,bool>,
+     *     requiredSales:int
+     * } $settings
+     */
+    private function getCardRequiredSales(Order $card, array $settings): int
+    {
+        $info = $this->readOrderInfo($card);
+        $requiredSales = (int) ($info[self::INFO_REQUIRED_SALES] ?? 0);
+
+        return max(1, $requiredSales ?: (int) $settings['requiredSales']);
+    }
+
+    private function isRewardOrderForCard(Order $sale, Order $card): bool
+    {
+        $saleId = $this->normalizeId($sale->getId());
+        if ($saleId === null) {
+            return false;
+        }
+
+        $info = $this->readOrderInfo($card);
+        $rewardOrderId = $this->normalizeId($info[self::INFO_REWARD_ORDER_ID] ?? null);
+
+        return $rewardOrderId !== null && $rewardOrderId === $saleId;
+    }
+
+    private function isSaleLinkedToCard(Order $sale, Order $card): bool
+    {
+        $cardId = (int) ($card->getId() ?? 0);
+        if ($cardId <= 0) {
+            return false;
+        }
+
+        $info = $this->readOrderInfo($sale);
+        if ($this->normalizeId($info[self::INFO_CARD_ID] ?? null) === $cardId) {
+            return true;
+        }
+
+        if ($this->normalizeId($sale->getMainOrderId()) === $cardId) {
+            return true;
+        }
+
+        $mainOrder = $sale->getMainOrder();
+
+        return $mainOrder instanceof Order
+            && $this->isFidelityOrder($mainOrder)
+            && (int) ($mainOrder->getId() ?? 0) === $cardId;
+    }
+
+    private function saleHasGiftProduct(Order $sale, Product $giftProduct): bool
+    {
+        $giftProductId = $this->normalizeId($giftProduct->getId());
+        if ($giftProductId === null) {
+            return false;
+        }
+
+        foreach ($sale->getOrderProducts() as $orderProduct) {
+            if (!$orderProduct instanceof OrderProduct || $orderProduct->getOrderProduct() instanceof OrderProduct) {
+                continue;
+            }
+
+            $productId = $this->normalizeId($orderProduct->getProduct()?->getId());
+            if (
+                $productId === $giftProductId &&
+                (float) $orderProduct->getTotal() <= 0
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{
+     *     enabled:bool,
+     *     giftProduct:?Product,
+     *     giftProductId:?int,
+     *     productIds:array<int,bool>,
+     *     requiredSales:int
+     * } $settings
+     */
+    private function isEligibleSale(Order $sale, array $settings): bool
+    {
+        $eligibleProductIds = $settings['productIds'] ?? [];
+        if (empty($eligibleProductIds)) {
+            return false;
+        }
+
+        foreach ($sale->getOrderProducts() as $orderProduct) {
+            if (!$orderProduct instanceof OrderProduct || $orderProduct->getOrderProduct() instanceof OrderProduct) {
+                continue;
+            }
+
+            $productId = $this->normalizeId($orderProduct->getProduct()?->getId());
+            if (
+                $productId !== null &&
+                isset($eligibleProductIds[$productId]) &&
+                (float) $orderProduct->getTotal() > 0 &&
+                !OrderProductService::isLoyaltyGiftComment($orderProduct->getComment())
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isClosedOrder(Order $order): bool
+    {
+        $status = $this->normalizeText($order->getStatus()?->getStatus());
+        $realStatus = $this->normalizeText($order->getStatus()?->getRealStatus());
+
+        return $status === 'closed' || $realStatus === 'closed';
+    }
+
+    private function isOpenCard(Order $card): bool
+    {
+        $status = $this->normalizeText($card->getStatus()?->getStatus());
+        $realStatus = $this->normalizeText($card->getStatus()?->getRealStatus());
+
+        return $status === 'open' || $realStatus === 'open';
+    }
+
+    private function isFidelityOrder(Order $order): bool
+    {
+        return $this->normalizeText($order->getOrderType()) === Order::ORDER_TYPE_FIDELITY;
+    }
+
+    private function isSaleOrder(Order $order): bool
+    {
+        return $this->normalizeText($order->getOrderType()) === Order::ORDER_TYPE_SALE;
+    }
+
+    /**
+     * @return array{enabled:bool,giftProduct:?Product,giftProductId:?int,productIds:array<int,bool>,requiredSales:int}
+     */
+    private function resolveSettings(People $provider): array
+    {
+        $enabled = $this->normalizeBoolean(
+            $this->configService->getConfig($provider, self::CONFIG_ENABLED)
+        );
+        $productIds = $this->normalizeIds(
+            $this->configService->getConfig($provider, self::CONFIG_PRODUCT_IDS)
+        );
+        $requiredSales = max(
+            0,
+            (int) $this->normalizeNumber(
+                $this->configService->getConfig($provider, self::CONFIG_REQUIRED_SALES)
+            )
+        );
+        $giftProductId = $this->normalizeId(
+            $this->configService->getConfig($provider, self::CONFIG_GIFT_PRODUCT_ID)
+        );
+        $giftProduct = $giftProductId
+            ? $this->manager->getRepository(Product::class)->find($giftProductId)
+            : null;
+
+        return [
+            'enabled' => $enabled
+                && !empty($productIds)
+                && $requiredSales > 0
+                && $giftProduct instanceof Product,
+            'giftProduct' => $giftProduct,
+            'giftProductId' => $giftProductId,
+            'productIds' => array_fill_keys($productIds, true),
+            'requiredSales' => $requiredSales,
+        ];
     }
 
     private function resolveLinkedFidelityCard(Order $order): ?Order
@@ -305,196 +538,9 @@ class OrderLoyaltyService implements EventSubscriberInterface
             : null;
     }
 
-    private function countCardStamps(Order $card, array $settings): int
-    {
-        $repository = $this->manager->getRepository(Order::class);
-        $sales = array_merge(
-            $repository->findBy([
-                'mainOrderId' => $card->getId(),
-                'orderType' => Order::ORDER_TYPE_SALE,
-            ]),
-            $repository->findBy(
-                [
-                    'provider' => $card->getProvider(),
-                    'client' => $card->getClient(),
-                    'orderType' => Order::ORDER_TYPE_SALE,
-                ],
-                ['orderDate' => 'DESC'],
-                200,
-            ),
-        );
-
-        $count = 0;
-        $seen = [];
-        foreach ($sales as $sale) {
-            if (
-                !$sale instanceof Order
-                || !$this->isPaidOrder($sale)
-                || !$this->isSaleLinkedToCard($sale, $card)
-                || !$this->isEligibleSale($sale, $settings)
-            ) {
-                continue;
-            }
-
-            $saleId = $this->normalizeId($sale->getId()) ?? spl_object_hash($sale);
-            if (isset($seen[$saleId])) {
-                continue;
-            }
-
-            $seen[$saleId] = true;
-            $count++;
-        }
-
-        return $count;
-    }
-
-    private function isSaleLinkedToCard(Order $sale, Order $card): bool
-    {
-        $cardId = (int) ($card->getId() ?? 0);
-        if ($cardId <= 0) {
-            return false;
-        }
-
-        $info = $this->readOrderInfo($sale);
-        if ($this->normalizeId($info[self::INFO_CARD_ID] ?? null) === $cardId) {
-            return true;
-        }
-
-        if ($this->normalizeId($sale->getMainOrderId()) === $cardId) {
-            return true;
-        }
-
-        $mainOrder = $sale->getMainOrder();
-
-        return $mainOrder instanceof Order
-            && $this->isFidelityOrder($mainOrder)
-            && (int) ($mainOrder->getId() ?? 0) === $cardId;
-    }
-
-    private function cartHasLoyaltyGift(Order $cart, Product $giftProduct): bool
-    {
-        foreach ($cart->getOrderProducts() as $orderProduct) {
-            if (
-                $orderProduct instanceof OrderProduct
-                && $orderProduct->getProduct()?->getId() === $giftProduct->getId()
-                && OrderProductService::isLoyaltyGiftComment($orderProduct->getComment())
-            ) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function isEligibleSale(Order $sale, array $settings): bool
-    {
-        $eligibleProductIds = $settings['productIds'] ?? [];
-        if (empty($eligibleProductIds)) {
-            return false;
-        }
-
-        foreach ($sale->getOrderProducts() as $orderProduct) {
-            if (!$orderProduct instanceof OrderProduct || $orderProduct->getOrderProduct() instanceof OrderProduct) {
-                continue;
-            }
-
-            $productId = $this->normalizeId($orderProduct->getProduct()?->getId());
-            if (
-                $productId !== null
-                && isset($eligibleProductIds[$productId])
-                && (float) $orderProduct->getTotal() > 0
-                && !OrderProductService::isLoyaltyGiftComment($orderProduct->getComment())
-            ) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function isPaidOrder(Order $order): bool
-    {
-        $status = $this->normalizeText($order->getStatus()?->getStatus());
-        $realStatus = $this->normalizeText($order->getStatus()?->getRealStatus());
-        if ($status === 'paid' || $realStatus === 'paid') {
-            return true;
-        }
-
-        $price = (float) $order->getPrice();
-        if ($price <= 0) {
-            return false;
-        }
-
-        $paidValue = 0.0;
-        foreach ($order->getInvoice() as $orderInvoice) {
-            $invoice = $orderInvoice->getInvoice();
-            if ($this->normalizeText($invoice?->getStatus()?->getRealStatus()) === 'closed') {
-                $paidValue += (float) $invoice->getPrice();
-            }
-        }
-
-        return $paidValue > 0 && $paidValue + 0.0001 >= $price;
-    }
-
-    private function getCardRequiredSales(Order $card, array $settings): int
-    {
-        $info = $this->readOrderInfo($card);
-        $requiredSales = (int) ($info[self::INFO_REQUIRED_SALES] ?? 0);
-
-        return max(1, $requiredSales ?: (int) $settings['requiredSales']);
-    }
-
-    private function isOpenCard(Order $card): bool
-    {
-        return $this->isFidelityOrder($card)
-            && $this->normalizeText($card->getStatus()?->getRealStatus()) === 'open';
-    }
-
-    private function isFidelityOrder(Order $order): bool
-    {
-        return $this->normalizeText($order->getOrderType()) === Order::ORDER_TYPE_FIDELITY;
-    }
-
-    private function isSaleOrder(Order $order): bool
-    {
-        return $this->normalizeText($order->getOrderType()) === Order::ORDER_TYPE_SALE;
-    }
-
-    private function isCartOrder(Order $order): bool
-    {
-        return $this->normalizeText($order->getOrderType()) === Order::ORDER_TYPE_CART;
-    }
-
-    private function resolveSettings(People $provider): array
-    {
-        $enabled = $this->normalizeBoolean(
-            $this->configService->getConfig($provider, self::CONFIG_ENABLED)
-        );
-        $productIds = $this->normalizeIds(
-            $this->configService->getConfig($provider, self::CONFIG_PRODUCT_IDS)
-        );
-        $requiredSales = max(0, (int) $this->normalizeNumber(
-            $this->configService->getConfig($provider, self::CONFIG_REQUIRED_SALES)
-        ));
-        $giftProductId = $this->normalizeId(
-            $this->configService->getConfig($provider, self::CONFIG_GIFT_PRODUCT_ID)
-        );
-        $giftProduct = $giftProductId
-            ? $this->manager->getRepository(Product::class)->find($giftProductId)
-            : null;
-
-        return [
-            'enabled' => $enabled
-                && !empty($productIds)
-                && $requiredSales > 0
-                && $giftProduct instanceof Product,
-            'giftProduct' => $giftProduct,
-            'giftProductId' => $giftProductId,
-            'productIds' => array_fill_keys($productIds, true),
-            'requiredSales' => $requiredSales,
-        ];
-    }
-
+    /**
+     * @return array<string, mixed>
+     */
     private function readOrderInfo(Order $order): array
     {
         $raw = $order->getOtherInformations();
@@ -520,6 +566,11 @@ class OrderLoyaltyService implements EventSubscriberInterface
         $order->setOtherInformations((object) $info);
     }
 
+    private function normalizeText(mixed $value): string
+    {
+        return trim((string) $value);
+    }
+
     private function normalizeBoolean(mixed $value): bool
     {
         if (is_bool($value)) {
@@ -532,9 +583,16 @@ class OrderLoyaltyService implements EventSubscriberInterface
 
         $normalized = $this->normalizeText($this->decodeJsonScalar($value));
 
-        return in_array($normalized, ['1', 'true', 'yes', 'sim', 'on', 'enabled', 'ativo'], true);
+        return in_array(
+            $normalized,
+            ['1', 'true', 'yes', 'sim', 'on', 'enabled', 'ativo'],
+            true,
+        );
     }
 
+    /**
+     * @return array<int>
+     */
     private function normalizeIds(mixed $value): array
     {
         $decoded = $this->decodeJsonScalar($value);
@@ -554,42 +612,57 @@ class OrderLoyaltyService implements EventSubscriberInterface
     private function normalizeNumber(mixed $value): int
     {
         $decoded = $this->decodeJsonScalar($value);
-        if (!is_numeric($decoded)) {
-            return 0;
+        if (is_numeric($decoded)) {
+            return (int) $decoded;
         }
 
-        return (int) floor((float) $decoded);
+        return 0;
     }
 
     private function normalizeId(mixed $value): ?int
     {
-        if (is_object($value) && method_exists($value, 'getId')) {
-            $value = $value->getId();
+        $decoded = $this->decodeJsonScalar($value);
+        if (is_int($decoded)) {
+            return $decoded > 0 ? $decoded : null;
         }
 
-        $normalized = preg_replace('/\D+/', '', (string) $value);
-        if ($normalized === null || $normalized === '') {
+        if (is_numeric($decoded)) {
+            $id = (int) $decoded;
+
+            return $id > 0 ? $id : null;
+        }
+
+        if (!is_string($decoded)) {
             return null;
         }
 
-        return (int) $normalized;
-    }
+        $normalized = preg_replace('/\D+/', '', $decoded);
+        if (!is_string($normalized) || $normalized === '') {
+            return null;
+        }
 
-    private function normalizeText(mixed $value): string
-    {
-        return strtolower(trim((string) $value));
+        $id = (int) $normalized;
+
+        return $id > 0 ? $id : null;
     }
 
     private function decodeJsonScalar(mixed $value): mixed
     {
-        if (!is_string($value) || trim($value) === '') {
+        if (!is_string($value)) {
             return $value;
         }
 
-        try {
-            return json_decode($value, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            return $value;
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return $trimmed;
         }
+
+        if (!in_array($trimmed[0], ['{', '[', '"'], true)) {
+            return $trimmed;
+        }
+
+        $decoded = json_decode($trimmed, true);
+
+        return json_last_error() === JSON_ERROR_NONE ? $decoded : $trimmed;
     }
 }

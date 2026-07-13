@@ -37,6 +37,8 @@ class OrderLoyaltySnapshotService
             return [];
         }
 
+        // O snapshot default sempre mostra apenas o cartao aberto mais recente.
+        // Quando a tela pede history, devolvemos a cadeia completa para auditoria.
         $cards = $this->findCards($provider, $client);
         if ($cards === []) {
             return [];
@@ -163,7 +165,8 @@ class OrderLoyaltySnapshotService
             if (
                 !$this->isSaleLinkedToCard($sale, $card) ||
                 !$this->isClosedStampOrder($sale) ||
-                !$this->isEligibleSale($sale, $settings)
+                !$this->isEligibleSale($sale, $settings) ||
+                $this->isRewardOrderForCard($sale, $card)
             ) {
                 continue;
             }
@@ -226,6 +229,19 @@ class OrderLoyaltySnapshotService
         $info = $this->readOrderInfo($sale);
 
         return $this->normalizeId($info['loyalty_card_id'] ?? null) === $cardId;
+    }
+
+    private function isRewardOrderForCard(Order $sale, Order $card): bool
+    {
+        $saleId = $this->normalizeId($sale->getId());
+        if ($saleId === null) {
+            return false;
+        }
+
+        $info = $this->readOrderInfo($card);
+        $rewardOrderId = $this->normalizeId($info['loyalty_reward_order_id'] ?? null);
+
+        return $rewardOrderId !== null && $rewardOrderId === $saleId;
     }
 
     /**

@@ -5,6 +5,7 @@ namespace ControleOnline\Service;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\People;
+use ControleOnline\Entity\Product;
 use Doctrine\ORM\EntityManagerInterface;
 
 class OrderLoyaltySnapshotService
@@ -50,18 +51,7 @@ class OrderLoyaltySnapshotService
             return [];
         }
 
-        if (!$showHistory) {
-            $cards = array_values(array_filter(
-                $cards,
-                fn (Order $card): bool => $this->isOpenCard($card),
-            ));
-
-            if ($cards === []) {
-                return [];
-            }
-
-            $cards = [$cards[0]];
-        }
+        $cards = $this->selectVisibleCards($cards, $showHistory, false);
 
         return array_values(array_map(
             fn (Order $card): array => $this->buildCardSnapshot($card, $settings),
@@ -70,7 +60,52 @@ class OrderLoyaltySnapshotService
     }
 
     /**
-     * @return array{enabled:bool,productIds:array<int,bool>,requiredSales:int}
+     * @agents Return one current card per network provider, or every card in history mode.
+     * Program settings still come from the main company while each card keeps its own provider.
+     *
+     * @param People[] $providers
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function buildForClientAcrossProviders(
+        People $programProvider,
+        array $providers,
+        People $client,
+        bool $showHistory = false,
+    ): array {
+        $settings = $this->resolveSettings($programProvider);
+        if (!$settings['enabled']) {
+            return [];
+        }
+
+        $providers = array_values(array_filter(
+            $providers,
+            static fn (mixed $provider): bool => $provider instanceof People && (int) ($provider->getId() ?? 0) > 0,
+        ));
+        if ($providers === []) {
+            return [];
+        }
+
+        $cards = $this->findCardsAcrossProviders($providers, $client);
+        $cards = $this->selectVisibleCards($cards, $showHistory, true);
+
+        $snapshots = array_values(array_map(
+            fn (Order $card): array => $this->buildCardSnapshot($card, $settings),
+            $cards,
+        ));
+
+        if ($showHistory) {
+            return $snapshots;
+        }
+
+        return array_values(array_filter(
+            $snapshots,
+            static fn (array $snapshot): bool => ($snapshot['stamps'] ?? []) !== [],
+        ));
+    }
+
+    /**
+     * @return array{enabled:bool,productIds:array<int,bool>,productSkus:array<string,bool>,requiredSales:int}
      */
     private function resolveSettings(People $provider): array
     {
@@ -86,10 +121,12 @@ class OrderLoyaltySnapshotService
                 $this->configService->getConfig($provider, self::CONFIG_REQUIRED_SALES),
             ),
         );
+        $productSkus = $this->resolveProductSkus($productIds);
 
         return [
             'enabled' => $enabled && $productIds !== [] && $requiredSales > 0,
             'productIds' => array_fill_keys($productIds, true),
+            'productSkus' => $productSkus,
             'requiredSales' => $requiredSales,
         ];
     }
@@ -119,7 +156,63 @@ class OrderLoyaltySnapshotService
     }
 
     /**
-     * @param array{enabled:bool,productIds:array<int,bool>,requiredSales:int} $settings
+     * @param People[] $providers
+     *
+     * @return Order[]
+     */
+    private function findCardsAcrossProviders(array $providers, People $client): array
+    {
+        $cards = $this->manager->getRepository(Order::class)->findBy(
+            [
+                'provider' => $providers,
+                'client' => $client,
+                'orderType' => Order::ORDER_TYPE_FIDELITY,
+            ],
+            [
+                'orderDate' => 'DESC',
+                'id' => 'DESC',
+            ],
+            self::SNAPSHOT_CARD_LIMIT,
+        );
+
+        return array_values(array_filter(
+            $cards,
+            static fn ($card): bool => $card instanceof Order,
+        ));
+    }
+
+    /**
+     * @param Order[] $cards
+     *
+     * @return Order[]
+     */
+    private function selectVisibleCards(array $cards, bool $showHistory, bool $onePerProvider): array
+    {
+        if ($showHistory) {
+            return $cards;
+        }
+
+        $openCards = array_values(array_filter(
+            $cards,
+            fn (Order $card): bool => $this->isOpenCard($card),
+        ));
+        if (!$onePerProvider) {
+            return $openCards === [] ? [] : [$openCards[0]];
+        }
+
+        $currentCards = [];
+        foreach ($openCards as $card) {
+            $providerId = $this->normalizeId($card->getProvider()?->getId());
+            if ($providerId !== null && !isset($currentCards[$providerId])) {
+                $currentCards[$providerId] = $card;
+            }
+        }
+
+        return array_values($currentCards);
+    }
+
+    /**
+     * @param array{enabled:bool,productIds:array<int,bool>,productSkus:array<string,bool>,requiredSales:int} $settings
      *
      * @return array<string, mixed>
      */
@@ -128,8 +221,9 @@ class OrderLoyaltySnapshotService
         $stamps = $this->findEligibleStamps($card, $settings);
 
         return [
+            'provider' => $this->normalizeProviderSnapshot($card->getProvider()),
             'card' => $this->normalizeOrderSnapshot($card),
-            'requiredSales' => $this->getCardRequiredSales($card, $settings),
+            'requiredSales' => $this->getRequiredSales($settings),
             'stamps' => array_values(array_map(
                 fn (Order $stamp): array => $this->normalizeOrderSnapshot($stamp),
                 $stamps,
@@ -138,7 +232,24 @@ class OrderLoyaltySnapshotService
     }
 
     /**
-     * @param array{enabled:bool,productIds:array<int,bool>,requiredSales:int} $settings
+     * @return array{id:int,name:string,alias:string}|null
+     */
+    private function normalizeProviderSnapshot(?People $provider): ?array
+    {
+        $providerId = $this->normalizeId($provider?->getId());
+        if (!$provider instanceof People || $providerId === null) {
+            return null;
+        }
+
+        return [
+            'id' => $providerId,
+            'name' => trim((string) $provider->getName()),
+            'alias' => trim((string) $provider->getAlias()),
+        ];
+    }
+
+    /**
+     * @param array{enabled:bool,productIds:array<int,bool>,productSkus:array<string,bool>,requiredSales:int} $settings
      *
      * @return Order[]
      */
@@ -194,18 +305,16 @@ class OrderLoyaltySnapshotService
     }
 
     /**
-     * @param array{enabled:bool,productIds:array<int,bool>,requiredSales:int} $settings
+     * @param array{enabled:bool,productIds:array<int,bool>,productSkus:array<string,bool>,requiredSales:int} $settings
      */
-    private function getCardRequiredSales(Order $card, array $settings): int
+    private function getRequiredSales(array $settings): int
     {
         /*
-         * @agents The required sales value can be overridden per card through metadata.
-         * When the card has no override, the provider configuration becomes the fallback.
+         * @agents The current program configuration is authoritative for every card.
+         * Metadata records the creation-time value for audit purposes only; using it
+         * here would make existing cards ignore an administrative target change.
          */
-        $info = $this->readOrderInfo($card);
-        $requiredSales = (int) ($info['loyalty_required_sales'] ?? 0);
-
-        return max(1, $requiredSales ?: (int) $settings['requiredSales']);
+        return max(1, (int) $settings['requiredSales']);
     }
 
     private function isOpenCard(Order $card): bool
@@ -270,7 +379,7 @@ class OrderLoyaltySnapshotService
     }
 
     /**
-     * @param array{enabled:bool,productIds:array<int,bool>,requiredSales:int} $settings
+     * @param array{enabled:bool,productIds:array<int,bool>,productSkus:array<string,bool>,requiredSales:int} $settings
      */
     private function isEligibleSale(Order $sale, array $settings): bool
     {
@@ -279,7 +388,8 @@ class OrderLoyaltySnapshotService
          * Gift lines and nested customization items are ignored by design.
          */
         $eligibleProductIds = $settings['productIds'] ?? [];
-        if ($eligibleProductIds === []) {
+        $eligibleProductSkus = $settings['productSkus'] ?? [];
+        if ($eligibleProductIds === [] && $eligibleProductSkus === []) {
             return false;
         }
 
@@ -292,12 +402,12 @@ class OrderLoyaltySnapshotService
                 continue;
             }
 
-            $productId = $this->normalizeId($orderProduct->getProduct()?->getId());
+            $product = $orderProduct->getProduct();
             $total = (float) $orderProduct->getTotal();
 
             if (
-                $productId !== null &&
-                isset($eligibleProductIds[$productId]) &&
+                $product instanceof Product &&
+                $this->matchesProduct($product, $eligibleProductIds, $eligibleProductSkus) &&
                 $total > 0 &&
                 !$this->isLoyaltyGiftComment($orderProduct->getComment())
             ) {
@@ -306,6 +416,65 @@ class OrderLoyaltySnapshotService
         }
 
         return false;
+    }
+
+    /**
+     * @param int[] $productIds
+     *
+     * @return array<string, bool>
+     */
+    private function resolveProductSkus(array $productIds): array
+    {
+        if ($productIds === []) {
+            return [];
+        }
+
+        $products = $this->manager->getRepository(Product::class)->findBy(['id' => $productIds]);
+        $skus = [];
+        foreach ($products as $product) {
+            if (!$product instanceof Product) {
+                continue;
+            }
+
+            $sku = $this->normalizeSku($product->getSku());
+            if ($sku !== null) {
+                $skus[$sku] = true;
+            }
+        }
+
+        return $skus;
+    }
+
+    /**
+     * @param array<int, bool> $productIds
+     * @param array<string, bool> $productSkus
+     */
+    private function matchesProduct(Product $product, array $productIds, array $productSkus): bool
+    {
+        $productId = $this->normalizeId($product->getId());
+        if ($productId !== null && isset($productIds[$productId])) {
+            return true;
+        }
+
+        $sku = $this->normalizeSku($product->getSku());
+
+        return $sku !== null && isset($productSkus[$sku]);
+    }
+
+    private function normalizeSku(mixed $value): ?string
+    {
+        $sku = strtoupper(trim((string) $value));
+        if ($sku === '') {
+            return null;
+        }
+
+        if (!ctype_digit($sku)) {
+            return $sku;
+        }
+
+        $normalized = ltrim($sku, '0');
+
+        return $normalized === '' ? '0' : $normalized;
     }
 
     /**

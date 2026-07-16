@@ -5,6 +5,7 @@ namespace ControleOnline\Orders\Tests\Service;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\People;
+use ControleOnline\Entity\PeopleLink;
 use ControleOnline\Entity\Product;
 use ControleOnline\Entity\Status;
 use ControleOnline\Event\EntityChangedEvent;
@@ -125,7 +126,7 @@ class OrderLoyaltyServiceTest extends TestCase
 
         $card = $this->order(500, Order::ORDER_TYPE_FIDELITY, $provider, $client, $openStatus);
         $card->setOtherInformations((object) [
-            'loyalty_required_sales' => 3,
+            'loyalty_required_sales' => 1,
             'loyalty_gift_product_id' => 40,
         ]);
 
@@ -397,7 +398,8 @@ class OrderLoyaltyServiceTest extends TestCase
         $provider = $this->people(10);
         $client = $this->people(20);
         $eligibleProduct = $this->product(30, 25.0);
-        $giftProduct = $this->product(40, 12.0);
+        $configuredGiftProduct = $this->product(40, 12.0, '0004');
+        $franchiseGiftProduct = $this->product(47, 12.0, '4');
         $openStatus = $this->orderStatus('open', 'open');
         $closedStatus = $this->orderStatus('closed', 'closed');
 
@@ -417,7 +419,7 @@ class OrderLoyaltyServiceTest extends TestCase
 
         $sale = $this->order(404, Order::ORDER_TYPE_SALE, $provider, $client, $closedStatus);
         $sale->setPrice(0);
-        $sale->addOrderProduct($this->orderProduct($sale, $giftProduct, 0.0, OrderProductService::LOYALTY_GIFT_COMMENT));
+        $sale->addOrderProduct($this->orderProduct($sale, $franchiseGiftProduct, 0.0, OrderProductService::LOYALTY_GIFT_COMMENT));
 
         $orderRepository = $this->createMock(EntityRepository::class);
         $orderRepository
@@ -462,7 +464,7 @@ class OrderLoyaltyServiceTest extends TestCase
         $productRepository
             ->method('find')
             ->with(40)
-            ->willReturn($giftProduct);
+            ->willReturn($configuredGiftProduct);
 
         $manager = $this->manager([
             Order::class => $orderRepository,
@@ -483,7 +485,7 @@ class OrderLoyaltyServiceTest extends TestCase
 
         $cardInfo = json_decode((string) $card->getOtherInformations(), true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(404, $cardInfo['loyalty_reward_order_id']);
-        self::assertSame(40, $cardInfo['loyalty_reward_product_id']);
+        self::assertSame(47, $cardInfo['loyalty_reward_product_id']);
         self::assertNotEmpty($cardInfo['loyalty_reward_redeemed_at']);
     }
 
@@ -573,6 +575,94 @@ class OrderLoyaltyServiceTest extends TestCase
         self::assertSame('{}', (string) $sale->getOtherInformations());
     }
 
+    public function testFranchiseInheritsMatrixProgramAndMatchesEquivalentProductSku(): void
+    {
+        $matrix = $this->people(3);
+        $franchise = $this->people(31458);
+        $client = $this->people(31484);
+        $matrixProduct = $this->product(42, 55.0, '0003');
+        $franchiseProduct = $this->product(46, 55.0, '3');
+        $matrixGift = $this->product(43, 55.0, '0004');
+        $sale = $this->order(
+            306656,
+            Order::ORDER_TYPE_SALE,
+            $franchise,
+            $client,
+            $this->orderStatus('closed', 'closed'),
+        );
+        $sale->addOrderProduct($this->orderProduct($sale, $franchiseProduct, 55.0));
+
+        $franchiseLink = new PeopleLink();
+        $franchiseLink->setCompany($matrix);
+        $franchiseLink->setPeople($franchise);
+        $franchiseLink->setLinkType('franchisee');
+        $franchiseLink->setEnabled(true);
+
+        $orderRepository = $this->createMock(EntityRepository::class);
+        $orderRepository->method('findBy')->willReturn([]);
+
+        $peopleLinkRepository = $this->createMock(EntityRepository::class);
+        $peopleLinkRepository
+            ->expects(self::once())
+            ->method('findOneBy')
+            ->with([
+                'people' => $franchise,
+                'linkType' => 'franchisee',
+                'enable' => true,
+            ])
+            ->willReturn($franchiseLink);
+
+        $productRepository = $this->createMock(EntityRepository::class);
+        $productRepository
+            ->method('find')
+            ->with(43)
+            ->willReturn($matrixGift);
+        $productRepository
+            ->method('findBy')
+            ->with(['id' => [42]])
+            ->willReturn([$matrixProduct]);
+
+        $createdCard = null;
+        $manager = $this->manager([
+            Order::class => $orderRepository,
+            PeopleLink::class => $peopleLinkRepository,
+            Product::class => $productRepository,
+        ]);
+        $manager
+            ->method('persist')
+            ->willReturnCallback(function (object $entity) use (&$createdCard): void {
+                if ($entity instanceof Order && $entity->getOrderType() === Order::ORDER_TYPE_FIDELITY) {
+                    $this->setEntityId($entity, 500);
+                    $createdCard = $entity;
+                }
+            });
+
+        $configService = $this->createMock(ConfigService::class);
+        $configService
+            ->method('getConfig')
+            ->willReturnCallback(static function (People $people, string $key) use ($matrix): ?string {
+                if ($people !== $matrix) {
+                    return null;
+                }
+
+                return match ($key) {
+                    'shop-loyalty-coupons-enabled' => '1',
+                    'shop-loyalty-product-ids' => '[42]',
+                    'shop-loyalty-required-sales' => '2',
+                    'shop-loyalty-gift-product-id' => '43',
+                    default => null,
+                };
+            });
+
+        $service = new OrderLoyaltyService($manager, $configService, $this->statusService());
+
+        self::assertTrue($service->processOrder($sale));
+        self::assertInstanceOf(Order::class, $createdCard);
+        self::assertSame($franchise, $createdCard->getProvider());
+        self::assertSame($client, $createdCard->getClient());
+        self::assertSame(500, $sale->getMainOrderId());
+    }
+
     private function configService(string $productIds, string $requiredSales, string $giftProductId): ConfigService
     {
         $configService = $this->createMock(ConfigService::class);
@@ -650,12 +740,13 @@ class OrderLoyaltyServiceTest extends TestCase
         return $orderProduct;
     }
 
-    private function product(int $id, float $price): Product
+    private function product(int $id, float $price, ?string $sku = null): Product
     {
         $product = new Product();
         $product->setId($id);
         $product->setProduct(sprintf('Produto %d', $id));
         $product->setPrice($price);
+        $product->setSku($sku);
 
         return $product;
     }
@@ -664,6 +755,7 @@ class OrderLoyaltyServiceTest extends TestCase
     {
         $people = new People();
         $this->setEntityId($people, $id);
+        $people->setEnabled(true);
 
         return $people;
     }

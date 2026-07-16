@@ -37,6 +37,7 @@ class FidelityByIdControllerTest extends TestCase
             ->with('20', $user, true)
             ->willReturn([
                 [
+                    'provider' => ['id' => 11, 'name' => 'FRANQUIA 11', 'alias' => 'FRANQUIA 11'],
                     'card' => ['id' => 500],
                     'requiredSales' => 3,
                     'stamps' => [['id' => 701]],
@@ -50,6 +51,7 @@ class FidelityByIdControllerTest extends TestCase
             ->with(
                 [
                     [
+                        'provider' => ['id' => 11, 'name' => 'FRANQUIA 11', 'alias' => 'FRANQUIA 11'],
                         'card' => ['id' => 500],
                         'requiredSales' => 3,
                         'stamps' => [['id' => 701]],
@@ -74,6 +76,7 @@ class FidelityByIdControllerTest extends TestCase
                 ],
                 'member' => [
                     [
+                        'provider' => ['id' => 11, 'name' => 'FRANQUIA 11', 'alias' => 'FRANQUIA 11'],
                         'card' => ['id' => 500],
                         'requiredSales' => 3,
                         'stamps' => [['id' => 701]],
@@ -107,6 +110,7 @@ class FidelityByIdControllerTest extends TestCase
                 ],
                 'member' => [
                     [
+                        'provider' => ['id' => 11, 'name' => 'FRANQUIA 11', 'alias' => 'FRANQUIA 11'],
                         'card' => ['id' => 500],
                         'requiredSales' => 3,
                         'stamps' => [['id' => 701]],

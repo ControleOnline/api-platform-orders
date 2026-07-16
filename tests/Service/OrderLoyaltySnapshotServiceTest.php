@@ -131,7 +131,7 @@ class OrderLoyaltySnapshotServiceTest extends TestCase
 
         self::assertCount(1, $cards);
         self::assertSame(600, $cards[0]['card']['id']);
-        self::assertSame(4, $cards[0]['requiredSales']);
+        self::assertSame(3, $cards[0]['requiredSales']);
         self::assertSame([701], array_map(
             static fn (array $stamp): int => (int) $stamp['id'],
             $cards[0]['stamps'],
@@ -395,7 +395,129 @@ class OrderLoyaltySnapshotServiceTest extends TestCase
         ));
     }
 
-    private function configService(): ConfigService
+    public function testBuildForClientAcrossProvidersReturnsOneOpenCardPerFranchise(): void
+    {
+        $mainCompany = $this->people(3, 'Lave Go - Franquias');
+        $sorriso = $this->people(31458, 'MT - Sorriso');
+        $cuiaba = $this->people(2, 'MT - Cuiaba');
+        $semCarimbo = $this->people(4, 'MT - Sem Carimbo');
+        $client = $this->people(20, 'Cliente');
+        $configuredProduct = $this->product(30, 25.0, '0003');
+        $franchiseProduct = $this->product(46, 25.0, '3');
+
+        $sorrisoCard = $this->order(
+            600,
+            Order::ORDER_TYPE_FIDELITY,
+            $sorriso,
+            $client,
+            $this->orderStatus('open', 'open'),
+            '2026-07-12T10:00:00Z',
+        );
+        $cuiabaCard = $this->order(
+            500,
+            Order::ORDER_TYPE_FIDELITY,
+            $cuiaba,
+            $client,
+            $this->orderStatus('open', 'open'),
+            '2026-07-11T10:00:00Z',
+        );
+        $emptyCard = $this->order(
+            400,
+            Order::ORDER_TYPE_FIDELITY,
+            $semCarimbo,
+            $client,
+            $this->orderStatus('open', 'open'),
+            '2026-07-10T10:00:00Z',
+        );
+
+        $sorrisoStamps = [];
+        foreach ([701, 702, 703] as $index => $stampId) {
+            $sorrisoStamp = $this->order(
+                $stampId,
+                Order::ORDER_TYPE_SALE,
+                $sorriso,
+                $client,
+                $this->orderStatus('closed', 'closed'),
+                sprintf('2026-07-12T1%d:00:00Z', $index + 1),
+            );
+            $sorrisoStamp->setMainOrderId(600);
+            $sorrisoStamp->addOrderProduct($this->orderProduct($sorrisoStamp, $franchiseProduct, 25.0));
+            $sorrisoStamps[] = $sorrisoStamp;
+        }
+
+        $cuiabaStamp = $this->order(
+            801,
+            Order::ORDER_TYPE_SALE,
+            $cuiaba,
+            $client,
+            $this->orderStatus('closed', 'closed'),
+            '2026-07-11T11:00:00Z',
+        );
+        $cuiabaStamp->setMainOrderId(500);
+        $cuiabaStamp->addOrderProduct($this->orderProduct($cuiabaStamp, $franchiseProduct, 25.0));
+
+        $orderRepository = $this->createMock(EntityRepository::class);
+        $orderRepository
+            ->method('findBy')
+            ->willReturnCallback(function (array $criteria) use (
+                $sorrisoCard,
+                $cuiabaCard,
+                $emptyCard,
+                $sorrisoStamps,
+                $cuiabaStamp,
+                $mainCompany,
+                $sorriso,
+                $cuiaba,
+                $semCarimbo,
+                $client,
+            ): array {
+                if (
+                    ($criteria['orderType'] ?? null) === Order::ORDER_TYPE_FIDELITY
+                    && ($criteria['provider'] ?? null) === [$mainCompany, $sorriso, $cuiaba, $semCarimbo]
+                    && ($criteria['client'] ?? null) === $client
+                ) {
+                    return [$sorrisoCard, $cuiabaCard, $emptyCard];
+                }
+
+                if (($criteria['mainOrderId'] ?? null) === 600) {
+                    return $sorrisoStamps;
+                }
+
+                if (($criteria['mainOrderId'] ?? null) === 500) {
+                    return [$cuiabaStamp];
+                }
+
+                return [];
+            });
+
+        $productRepository = $this->createMock(EntityRepository::class);
+        $productRepository
+            ->method('findBy')
+            ->with(['id' => [30]])
+            ->willReturn([$configuredProduct]);
+
+        $manager = $this->manager([
+            Order::class => $orderRepository,
+            Product::class => $productRepository,
+        ]);
+        $service = new OrderLoyaltySnapshotService($manager, $this->configService('5'));
+
+        $cards = $service->buildForClientAcrossProviders(
+            $mainCompany,
+            [$mainCompany, $sorriso, $cuiaba, $semCarimbo],
+            $client,
+        );
+
+        self::assertSame([31458, 2], array_column(array_column($cards, 'provider'), 'id'));
+        self::assertSame(['MT - SORRISO', 'MT - CUIABA'], array_column(array_column($cards, 'provider'), 'alias'));
+        self::assertSame([5, 5], array_column($cards, 'requiredSales'));
+        self::assertSame([[701, 702, 703], [801]], array_map(
+            static fn (array $card): array => array_column($card['stamps'], 'id'),
+            $cards,
+        ));
+    }
+
+    private function configService(string $requiredSales = '3'): ConfigService
     {
         $configService = $this->createMock(ConfigService::class);
         $configService
@@ -404,7 +526,7 @@ class OrderLoyaltySnapshotServiceTest extends TestCase
                 fn (People $people, string $key) => match ($key) {
                     'shop-loyalty-coupons-enabled' => '1',
                     'shop-loyalty-product-ids' => '[30]',
-                    'shop-loyalty-required-sales' => '3',
+                    'shop-loyalty-required-sales' => $requiredSales,
                     default => null,
                 },
             );
@@ -420,7 +542,7 @@ class OrderLoyaltySnapshotServiceTest extends TestCase
         $manager = $this->createMock(EntityManagerInterface::class);
         $manager
             ->method('getRepository')
-            ->willReturnCallback(fn (string $class) => $repositories[$class]);
+            ->willReturnCallback(fn (string $class) => $repositories[$class] ?? $this->createMock(EntityRepository::class));
 
         return $manager;
     }
@@ -459,20 +581,24 @@ class OrderLoyaltySnapshotServiceTest extends TestCase
         return $orderProduct;
     }
 
-    private function product(int $id, float $price): Product
+    private function product(int $id, float $price, ?string $sku = null): Product
     {
         $product = new Product();
         $product->setId($id);
         $product->setProduct(sprintf('Produto %d', $id));
         $product->setPrice($price);
+        $product->setSku($sku);
 
         return $product;
     }
 
-    private function people(int $id): People
+    private function people(int $id, string $alias = ''): People
     {
         $people = new People();
         $this->setEntityId($people, $id);
+        $people->setName($alias ?: sprintf('Empresa %d', $id));
+        $people->setAlias($alias ?: sprintf('Empresa %d', $id));
+        $people->setEnabled(true);
 
         return $people;
     }

@@ -21,7 +21,14 @@ class FidelityByIdServiceTest extends TestCase
     {
         $client = $this->people(20);
         $provider = $this->people(10);
+        $franchise = $this->people(11);
         $linkedPeople = $this->people(99);
+
+        $franchiseLink = new PeopleLink();
+        $franchiseLink->setCompany($provider);
+        $franchiseLink->setPeople($franchise);
+        $franchiseLink->setLinkType('franchisee');
+        $franchiseLink->setEnabled(true);
 
         $user = $this->createMock(User::class);
         $user
@@ -39,6 +46,14 @@ class FidelityByIdServiceTest extends TestCase
             ->method('hasLinkWith')
             ->with($user, $client)
             ->willReturn(true);
+        $peopleLinkRepository
+            ->method('findBy')
+            ->with([
+                'company' => $provider,
+                'linkType' => 'franchisee',
+                'enable' => true,
+            ])
+            ->willReturn([$franchiseLink]);
 
         $manager = $this->manager([
             People::class => $peopleRepository,
@@ -53,10 +68,11 @@ class FidelityByIdServiceTest extends TestCase
         $snapshotService = $this->createMock(OrderLoyaltySnapshotService::class);
         $snapshotService
             ->expects(self::once())
-            ->method('buildForClient')
-            ->with($provider, $client, true)
+            ->method('buildForClientAcrossProviders')
+            ->with($provider, [$provider, $franchise], $client, true)
             ->willReturn([
                 [
+                    'provider' => ['id' => 11, 'alias' => 'FRANQUIA 11'],
                     'card' => ['id' => 500],
                     'requiredSales' => 3,
                     'stamps' => [['id' => 701]],
@@ -72,6 +88,7 @@ class FidelityByIdServiceTest extends TestCase
         self::assertSame(
             [
                 [
+                    'provider' => ['id' => 11, 'alias' => 'FRANQUIA 11'],
                     'card' => ['id' => 500],
                     'requiredSales' => 3,
                     'stamps' => [['id' => 701]],
@@ -115,7 +132,7 @@ class FidelityByIdServiceTest extends TestCase
         $snapshotService = $this->createMock(OrderLoyaltySnapshotService::class);
         $snapshotService
             ->expects(self::never())
-            ->method('buildForClient');
+            ->method('buildForClientAcrossProviders');
 
         $service = new FidelityByIdService(
             $manager,
@@ -142,6 +159,9 @@ class FidelityByIdServiceTest extends TestCase
     private function people(int $id): People
     {
         $people = new People();
+        $people->setName(sprintf('Empresa %d', $id));
+        $people->setAlias(sprintf('Franquia %d', $id));
+        $people->setEnabled(true);
         $reflection = new \ReflectionObject($people);
         while ($reflection) {
             if ($reflection->hasProperty('id')) {

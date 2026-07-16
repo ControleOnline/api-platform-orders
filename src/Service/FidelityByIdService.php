@@ -31,13 +31,15 @@ class FidelityByIdService
         }
 
         $provider = $this->resolveProvider();
+        $providers = $this->resolveNetworkProviders($provider);
 
         /*
          * @agents The snapshot service remains the single source of truth for the card chain.
          * This wrapper only resolves the people involved and forwards the history flag.
          */
-        return $this->orderLoyaltySnapshotService->buildForClient(
+        return $this->orderLoyaltySnapshotService->buildForClientAcrossProviders(
             $provider,
+            $providers,
             $client,
             $showHistory,
         );
@@ -67,6 +69,40 @@ class FidelityByIdService
         }
 
         return $provider;
+    }
+
+    /**
+     * @agents Loyalty cards stay owned by the company that stamped them.
+     * The shop reads only the main company and its active direct franchisees.
+     *
+     * @return People[]
+     */
+    private function resolveNetworkProviders(People $mainCompany): array
+    {
+        $providers = [(int) $mainCompany->getId() => $mainCompany];
+        $links = $this->manager->getRepository(PeopleLink::class)->findBy([
+            'company' => $mainCompany,
+            'linkType' => 'franchisee',
+            'enable' => true,
+        ]);
+
+        foreach ($links as $link) {
+            if (!$link instanceof PeopleLink || !$link->getEnabled()) {
+                continue;
+            }
+
+            $company = $link->getPeople();
+            if (!$company instanceof People || !$company->getEnabled()) {
+                continue;
+            }
+
+            $companyId = (int) ($company->getId() ?? 0);
+            if ($companyId > 0) {
+                $providers[$companyId] = $company;
+            }
+        }
+
+        return array_values($providers);
     }
 
     private function canAccessClient(mixed $user, People $client): bool

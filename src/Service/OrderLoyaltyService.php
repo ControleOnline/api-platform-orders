@@ -5,6 +5,7 @@ namespace ControleOnline\Service;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\People;
+use ControleOnline\Entity\PeopleLink;
 use ControleOnline\Entity\Product;
 use ControleOnline\Event\EntityChangedEvent;
 use Doctrine\ORM\EntityManagerInterface;
@@ -66,31 +67,63 @@ class OrderLoyaltyService implements EventSubscriberInterface
             return;
         }
 
+        $this->processOrder($order);
+    }
+
+    /**
+     * Applies the loyalty lifecycle to one persisted sale.
+     *
+     * This public entry point is also used by the idempotent backfill command. A sale
+     * already linked to a fidelity card is always ignored.
+     */
+    public function processOrder(Order $order): bool
+    {
+        if ($this->handling || !$this->isProcessableSale($order)) {
+            return false;
+        }
+
         $provider = $order->getProvider();
-        $client = $order->getClient();
-        if (!$provider instanceof People || !$client instanceof People) {
-            return;
+        if (!$provider instanceof People) {
+            return false;
         }
 
         $settings = $this->resolveSettings($provider);
         if (!$settings['enabled']) {
-            return;
-        }
-
-        if (
-            !$this->isSaleOrder($order) ||
-            !$this->isClosedOrder($order) ||
-            $this->resolveLinkedFidelityCard($order) instanceof Order
-        ) {
-            return;
+            return false;
         }
 
         $this->handling = true;
         try {
-            $this->processClosedSale($order, $settings);
+            return $this->processClosedSale($order, $settings);
         } finally {
             $this->handling = false;
         }
+    }
+
+    /**
+     * Read-only eligibility check used by the default dry-run backfill mode.
+     */
+    public function canProcessOrder(Order $order): bool
+    {
+        if (!$this->isProcessableSale($order)) {
+            return false;
+        }
+
+        $provider = $order->getProvider();
+        if (!$provider instanceof People) {
+            return false;
+        }
+
+        $settings = $this->resolveSettings($provider);
+        if (!$settings['enabled']) {
+            return false;
+        }
+
+        return $this->isEligibleSale($order, $settings)
+            || (
+                $this->findGiftProductInSale($order, $settings) instanceof Product
+                && $this->findRewardableCard($order, $settings) instanceof Order
+            );
     }
 
     /**
@@ -104,25 +137,24 @@ class OrderLoyaltyService implements EventSubscriberInterface
      *     requiredSales:int
      * } $settings
      */
-    private function processClosedSale(Order $sale, array $settings): void
+    private function processClosedSale(Order $sale, array $settings): bool
     {
         /*
          * @agents A closed eligible sale follows one of two paths:
          * either it closes a full card with the configured gift, or it stamps the next open card.
          */
-        $giftProduct = $settings['giftProduct'] ?? null;
-        $hasGiftProduct = $giftProduct instanceof Product && $this->saleHasGiftProduct($sale, $giftProduct);
+        $giftProduct = $this->findGiftProductInSale($sale, $settings);
         $rewardableCard = $this->findRewardableCard($sale, $settings);
 
-        if ($rewardableCard instanceof Order && $hasGiftProduct) {
+        if ($rewardableCard instanceof Order && $giftProduct instanceof Product) {
             $this->linkSaleToCard($sale, $rewardableCard);
             $this->closeCardWithReward($rewardableCard, $sale, $giftProduct);
 
-            return;
+            return true;
         }
 
         if (!$this->isEligibleSale($sale, $settings)) {
-            return;
+            return false;
         }
 
         $stampCard = $this->findStampCard($sale, $settings);
@@ -131,6 +163,8 @@ class OrderLoyaltyService implements EventSubscriberInterface
         }
 
         $this->linkSaleToCard($sale, $stampCard);
+
+        return true;
     }
 
     /**
@@ -154,7 +188,7 @@ class OrderLoyaltyService implements EventSubscriberInterface
                 continue;
             }
 
-            if ($this->countCardStamps($card, $settings) >= $this->getCardRequiredSales($card, $settings)) {
+            if ($this->countCardStamps($card, $settings) >= $this->getRequiredSales($settings)) {
                 return $card;
             }
         }
@@ -183,7 +217,7 @@ class OrderLoyaltyService implements EventSubscriberInterface
                 continue;
             }
 
-            if ($this->countCardStamps($card, $settings) < $this->getCardRequiredSales($card, $settings)) {
+            if ($this->countCardStamps($card, $settings) < $this->getRequiredSales($settings)) {
                 return $card;
             }
         }
@@ -356,12 +390,15 @@ class OrderLoyaltyService implements EventSubscriberInterface
      *     requiredSales:int
      * } $settings
      */
-    private function getCardRequiredSales(Order $card, array $settings): int
+    private function getRequiredSales(array $settings): int
     {
-        $info = $this->readOrderInfo($card);
-        $requiredSales = (int) ($info[self::INFO_REQUIRED_SALES] ?? 0);
-
-        return max(1, $requiredSales ?: (int) $settings['requiredSales']);
+        /*
+         * The program configuration is intentionally authoritative. Administrators
+         * can change the target while cards are open, and both the lifecycle and
+         * the SHOP snapshot must immediately use the same current value.
+         * Card metadata remains an audit record of the value at creation time.
+         */
+        return max(1, (int) $settings['requiredSales']);
     }
 
     private function isRewardOrderForCard(Order $sale, Order $card): bool
@@ -395,28 +432,27 @@ class OrderLoyaltyService implements EventSubscriberInterface
             && (int) ($mainOrder->getId() ?? 0) === $cardId;
     }
 
-    private function saleHasGiftProduct(Order $sale, Product $giftProduct): bool
+    private function findGiftProductInSale(Order $sale, array $settings): ?Product
     {
-        $giftProductId = $this->normalizeId($giftProduct->getId());
-        if ($giftProductId === null) {
-            return false;
-        }
+        $giftProductIds = $settings['giftProductIds'] ?? [];
+        $giftProductSkus = $settings['giftProductSkus'] ?? [];
 
         foreach ($sale->getOrderProducts() as $orderProduct) {
             if (!$orderProduct instanceof OrderProduct || $orderProduct->getOrderProduct() instanceof OrderProduct) {
                 continue;
             }
 
-            $productId = $this->normalizeId($orderProduct->getProduct()?->getId());
+            $product = $orderProduct->getProduct();
             if (
-                $productId === $giftProductId &&
+                $product instanceof Product &&
+                $this->matchesProduct($product, $giftProductIds, $giftProductSkus) &&
                 (float) $orderProduct->getTotal() <= 0
             ) {
-                return true;
+                return $product;
             }
         }
 
-        return false;
+        return null;
     }
 
     /**
@@ -435,7 +471,8 @@ class OrderLoyaltyService implements EventSubscriberInterface
          * Gift lines are ignored so the reward item itself never increments the stamp count.
          */
         $eligibleProductIds = $settings['productIds'] ?? [];
-        if (empty($eligibleProductIds)) {
+        $eligibleProductSkus = $settings['productSkus'] ?? [];
+        if (empty($eligibleProductIds) && empty($eligibleProductSkus)) {
             return false;
         }
 
@@ -444,10 +481,10 @@ class OrderLoyaltyService implements EventSubscriberInterface
                 continue;
             }
 
-            $productId = $this->normalizeId($orderProduct->getProduct()?->getId());
+            $product = $orderProduct->getProduct();
             if (
-                $productId !== null &&
-                isset($eligibleProductIds[$productId]) &&
+                $product instanceof Product &&
+                $this->matchesProduct($product, $eligibleProductIds, $eligibleProductSkus) &&
                 (float) $orderProduct->getTotal() > 0 &&
                 !OrderProductService::isLoyaltyGiftComment($orderProduct->getComment())
             ) {
@@ -484,29 +521,51 @@ class OrderLoyaltyService implements EventSubscriberInterface
         return $this->normalizeText($order->getOrderType()) === Order::ORDER_TYPE_SALE;
     }
 
+    private function isProcessableSale(Order $order): bool
+    {
+        return $order->getProvider() instanceof People
+            && $order->getClient() instanceof People
+            && $this->isSaleOrder($order)
+            && $this->isClosedOrder($order)
+            && !$this->resolveLinkedFidelityCard($order) instanceof Order;
+    }
+
     /**
-     * @return array{enabled:bool,giftProduct:?Product,giftProductId:?int,productIds:array<int,bool>,requiredSales:int}
+     * @return array{
+     *     enabled:bool,
+     *     giftProduct:?Product,
+     *     giftProductId:?int,
+     *     giftProductIds:array<int,bool>,
+     *     giftProductSkus:array<string,bool>,
+     *     productIds:array<int,bool>,
+     *     productSkus:array<string,bool>,
+     *     requiredSales:int
+     * }
      */
     private function resolveSettings(People $provider): array
     {
+        $programProvider = $this->resolveProgramProvider($provider);
         $enabled = $this->normalizeBoolean(
-            $this->configService->getConfig($provider, self::CONFIG_ENABLED)
+            $this->configService->getConfig($programProvider, self::CONFIG_ENABLED)
         );
         $productIds = $this->normalizeIds(
-            $this->configService->getConfig($provider, self::CONFIG_PRODUCT_IDS)
+            $this->configService->getConfig($programProvider, self::CONFIG_PRODUCT_IDS)
         );
         $requiredSales = max(
             0,
             (int) $this->normalizeNumber(
-                $this->configService->getConfig($provider, self::CONFIG_REQUIRED_SALES)
+                $this->configService->getConfig($programProvider, self::CONFIG_REQUIRED_SALES)
             )
         );
         $giftProductId = $this->normalizeId(
-            $this->configService->getConfig($provider, self::CONFIG_GIFT_PRODUCT_ID)
+            $this->configService->getConfig($programProvider, self::CONFIG_GIFT_PRODUCT_ID)
         );
         $giftProduct = $giftProductId
             ? $this->manager->getRepository(Product::class)->find($giftProductId)
             : null;
+        $productSkus = $this->resolveProductSkus($productIds);
+        $giftProductIds = $giftProductId === null ? [] : [$giftProductId => true];
+        $giftSku = $giftProduct instanceof Product ? $this->normalizeSku($giftProduct->getSku()) : null;
 
         return [
             'enabled' => $enabled
@@ -515,9 +574,93 @@ class OrderLoyaltyService implements EventSubscriberInterface
                 && $giftProduct instanceof Product,
             'giftProduct' => $giftProduct,
             'giftProductId' => $giftProductId,
+            'giftProductIds' => $giftProductIds,
+            'giftProductSkus' => $giftSku === null ? [] : [$giftSku => true],
             'productIds' => array_fill_keys($productIds, true),
+            'productSkus' => $productSkus,
             'requiredSales' => $requiredSales,
         ];
+    }
+
+    private function resolveProgramProvider(People $provider): People
+    {
+        /*
+         * An explicit provider-level switch is an override. When it is absent, an
+         * active franchise inherits the program owned by its matrix company.
+         */
+        if ($this->configService->getConfig($provider, self::CONFIG_ENABLED) !== null) {
+            return $provider;
+        }
+
+        $link = $this->manager->getRepository(PeopleLink::class)->findOneBy([
+            'people' => $provider,
+            'linkType' => 'franchisee',
+            'enable' => true,
+        ]);
+        $programProvider = $link instanceof PeopleLink ? $link->getCompany() : null;
+
+        return $programProvider instanceof People && $programProvider->getEnabled()
+            ? $programProvider
+            : $provider;
+    }
+
+    /**
+     * @param int[] $productIds
+     *
+     * @return array<string, bool>
+     */
+    private function resolveProductSkus(array $productIds): array
+    {
+        if ($productIds === []) {
+            return [];
+        }
+
+        $products = $this->manager->getRepository(Product::class)->findBy(['id' => $productIds]);
+        $skus = [];
+        foreach ($products as $product) {
+            if (!$product instanceof Product) {
+                continue;
+            }
+
+            $sku = $this->normalizeSku($product->getSku());
+            if ($sku !== null) {
+                $skus[$sku] = true;
+            }
+        }
+
+        return $skus;
+    }
+
+    /**
+     * @param array<int, bool> $productIds
+     * @param array<string, bool> $productSkus
+     */
+    private function matchesProduct(Product $product, array $productIds, array $productSkus): bool
+    {
+        $productId = $this->normalizeId($product->getId());
+        if ($productId !== null && isset($productIds[$productId])) {
+            return true;
+        }
+
+        $sku = $this->normalizeSku($product->getSku());
+
+        return $sku !== null && isset($productSkus[$sku]);
+    }
+
+    private function normalizeSku(mixed $value): ?string
+    {
+        $sku = strtoupper(trim((string) $value));
+        if ($sku === '') {
+            return null;
+        }
+
+        if (!ctype_digit($sku)) {
+            return $sku;
+        }
+
+        $normalized = ltrim($sku, '0');
+
+        return $normalized === '' ? '0' : $normalized;
     }
 
     private function resolveLinkedFidelityCard(Order $order): ?Order

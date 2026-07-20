@@ -64,6 +64,10 @@ class FidelityByIdServiceTest extends TestCase
         $peopleRoleService
             ->method('getMainCompany')
             ->willReturn($provider);
+        $peopleRoleService
+            ->method('getAccessibleCompaniesForPeople')
+            ->with($linkedPeople)
+            ->willReturn([$provider]);
 
         $snapshotService = $this->createMock(OrderLoyaltySnapshotService::class);
         $snapshotService
@@ -98,14 +102,29 @@ class FidelityByIdServiceTest extends TestCase
         );
     }
 
-    public function testBuildSnapshotRejectsWhenClientHasNoAccess(): void
+    public function testBuildSnapshotAllowsClientLinkedToMainCompanyAcrossFranchiseNetwork(): void
     {
         $client = $this->people(20);
+        $provider = $this->people(10);
+        $franchise = $this->people(11);
+        $linkedPeople = $this->people(99);
+
+        $franchiseLink = new PeopleLink();
+        $franchiseLink->setCompany($provider);
+        $franchiseLink->setPeople($franchise);
+        $franchiseLink->setLinkType('franchisee');
+        $franchiseLink->setEnabled(true);
+
+        $clientLink = new PeopleLink();
+        $clientLink->setCompany($provider);
+        $clientLink->setPeople($client);
+        $clientLink->setLinkType('client');
+        $clientLink->setEnabled(true);
 
         $user = $this->createMock(User::class);
         $user
             ->method('getPeople')
-            ->willReturn($this->people(99));
+            ->willReturn($linkedPeople);
 
         $peopleRepository = $this->createMock(EntityRepository::class);
         $peopleRepository
@@ -118,6 +137,30 @@ class FidelityByIdServiceTest extends TestCase
             ->method('hasLinkWith')
             ->with($user, $client)
             ->willReturn(false);
+        $peopleLinkRepository
+            ->method('findBy')
+            ->willReturnCallback(
+                function (array $criteria) use ($provider, $client, $franchiseLink, $clientLink): array {
+                    if (
+                        ($criteria['company'] ?? null) === $provider
+                        && ($criteria['linkType'] ?? null) === 'franchisee'
+                        && ($criteria['enable'] ?? null) === true
+                    ) {
+                        return [$franchiseLink];
+                    }
+
+                    if (
+                        ($criteria['company'] ?? null) === [(int) $provider->getId(), 11]
+                        && ($criteria['people'] ?? null) === $client
+                        && ($criteria['linkType'] ?? null) === 'client'
+                        && ($criteria['enable'] ?? null) === true
+                    ) {
+                        return [$clientLink];
+                    }
+
+                    return [];
+                },
+            );
 
         $manager = $this->manager([
             People::class => $peopleRepository,
@@ -126,8 +169,87 @@ class FidelityByIdServiceTest extends TestCase
 
         $peopleRoleService = $this->createMock(PeopleRoleService::class);
         $peopleRoleService
-            ->expects(self::never())
-            ->method('getMainCompany');
+            ->method('getMainCompany')
+            ->willReturn($provider);
+        $peopleRoleService
+            ->expects(self::once())
+            ->method('getAccessibleCompaniesForPeople')
+            ->with($linkedPeople)
+            ->willReturn([$franchise]);
+
+        $snapshotService = $this->createMock(OrderLoyaltySnapshotService::class);
+        $snapshotService
+            ->expects(self::once())
+            ->method('buildForClientAcrossProviders')
+            ->with($provider, [$provider, $franchise], $client, false)
+            ->willReturn([
+                [
+                    'provider' => ['id' => 10, 'alias' => 'FRANQUIA 10'],
+                    'card' => ['id' => 500],
+                    'requiredSales' => 3,
+                    'stamps' => [['id' => 701], ['id' => 702], ['id' => 703]],
+                ],
+            ]);
+
+        $service = new FidelityByIdService(
+            $manager,
+            $peopleRoleService,
+            $snapshotService,
+        );
+
+        self::assertSame(
+            [
+                [
+                    'provider' => ['id' => 10, 'alias' => 'FRANQUIA 10'],
+                    'card' => ['id' => 500],
+                    'requiredSales' => 3,
+                    'stamps' => [['id' => 701], ['id' => 702], ['id' => 703]],
+                ],
+            ],
+            $service->buildSnapshot('20', $user, false),
+        );
+    }
+
+    public function testBuildSnapshotRejectsWhenClientHasNoAccess(): void
+    {
+        $client = $this->people(20);
+        $provider = $this->people(10);
+        $linkedPeople = $this->people(99);
+
+        $user = $this->createMock(User::class);
+        $user
+            ->method('getPeople')
+            ->willReturn($linkedPeople);
+
+        $peopleRepository = $this->createMock(EntityRepository::class);
+        $peopleRepository
+            ->method('find')
+            ->with(20)
+            ->willReturn($client);
+
+        $peopleLinkRepository = $this->createMock(PeopleLinkRepository::class);
+        $peopleLinkRepository
+            ->method('hasLinkWith')
+            ->with($user, $client)
+            ->willReturn(false);
+        $peopleLinkRepository
+            ->method('findBy')
+            ->willReturn([]);
+
+        $manager = $this->manager([
+            People::class => $peopleRepository,
+            PeopleLink::class => $peopleLinkRepository,
+        ]);
+
+        $peopleRoleService = $this->createMock(PeopleRoleService::class);
+        $peopleRoleService
+            ->method('getMainCompany')
+            ->willReturn($provider);
+        $peopleRoleService
+            ->expects(self::once())
+            ->method('getAccessibleCompaniesForPeople')
+            ->with($linkedPeople)
+            ->willReturn([]);
 
         $snapshotService = $this->createMock(OrderLoyaltySnapshotService::class);
         $snapshotService

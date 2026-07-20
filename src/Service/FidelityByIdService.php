@@ -25,13 +25,12 @@ class FidelityByIdService
     public function buildSnapshot(string $rawClientId, mixed $user, bool $showHistory = false): array
     {
         $client = $this->resolveClient($rawClientId);
-
-        if (!$this->canAccessClient($user, $client)) {
-            throw new \RuntimeException('Você não possui vínculo com esse cliente');
-        }
-
         $provider = $this->resolveProvider();
         $providers = $this->resolveNetworkProviders($provider);
+
+        if (!$this->canAccessClient($user, $client, $provider, $providers)) {
+            throw new \RuntimeException('Você não possui vínculo com esse cliente');
+        }
 
         /*
          * @agents The snapshot service remains the single source of truth for the card chain.
@@ -105,7 +104,10 @@ class FidelityByIdService
         return array_values($providers);
     }
 
-    private function canAccessClient(mixed $user, People $client): bool
+    /**
+     * @param People[] $providers
+     */
+    private function canAccessClient(mixed $user, People $client, People $provider, array $providers): bool
     {
         if (!$user instanceof User) {
             return false;
@@ -116,8 +118,57 @@ class FidelityByIdService
             return true;
         }
 
-        return $this->manager
-            ->getRepository(PeopleLink::class)
-            ->hasLinkWith($user, $client);
+        $peopleLinkRepository = $this->manager->getRepository(PeopleLink::class);
+
+        if ($peopleLinkRepository->hasLinkWith($user, $client)) {
+            return true;
+        }
+
+        $providerIds = array_values(array_filter(
+            array_map(
+                static fn (mixed $networkProvider): int => $networkProvider instanceof People
+                    ? (int) ($networkProvider->getId() ?? 0)
+                    : 0,
+                $providers,
+            ),
+            static fn (int $providerId): bool => $providerId > 0,
+        ));
+
+        if ($providerIds === []) {
+            return false;
+        }
+
+        if (!$userPeople instanceof People) {
+            return false;
+        }
+
+        $accessibleProviderIds = array_values(array_filter(
+            array_map(
+                static fn (mixed $accessibleCompany): int => $accessibleCompany instanceof People
+                    ? (int) ($accessibleCompany->getId() ?? 0)
+                    : 0,
+                $this->peopleRoleService->getAccessibleCompaniesForPeople($userPeople),
+            ),
+            static fn (int $companyId): bool => $companyId > 0,
+        ));
+
+        if ($accessibleProviderIds === []) {
+            return false;
+        }
+
+        if (array_intersect($providerIds, $accessibleProviderIds) === []) {
+            return false;
+        }
+
+        return $peopleLinkRepository->findBy(
+            [
+                'company' => $providerIds,
+                'people' => $client,
+                'linkType' => 'client',
+                'enable' => true,
+            ],
+            null,
+            1,
+        ) !== [];
     }
 }

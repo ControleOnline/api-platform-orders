@@ -10,6 +10,7 @@ use ControleOnline\Service\OrderProductQueueService;
 use ControleOnline\Service\OrderProductService;
 use ControleOnline\Service\OrderService;
 use ControleOnline\Service\PeopleService;
+use ControleOnline\Service\ProductShowcaseCatalogService;
 use ControleOnline\Service\StatusService;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -175,6 +176,7 @@ class OrderProductServiceMutationGuardTest extends TestCase
             $requestStack,
             $this->createMock(OrderProductQueueService::class),
             $this->createMock(InvoiceService::class),
+            $this->createMock(ProductShowcaseCatalogService::class),
         );
     }
 

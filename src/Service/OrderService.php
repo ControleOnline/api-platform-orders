@@ -619,7 +619,12 @@ class OrderService
                 continue;
             }
 
-            $orderProduct->setOutInventory($product->getDefaultOutInventory());
+            $showcaseItem = $orderProduct->getProductShowcaseItem();
+            $orderProduct->setOutInventory(
+                $showcaseItem instanceof \ControleOnline\Entity\ProductShowcaseItem && $showcaseItem->getOutInventory()
+                    ? $showcaseItem->getOutInventory()
+                    : $product->getDefaultOutInventory()
+            );
             $this->manager->persist($orderProduct);
         }
 

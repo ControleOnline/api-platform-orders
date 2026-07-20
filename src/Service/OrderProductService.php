@@ -7,6 +7,7 @@ use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Product;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\ProductGroupProduct;
+use ControleOnline\Entity\ProductShowcaseItem;
 use ControleOnline\Entity\Status;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface
@@ -33,12 +34,22 @@ class OrderProductService
         private StatusService $statusService,
         private RequestStack $requestStack,
         private OrderProductQueueService $orderProductQueueService,
-        private InvoiceService $invoiceService
+        private InvoiceService $invoiceService,
+        private ProductShowcaseCatalogService $productShowcaseCatalogService
     ) {
         $this->request = $this->requestStack->getCurrentRequest();
     }
 
-    public function addOrderProduct(Order $order, Product $product, $quantity, $price, ?ProductGroup  $productGroup = null, ?Product $parentProduct = null, ?OrderProduct $orderParentProduct =  null): OrderProduct
+    public function addOrderProduct(
+        Order $order,
+        Product $product,
+        $quantity,
+        $price,
+        ?ProductGroup $productGroup = null,
+        ?Product $parentProduct = null,
+        ?OrderProduct $orderParentProduct = null,
+        ?ProductShowcaseItem $productShowcaseItem = null
+    ): OrderProduct
     {
         $OProduct = new OrderProduct();
         $OProduct->setOrder($order);
@@ -47,6 +58,10 @@ class OrderProductService
         $OProduct->setProductGroup($productGroup);
         $OProduct->setQuantity($quantity);
         $OProduct->setProduct($product);
+        $OProduct->setProductShowcaseItem($productShowcaseItem);
+        if ($productShowcaseItem instanceof ProductShowcaseItem && $productShowcaseItem->getOutInventory()) {
+            $OProduct->setOutInventory($productShowcaseItem->getOutInventory());
+        }
         $OProduct->setShowInParentQueue(
             $this->shouldShowInParentQueue($productGroup, $parentProduct, $product)
         );
@@ -71,12 +86,20 @@ class OrderProductService
             }
 
             $quantity = (float) ($item['quantity'] ?? 0);
-            $price = $product->getPrice();
+            $productShowcaseItem = $this->productShowcaseCatalogService->resolveShowcaseForOrder($order, $product, $item);
+            if ($productShowcaseItem instanceof ProductShowcaseItem) {
+                $this->productShowcaseCatalogService->assertShowcaseItemStock($productShowcaseItem, $quantity);
+            }
+
+            $price = $productShowcaseItem instanceof ProductShowcaseItem
+                ? $productShowcaseItem->getPrice()
+                : $product->getPrice();
             $subProducts = $this->normalizeRequestedSubProducts($item, $quantity);
             $equivalentOrderProduct = $this->findEquivalentOrderProduct(
                 $order,
                 $product,
                 $subProducts,
+                $productShowcaseItem,
             );
 
             if ($equivalentOrderProduct instanceof OrderProduct) {
@@ -93,6 +116,7 @@ class OrderProductService
                 $product,
                 $quantity,
                 $price,
+                productShowcaseItem: $productShowcaseItem,
             );
             $this->addRequestedSubProducts($rootOrderProduct, $subProducts);
         }
@@ -141,6 +165,7 @@ class OrderProductService
         Order $order,
         Product $product,
         array $subProducts,
+        ?ProductShowcaseItem $productShowcaseItem = null,
     ): ?OrderProduct {
         $requestedSignature = $this->buildRequestedSubProductsSignature($subProducts);
 
@@ -158,6 +183,17 @@ class OrderProductService
                 );
 
             if (!$isSameProduct) {
+                continue;
+            }
+
+            $currentShowcaseItem = $orderProduct->getProductShowcaseItem();
+            $currentShowcaseItemId = $currentShowcaseItem instanceof ProductShowcaseItem
+                ? $currentShowcaseItem->getId()
+                : 0;
+            $requestedShowcaseItemId = $productShowcaseItem instanceof ProductShowcaseItem
+                ? $productShowcaseItem->getId()
+                : 0;
+            if ($currentShowcaseItemId !== $requestedShowcaseItemId) {
                 continue;
             }
 
@@ -527,8 +563,14 @@ class OrderProductService
         $order = $orderProduct->getOrder();
         $product =  $orderProduct->getProduct();
 
-        if ($order->getOrderType() == 'sale' && !$orderProduct->getOutInventory())
-            $orderProduct->setOutInventory($product->getDefaultOutInventory());
+        if ($order->getOrderType() == 'sale' && !$orderProduct->getOutInventory()) {
+            $showcaseItem = $orderProduct->getProductShowcaseItem();
+            $orderProduct->setOutInventory(
+                $showcaseItem instanceof ProductShowcaseItem && $showcaseItem->getOutInventory()
+                    ? $showcaseItem->getOutInventory()
+                    : $product->getDefaultOutInventory()
+            );
+        }
 
         if ($order->getOrderType() == 'purchase' && !$orderProduct->getInInventory())
             $orderProduct->setInInventory($product->getDefaultInInventory());

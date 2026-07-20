@@ -9,6 +9,7 @@ use ControleOnline\Service\OrderProductQueueService;
 use ControleOnline\Service\OrderProductService;
 use ControleOnline\Service\OrderService;
 use ControleOnline\Service\PeopleService;
+use ControleOnline\Service\ProductShowcaseCatalogService;
 use ControleOnline\Service\StatusService;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -165,7 +166,8 @@ class OrderProductServiceReplaceProductsTest extends TestCase
      *     4: StatusService,
      *     5: RequestStack,
      *     6: OrderProductQueueService,
-     *     7: InvoiceService
+     *     7: InvoiceService,
+     *     8: ProductShowcaseCatalogService
      * }
      */
     private function buildConstructorArgs(
@@ -184,6 +186,7 @@ class OrderProductServiceReplaceProductsTest extends TestCase
             $requestStack,
             $this->createMock(OrderProductQueueService::class),
             $this->createMock(InvoiceService::class),
+            $this->createMock(ProductShowcaseCatalogService::class),
         ];
     }
 

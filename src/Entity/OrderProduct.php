@@ -16,6 +16,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\Product;
+use ControleOnline\Entity\ProductShowcaseItem;
 use ControleOnline\Entity\Inventory;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\OrderProductQueue;
@@ -114,6 +115,11 @@ class OrderProduct
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_conference:read', 'order_details:read', 'order:write',  'order_product:write', 'order_product:read'])]
     private $product;
 
+    #[ORM\ManyToOne(targetEntity: ProductShowcaseItem::class)]
+    #[ORM\JoinColumn(name: 'product_showcase_item_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_conference:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
+    private ?ProductShowcaseItem $productShowcaseItem = null;
+
     #[ORM\ManyToOne(targetEntity: Status::class)]
     #[ORM\JoinColumn(name: 'status_id', referencedColumnName: 'id', nullable: false)]
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'orders-queue-tree:read', 'order:read', 'order_conference:read', 'order_details:read', 'order:write', 'order_product:write', 'order_product:read'])]
@@ -208,6 +214,17 @@ class OrderProduct
     public function setProduct($product): self
     {
         $this->product = $product;
+        return $this;
+    }
+
+    public function getProductShowcaseItem(): ?ProductShowcaseItem
+    {
+        return $this->productShowcaseItem;
+    }
+
+    public function setProductShowcaseItem(?ProductShowcaseItem $productShowcaseItem): self
+    {
+        $this->productShowcaseItem = $productShowcaseItem;
         return $this;
     }
 

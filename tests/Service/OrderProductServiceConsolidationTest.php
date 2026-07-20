@@ -13,6 +13,7 @@ use ControleOnline\Service\OrderProductQueueService;
 use ControleOnline\Service\OrderProductService;
 use ControleOnline\Service\OrderService;
 use ControleOnline\Service\PeopleService;
+use ControleOnline\Service\ProductShowcaseCatalogService;
 use ControleOnline\Service\StatusService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
@@ -319,6 +320,7 @@ class OrderProductServiceConsolidationTest extends TestCase
             $requestStack,
             $this->createMock(OrderProductQueueService::class),
             $this->createMock(InvoiceService::class),
+            $this->createMock(ProductShowcaseCatalogService::class),
         );
 
         return [$service, $persistedOrderProducts];

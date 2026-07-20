@@ -94,6 +94,33 @@ class OrderProductServiceConsolidationTest extends TestCase
         self::assertSame(1.0, (float) $persistedOrderProducts[0]->getQuantity());
     }
 
+    public function testAddingLoyaltyGiftCommentKeepsSeparateRootLineAndPreservesComment(): void
+    {
+        $order = $this->createCartOrder();
+        $product = $this->createProduct(55, 10.0);
+        $existingOrderProduct = $this->createOrderProduct($order, $product, 1, 10.0);
+        $order->addOrderProduct($existingOrderProduct);
+
+        [$service, $persistedOrderProducts] = $this->buildService([
+            55 => $product,
+        ]);
+
+        $service->addProductsToOrder($order, [
+            [
+                'product' => '/products/55',
+                'quantity' => 1,
+                'comment' => OrderProductService::LOYALTY_GIFT_COMMENT,
+            ],
+        ]);
+
+        self::assertSame(1.0, (float) $existingOrderProduct->getQuantity());
+        self::assertCount(1, $persistedOrderProducts);
+        self::assertSame(
+            OrderProductService::LOYALTY_GIFT_COMMENT,
+            $persistedOrderProducts[0]->getComment(),
+        );
+    }
+
     public function testAddingEquivalentCustomizedProductIncrementsTheWholeTree(): void
     {
         $order = $this->createCartOrder();

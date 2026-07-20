@@ -48,7 +48,8 @@ class OrderProductService
         ?ProductGroup $productGroup = null,
         ?Product $parentProduct = null,
         ?OrderProduct $orderParentProduct = null,
-        ?ProductShowcaseItem $productShowcaseItem = null
+        ?ProductShowcaseItem $productShowcaseItem = null,
+        ?string $comment = null
     ): OrderProduct
     {
         $OProduct = new OrderProduct();
@@ -67,6 +68,7 @@ class OrderProductService
         );
         $OProduct->setPrice($price);
         $OProduct->setTotal($price * $quantity);
+        $OProduct->setComment($this->normalizeOrderProductComment($comment));
         $this->checkInventory($OProduct);
         $this->applyDefaultStatus($OProduct);
         $this->manager->persist($OProduct);
@@ -86,6 +88,7 @@ class OrderProductService
             }
 
             $quantity = (float) ($item['quantity'] ?? 0);
+            $comment = $this->normalizeOrderProductComment($item['comment'] ?? null);
             $productShowcaseItem = $this->productShowcaseCatalogService->resolveShowcaseForOrder($order, $product, $item);
             if ($productShowcaseItem instanceof ProductShowcaseItem) {
                 $this->productShowcaseCatalogService->assertShowcaseItemStock($productShowcaseItem, $quantity);
@@ -100,6 +103,7 @@ class OrderProductService
                 $product,
                 $subProducts,
                 $productShowcaseItem,
+                $comment,
             );
 
             if ($equivalentOrderProduct instanceof OrderProduct) {
@@ -116,6 +120,7 @@ class OrderProductService
                 $product,
                 $quantity,
                 $price,
+                comment: $comment,
                 productShowcaseItem: $productShowcaseItem,
             );
             $this->addRequestedSubProducts($rootOrderProduct, $subProducts);
@@ -166,8 +171,10 @@ class OrderProductService
         Product $product,
         array $subProducts,
         ?ProductShowcaseItem $productShowcaseItem = null,
+        ?string $comment = null,
     ): ?OrderProduct {
         $requestedSignature = $this->buildRequestedSubProductsSignature($subProducts);
+        $normalizedRequestedComment = $this->normalizeOrderProductComment($comment);
 
         foreach ($order->getOrderProducts() as $orderProduct) {
             if (!$orderProduct instanceof OrderProduct) {
@@ -194,6 +201,13 @@ class OrderProductService
                 ? $productShowcaseItem->getId()
                 : 0;
             if ($currentShowcaseItemId !== $requestedShowcaseItemId) {
+                continue;
+            }
+
+            if (
+                $this->normalizeOrderProductComment($orderProduct->getComment())
+                !== $normalizedRequestedComment
+            ) {
                 continue;
             }
 
@@ -714,6 +728,13 @@ class OrderProductService
     private function normalizeReferenceId(mixed $reference): int
     {
         return (int) preg_replace('/\D+/', '', (string) $reference);
+    }
+
+    private function normalizeOrderProductComment(mixed $comment): ?string
+    {
+        $normalizedComment = trim((string) ($comment ?? ''));
+
+        return $normalizedComment !== '' ? $normalizedComment : null;
     }
 
     private function decodePayload(?string $content): array

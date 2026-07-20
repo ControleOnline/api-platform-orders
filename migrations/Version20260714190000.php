@@ -302,19 +302,6 @@ final class Version20260714190000 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
-        $this->addSql('SET FOREIGN_KEY_CHECKS=0');
-        $this->addSql('DROP TABLE IF EXISTS `orders`');
-        $this->addSql('DROP TABLE IF EXISTS `order_tracking`');
-        $this->addSql('DROP TABLE IF EXISTS `order_product_queue`');
-        $this->addSql('DROP TABLE IF EXISTS `order_product`');
-        $this->addSql('DROP TABLE IF EXISTS `order_package`');
-        $this->addSql('DROP TABLE IF EXISTS `order_logistic_surveys_files`');
-        $this->addSql('DROP TABLE IF EXISTS `order_logistic_surveys`');
-        $this->addSql('DROP TABLE IF EXISTS `order_logistic`');
-        $this->addSql('DROP TABLE IF EXISTS `order_log`');
-        $this->addSql('DROP TABLE IF EXISTS `order_invoice_tax`');
-        $this->addSql('DROP TABLE IF EXISTS `order_invoice`');
-        $this->addSql('DROP TABLE IF EXISTS `order_file`');
-        $this->addSql('SET FOREIGN_KEY_CHECKS=1');
+        return;
     }
 }

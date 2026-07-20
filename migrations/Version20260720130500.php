@@ -23,8 +23,6 @@ final class Version20260720130500 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE `order_product` DROP FOREIGN KEY `order_product_showcase_item_fk`');
-        $this->addSql('DROP INDEX `product_showcase_item_id` ON `order_product`');
-        $this->addSql('ALTER TABLE `order_product` DROP COLUMN `product_showcase_item_id`');
+        return;
     }
 }

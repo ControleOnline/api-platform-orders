@@ -332,8 +332,11 @@ class OrderActionService
             return $this->iFoodService->performDeliveredAction($order, $deliveryCode, $locator);
         }
 
-        // Delivered is a sale-only terminal transition, so a draft cart must be promoted first.
-        $this->orderService->convertDraftOrderToSale($order);
+        // Loyalty parent orders must keep their own type when they are closed as a reward card.
+        if ($this->normalizeStatusValue($order->getOrderType()) !== Order::ORDER_TYPE_FIDELITY) {
+            // Delivered is a sale-only terminal transition, so a draft cart must be promoted first.
+            $this->orderService->convertDraftOrderToSale($order);
+        }
 
         $shouldRemoteSync = $deferStatusUpdate
             || $this->normalizeString($deliveryCode) !== ''

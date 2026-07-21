@@ -159,6 +159,54 @@ class OrderActionServiceTest extends TestCase
         self::assertSame($closedStatus, $order->getStatus());
     }
 
+    public function testDeliveredClosesFidelityOrderWithoutChangingOrderType(): void
+    {
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $statusService = $this->createMock(StatusService::class);
+        $orderService = $this->createMock(OrderService::class);
+        $closedStatus = $this->createMock(Status::class);
+
+        $statusService
+            ->expects(self::once())
+            ->method('discoveryStatus')
+            ->with('closed', 'closed', 'order')
+            ->willReturn($closedStatus);
+
+        $order = new Order();
+        $order->setApp('POS');
+        $order->setOrderType(Order::ORDER_TYPE_FIDELITY);
+
+        $orderService
+            ->expects(self::never())
+            ->method('convertDraftOrderToSale');
+
+        $entityManager
+            ->expects(self::once())
+            ->method('persist')
+            ->with(self::callback(function (mixed $entity) use ($closedStatus): bool {
+                return $entity instanceof Order
+                    && $entity->getStatus() === $closedStatus
+                    && $entity->getOrderType() === Order::ORDER_TYPE_FIDELITY;
+            }));
+
+        $entityManager
+            ->expects(self::once())
+            ->method('flush');
+
+        $service = new OrderActionService(
+            $entityManager,
+            $statusService,
+            $orderService,
+        );
+
+        $result = $service->delivered($order);
+
+        self::assertSame(0, $result['errno']);
+        self::assertSame('ok', $result['errmsg']);
+        self::assertSame(Order::ORDER_TYPE_FIDELITY, $order->getOrderType());
+        self::assertSame($closedStatus, $order->getStatus());
+    }
+
     public function testConfirmDeliveryOrderUsesDeliveryAcceptedStatusWithoutPromotingCart(): void
     {
         $entityManager = $this->createMock(EntityManagerInterface::class);

@@ -2,12 +2,15 @@
 
 namespace ControleOnline\Orders\Tests\Service;
 
+use ControleOnline\Entity\Category;
 use ControleOnline\Entity\Order;
+use ControleOnline\Entity\People;
 use ControleOnline\Entity\Status;
 use ControleOnline\Service\OrderActionService;
 use ControleOnline\Service\OrderService;
 use ControleOnline\Service\StatusService;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\EntityRepository;
 use PHPUnit\Framework\TestCase;
 
 class OrderActionServiceTest extends TestCase
@@ -353,5 +356,49 @@ class OrderActionServiceTest extends TestCase
         self::assertSame('ok', $result['errmsg']);
         self::assertSame(Order::ORDER_TYPE_DELIVERY, $order->getOrderType());
         self::assertSame($canceledStatus, $order->getStatus());
+    }
+
+    public function testLocalCancelReasonsUseCompanyScopedCategoryContext(): void
+    {
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $statusService = $this->createMock(StatusService::class);
+        $orderService = $this->createMock(OrderService::class);
+        $categoryRepository = $this->createMock(EntityRepository::class);
+        $provider = new People();
+        $order = new Order();
+        $order->setProvider($provider);
+
+        $category = new Category();
+        $category->setName('Cliente desistiu');
+
+        $categoryRepository
+            ->expects(self::once())
+            ->method('findBy')
+            ->with(
+                [
+                    'company' => $provider,
+                    'context' => OrderActionService::ORDER_CANCELLATION_REASON_CONTEXT,
+                ],
+                ['name' => 'ASC']
+            )
+            ->willReturn([$category]);
+
+        $entityManager
+            ->expects(self::once())
+            ->method('getRepository')
+            ->with(Category::class)
+            ->willReturn($categoryRepository);
+
+        $service = new OrderActionService(
+            $entityManager,
+            $statusService,
+            $orderService,
+        );
+
+        $result = $service->getCancelReasons($order);
+
+        self::assertSame(0, $result['errno']);
+        self::assertSame('Cliente desistiu', $result['data']['reasons'][0]['description']);
+        self::assertSame(false, $result['data']['reasons'][0]['requires_description']);
     }
 }

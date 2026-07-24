@@ -3,13 +3,16 @@
 namespace ControleOnline\Service;
 
 use DateTimeImmutable;
+use ControleOnline\Entity\Category;
 use ControleOnline\Entity\Order;
+use ControleOnline\Entity\People;
 use ControleOnline\Service\StatusService;
 use Doctrine\ORM\EntityManagerInterface;
 
 class OrderActionService
 {
     private const ORDER_ACTION_KEY = 'order_action';
+    public const ORDER_CANCELLATION_REASON_CONTEXT = 'order_cancellation_reason';
 
     public function __construct(
         private EntityManagerInterface $entityManager,
@@ -225,7 +228,35 @@ class OrderActionService
             return $this->food99Service->getOrderCancelReasons($order);
         }
 
-        return ['errno' => 0, 'errmsg' => 'ok', 'data' => ['reasons' => []]];
+        $provider = $order->getProvider();
+        if (!$provider instanceof People) {
+            return ['errno' => 0, 'errmsg' => 'ok', 'data' => ['reasons' => []]];
+        }
+
+        $categories = $this->entityManager->getRepository(Category::class)->findBy(
+            [
+                'company' => $provider,
+                'context' => self::ORDER_CANCELLATION_REASON_CONTEXT,
+            ],
+            ['name' => 'ASC']
+        );
+
+        return [
+            'errno' => 0,
+            'errmsg' => 'ok',
+            'data' => [
+                'reasons' => array_map(
+                    static fn (Category $category): array => [
+                        'id' => $category->getId(),
+                        'reason_id' => $category->getId(),
+                        'description' => $category->getName(),
+                        'label' => $category->getName(),
+                        'requires_description' => false,
+                    ],
+                    $categories
+                ),
+            ],
+        ];
     }
 
     public function confirm(Order $order): array

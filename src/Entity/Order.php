@@ -176,6 +176,8 @@ use stdClass;
 #[ORM\Index(name: 'payer_people_id', columns: ['payer_people_id'])]
 #[ORM\Index(name: 'client_id', columns: ['client_id'])]
 #[ORM\Index(name: 'alter_date', columns: ['alter_date'])]
+#[ORM\Index(name: 'cancellation_reason_id', columns: ['cancellation_reason_id'])]
+#[ORM\Index(name: 'canceled_by_id', columns: ['canceled_by_id'])]
 #[ORM\Index(name: 'IDX_E52FFDEEDB805178', columns: ['quote_id'])]
 #[ORM\UniqueConstraint(name: 'discount_id', columns: ['discount_coupon_id'])]
 
@@ -293,6 +295,18 @@ class Order
     #[ORM\Column(name: 'other_informations', type: 'json', nullable: true)]
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write'])]
     private $otherInformations;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['cancellationReason' => 'exact'])]
+    #[ORM\JoinColumn(name: 'cancellation_reason_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    #[ORM\ManyToOne(targetEntity: Category::class)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order_invoice:read'])]
+    private $cancellationReason;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['canceledBy' => 'exact'])]
+    #[ORM\JoinColumn(name: 'canceled_by_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order_invoice:read'])]
+    private $canceledBy;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['mainOrder' => 'exact'])]
     #[ORM\JoinColumn(name: 'main_order_id', referencedColumnName: 'id')]
@@ -545,6 +559,28 @@ class Order
     public function setOtherInformations($otherInformations)
     {
         $this->otherInformations = json_encode($otherInformations);
+        return $this;
+    }
+
+    public function getCancellationReason(): ?Category
+    {
+        return $this->cancellationReason;
+    }
+
+    public function setCancellationReason(?Category $cancellationReason): self
+    {
+        $this->cancellationReason = $cancellationReason;
+        return $this;
+    }
+
+    public function getCanceledBy(): ?People
+    {
+        return $this->canceledBy;
+    }
+
+    public function setCanceledBy(?People $canceledBy): self
+    {
+        $this->canceledBy = $canceledBy;
         return $this;
     }
 

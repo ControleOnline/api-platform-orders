@@ -63,6 +63,35 @@ class OrderActionController extends AbstractController
         return $this->peopleService->canAccessCompany($provider, $userPeople);
     }
 
+    private function resolveAccessibleCompany(mixed $companyValue): ?People
+    {
+        $companyId = $this->requestPayloadService->normalizeOptionalNumericId($companyValue);
+        if (!$companyId) {
+            return null;
+        }
+
+        $company = $this->manager->getRepository(People::class)->find($companyId);
+        if (!$company instanceof People) {
+            return null;
+        }
+
+        $userPeople = $this->getAuthenticatedPeople();
+        if (!$userPeople instanceof People) {
+            return null;
+        }
+
+        if ($userPeople->getId() === $company->getId()) {
+            return $company;
+        }
+
+        return $this->peopleService->canAccessCompany($company, $userPeople) ? $company : null;
+    }
+
+    private function hasCompanyValue(mixed $companyValue): bool
+    {
+        return $this->requestPayloadService->normalizeOptionalNumericId($companyValue) !== null;
+    }
+
     private function resolveOrder(string|int $orderId): ?Order
     {
         $id = $this->requestPayloadService->normalizeOptionalNumericId($orderId);
@@ -190,16 +219,22 @@ class OrderActionController extends AbstractController
     }
 
     #[Route('/orders/{orderId}/cancel-reasons', name: 'order_action_cancel_reasons', methods: ['GET'])]
-    public function cancelReasons(string $orderId): JsonResponse
+    public function cancelReasons(string $orderId, Request $request): JsonResponse
     {
         $order = $this->resolveOrder($orderId);
         if (!$order) {
             return $this->orderNotFound();
         }
 
+        $companyValue = $request->query->get('company');
+        $company = $this->resolveAccessibleCompany($companyValue);
+        if ($this->hasCompanyValue($companyValue) && !$company instanceof People) {
+            return $this->orderNotFound();
+        }
+
         return new JsonResponse([
             'action' => 'cancel_reasons',
-            'result' => $this->orderActionService->getCancelReasons($order),
+            'result' => $this->orderActionService->getCancelReasons($order, $company),
         ]);
     }
 
@@ -223,12 +258,22 @@ class OrderActionController extends AbstractController
             ?? $payload['cancellationCode']
             ?? null;
         $reason   = trim((string) ($payload['reason'] ?? ''));
+        $companyValue = $payload['company']
+            ?? $payload['companyId']
+            ?? null;
+        $company = $this->resolveAccessibleCompany($companyValue);
+        if ($this->hasCompanyValue($companyValue) && !$company instanceof People) {
+            return $this->orderNotFound();
+        }
+        $canceledBy = $this->getAuthenticatedPeople();
 
-        $result = $this->safeRunOrderAction('cancel', function () use ($order, $reasonId, $reason) {
+        $result = $this->safeRunOrderAction('cancel', function () use ($order, $reasonId, $reason, $canceledBy, $company) {
             return $this->orderActionService->cancel(
                 $order,
                 $reasonId,
-                $reason !== '' ? $reason : null
+                $reason !== '' ? $reason : null,
+                $canceledBy,
+                $company
             );
         }, $order);
         $order = $this->refreshOrder($order);

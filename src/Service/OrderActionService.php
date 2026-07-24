@@ -43,6 +43,13 @@ class OrderActionService
         return trim((string) $value);
     }
 
+    private function normalizeOptionalNumericId(mixed $value): ?int
+    {
+        $normalized = (int) preg_replace('/\D+/', '', $this->normalizeString($value));
+
+        return $normalized > 0 ? $normalized : null;
+    }
+
     private function sanitizeActionPayload(array $payload): array
     {
         $sanitized = [];
@@ -123,6 +130,44 @@ class OrderActionService
     private function isFood99Order(Order $order): bool
     {
         return $this->normalizeStatusValue($order->getApp()) === strtolower(Order::APP_FOOD99);
+    }
+
+    private function getCancellationReasonCompany(Order $order, ?People $company = null): ?People
+    {
+        if ($company instanceof People) {
+            return $company;
+        }
+
+        $provider = $order->getProvider();
+
+        return $provider instanceof People ? $provider : null;
+    }
+
+    private function resolveCancellationReason(Order $order, mixed $reasonId, ?People $company = null): ?Category
+    {
+        $normalizedReasonId = $this->normalizeOptionalNumericId($reasonId);
+        $reasonCompany = $this->getCancellationReasonCompany($order, $company);
+
+        if (!$normalizedReasonId || !$reasonCompany instanceof People) {
+            return null;
+        }
+
+        $category = $this->entityManager->getRepository(Category::class)->findOneBy([
+            'id' => $normalizedReasonId,
+            'company' => $reasonCompany,
+            'context' => self::ORDER_CANCELLATION_REASON_CONTEXT,
+        ]);
+
+        return $category instanceof Category ? $category : null;
+    }
+
+    private function applyCancellationAudit(
+        Order $order,
+        ?Category $cancellationReason = null,
+        ?People $canceledBy = null,
+    ): void {
+        $order->setCancellationReason($cancellationReason);
+        $order->setCanceledBy($canceledBy);
     }
 
     private function buildTerminalOrderResponse(): array
@@ -212,7 +257,7 @@ class OrderActionService
         ];
     }
 
-    public function getCancelReasons(Order $order): array
+    public function getCancelReasons(Order $order, ?People $company = null): array
     {
         if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
             return [
@@ -228,14 +273,14 @@ class OrderActionService
             return $this->food99Service->getOrderCancelReasons($order);
         }
 
-        $provider = $order->getProvider();
-        if (!$provider instanceof People) {
+        $reasonCompany = $this->getCancellationReasonCompany($order, $company);
+        if (!$reasonCompany instanceof People) {
             return ['errno' => 0, 'errmsg' => 'ok', 'data' => ['reasons' => []]];
         }
 
         $categories = $this->entityManager->getRepository(Category::class)->findBy(
             [
-                'company' => $provider,
+                'company' => $reasonCompany,
                 'context' => self::ORDER_CANCELLATION_REASON_CONTEXT,
             ],
             ['name' => 'ASC']
@@ -293,33 +338,54 @@ class OrderActionService
         return $result;
     }
 
-    public function cancel(Order $order, mixed $reasonId = null, ?string $reason = null): array
+    public function cancel(
+        Order $order,
+        mixed $reasonId = null,
+        ?string $reason = null,
+        ?People $canceledBy = null,
+        ?People $company = null,
+    ): array
     {
         if ($this->isTerminalOrder($order)) {
             return $this->buildTerminalOrderResponse();
         }
 
+        $cancellationReason = $this->resolveCancellationReason($order, $reasonId, $company);
+        $canceledById = $canceledBy instanceof People ? $canceledBy->getId() : null;
+
         if ($this->isDeliveryOrder($order)) {
             $this->persistOrderAction($order, 'cancel', [
                 'reason_id' => $reasonId,
                 'reason' => $reason,
+                'canceled_by_id' => $canceledById,
             ]);
+            $this->applyCancellationAudit($order, $cancellationReason, $canceledBy);
 
             return $this->applyDeliveryStatus($order, 'canceled', 'canceled');
         }
 
         if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
-            return $this->iFoodService->performCancelAction(
+            $result = $this->iFoodService->performCancelAction(
                 $order,
                 $reason,
                 $reasonId !== null ? $this->normalizeString($reasonId) : null
             );
+
+            if (($result['errno'] ?? 1) === 0) {
+                $this->applyCancellationAudit($order, $cancellationReason, $canceledBy);
+                $this->entityManager->persist($order);
+                $this->entityManager->flush();
+            }
+
+            return $result;
         }
 
         $this->persistOrderAction($order, 'cancel', [
             'reason_id' => $reasonId,
             'reason' => $reason,
+            'canceled_by_id' => $canceledById,
         ]);
+        $this->applyCancellationAudit($order, $cancellationReason, $canceledBy);
 
         return $this->applyLocalStatus($order, 'canceled', 'canceled');
     }

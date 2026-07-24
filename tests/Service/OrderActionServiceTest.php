@@ -365,6 +365,7 @@ class OrderActionServiceTest extends TestCase
         $orderService = $this->createMock(OrderService::class);
         $categoryRepository = $this->createMock(EntityRepository::class);
         $provider = new People();
+        $currentCompany = new People();
         $order = new Order();
         $order->setProvider($provider);
 
@@ -376,7 +377,7 @@ class OrderActionServiceTest extends TestCase
             ->method('findBy')
             ->with(
                 [
-                    'company' => $provider,
+                    'company' => $currentCompany,
                     'context' => OrderActionService::ORDER_CANCELLATION_REASON_CONTEXT,
                 ],
                 ['name' => 'ASC']
@@ -395,10 +396,77 @@ class OrderActionServiceTest extends TestCase
             $orderService,
         );
 
-        $result = $service->getCancelReasons($order);
+        $result = $service->getCancelReasons($order, $currentCompany);
 
         self::assertSame(0, $result['errno']);
         self::assertSame('Cliente desistiu', $result['data']['reasons'][0]['description']);
         self::assertSame(false, $result['data']['reasons'][0]['requires_description']);
+    }
+
+    public function testCancelStoresReasonAndCanceledByOnOrder(): void
+    {
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $statusService = $this->createMock(StatusService::class);
+        $orderService = $this->createMock(OrderService::class);
+        $categoryRepository = $this->createMock(EntityRepository::class);
+        $canceledStatus = $this->createMock(Status::class);
+        $currentCompany = new People();
+        $canceledBy = new People();
+        $category = new Category();
+        $category->setName('Cliente desistiu');
+
+        $order = new Order();
+        $order->setApp('POS');
+        $order->setOrderType(Order::ORDER_TYPE_SALE);
+        $order->setProvider(new People());
+
+        $categoryRepository
+            ->expects(self::once())
+            ->method('findOneBy')
+            ->with([
+                'id' => 357,
+                'company' => $currentCompany,
+                'context' => OrderActionService::ORDER_CANCELLATION_REASON_CONTEXT,
+            ])
+            ->willReturn($category);
+
+        $entityManager
+            ->expects(self::once())
+            ->method('getRepository')
+            ->with(Category::class)
+            ->willReturn($categoryRepository);
+
+        $statusService
+            ->expects(self::once())
+            ->method('discoveryStatus')
+            ->with('canceled', 'canceled', 'order')
+            ->willReturn($canceledStatus);
+
+        $entityManager
+            ->expects(self::once())
+            ->method('persist')
+            ->with(self::callback(function (mixed $entity) use ($canceledStatus, $category, $canceledBy): bool {
+                return $entity instanceof Order
+                    && $entity->getStatus() === $canceledStatus
+                    && $entity->getCancellationReason() === $category
+                    && $entity->getCanceledBy() === $canceledBy;
+            }));
+
+        $entityManager
+            ->expects(self::once())
+            ->method('flush');
+
+        $service = new OrderActionService(
+            $entityManager,
+            $statusService,
+            $orderService,
+        );
+
+        $result = $service->cancel($order, 357, 'Cliente desistiu', $canceledBy, $currentCompany);
+
+        self::assertSame(0, $result['errno']);
+        self::assertSame('ok', $result['errmsg']);
+        self::assertSame($category, $order->getCancellationReason());
+        self::assertSame($canceledBy, $order->getCanceledBy());
     }
 }

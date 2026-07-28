@@ -8,7 +8,7 @@ namespace ControleOnline\Orders\Tests\Service {
     require_once __DIR__ . '/../../src/Service/OrderAutomaticPrintService.php';
 
     use ControleOnline\Entity\Order;
-    use ControleOnline\Entity\People;
+    use ControleOnline\Orders\Tests\Fixtures\OrderPrintDoubles;
     use ControleOnline\Service\LoggerService;
     use ControleOnline\Service\OrderAutomaticPrintService;
     use ControleOnline\Service\OrderPrintService;
@@ -19,8 +19,8 @@ namespace ControleOnline\Orders\Tests\Service {
     {
         public function testDispatchCompletedOrderPrintsKeepsPreparationPrintDisabled(): void
         {
-            $provider = new People(31485);
-            $order = new Order(987, $provider, 'IFOOD');
+            $provider = OrderPrintDoubles::people(31485);
+            $order = OrderPrintDoubles::order(987, $provider, 'IFOOD');
 
             $orderPrintService = $this->createMock(OrderPrintService::class);
             $orderPrintService

@@ -8,8 +8,7 @@ namespace ControleOnline\Orders\Tests\Service {
     require_once __DIR__ . '/../../src/Service/OrderConferencePrintService.php';
 
     use ControleOnline\Entity\Order;
-    use ControleOnline\Entity\People;
-    use ControleOnline\Entity\Spool;
+    use ControleOnline\Orders\Tests\Fixtures\OrderPrintDoubles;
     use ControleOnline\Service\OrderConferencePrintService;
     use ControleOnline\Service\OrderPrintService;
     use Doctrine\DBAL\Connection;
@@ -38,7 +37,7 @@ namespace ControleOnline\Orders\Tests\Service {
 
         public function testAutoPrintIfNeededMarksOrderAfterSuccessfulConferencePrint(): void
         {
-            $order = new Order(321, new People(99));
+            $order = OrderPrintDoubles::order(321, OrderPrintDoubles::people(99));
             $orderPrintService = $this->getMockBuilder(OrderPrintService::class)
                 ->disableOriginalConstructor()
                 ->onlyMethods(['generatePrintDataFromPayload'])
@@ -55,7 +54,7 @@ namespace ControleOnline\Orders\Tests\Service {
                         'source' => 'display-auto',
                     ]
                 )
-                ->willReturn(new Spool(77));
+                ->willReturn(OrderPrintDoubles::spool(77));
             $connection = $this->createConnectionMock();
 
             $entityManager = $this->createMock(EntityManagerInterface::class);
@@ -93,7 +92,7 @@ namespace ControleOnline\Orders\Tests\Service {
             self::assertSame(321, $result['orderId']);
             self::assertNotEmpty($result['printedAt']);
 
-            $state = $order->getStoredOtherInformations()['conference_print'] ?? [];
+            $state = json_decode(json_encode($order->getOtherInformations(true)), true)['conference_print'] ?? [];
 
             self::assertSame(true, $state['printed'] ?? null);
             self::assertSame('device-printer-1', $state['device'] ?? null);
@@ -107,7 +106,7 @@ namespace ControleOnline\Orders\Tests\Service {
 
         public function testAutoPrintIfNeededSkipsAlreadyPrintedOrders(): void
         {
-            $order = new Order(654, new People(88), [
+            $order = OrderPrintDoubles::order(654, OrderPrintDoubles::people(88), [
                 'conference_print' => [
                     'printed' => true,
                     'printed_at' => '2026-04-27T12:00:00+00:00',

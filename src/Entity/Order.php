@@ -186,6 +186,7 @@ class Order
 {
     public const APP_IFOOD = 'iFood';
     public const APP_FOOD99 = 'Food99';
+    public const APP_MERCADO_LIVRE = 'MercadoLivre';
     public const ORDER_TYPE_CART = 'cart';
     public const ORDER_TYPE_QUOTE = 'quote';
     public const ORDER_TYPE_DELIVERY = 'delivery';

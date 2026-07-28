@@ -1,0 +1,3 @@
+controleonline_orders:
+    resource: ../../src/Controller/
+    type: attribute

@@ -127,6 +127,7 @@ class OrderProductService
         }
 
         $this->manager->flush();
+        $this->orderService->calculateGroupProductPrice($order);
         $this->orderService->calculateOrderPrice($order);
         $this->manager->refresh($order);
 

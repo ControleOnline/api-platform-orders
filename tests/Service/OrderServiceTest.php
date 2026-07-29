@@ -153,6 +153,7 @@ class OrderServiceTest extends TestCase
 
         $order = new Order();
         $order->setOrderType(OrderService::ORDER_TYPE_CART);
+        $order->setExternalCode('anonymous-cart:1:token');
 
         $orderProduct = new OrderProduct();
         $orderProduct->setOrder($order);
@@ -177,6 +178,7 @@ class OrderServiceTest extends TestCase
 
         self::assertTrue($service->convertDraftOrderToSale($order));
         self::assertSame(OrderService::ORDER_TYPE_SALE, $order->getOrderType());
+        self::assertNull($order->getExternalCode());
         self::assertSame($defaultOutInventory, $orderProduct->getOutInventory());
     }
 

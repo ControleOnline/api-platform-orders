@@ -79,6 +79,7 @@ class OrderService
     public const ORDER_TYPE_TABLE = Order::ORDER_TYPE_TABLE;
     public const ORDER_TYPE_STAMP = Order::ORDER_TYPE_STAMP;
     public const ORDER_TYPE_FIDELITY = Order::ORDER_TYPE_FIDELITY;
+    private const ANONYMOUS_CART_EXTERNAL_CODE_PREFIX = 'anonymous-cart:';
 
     private const DRAFT_ORDER_APPS = [
         'pos',
@@ -612,6 +613,7 @@ class OrderService
         }
 
         $order->setOrderType(self::ORDER_TYPE_SALE);
+        $this->clearAnonymousCartExternalCode($order);
 
         foreach ($order->getOrderProducts() as $orderProduct) {
             $product = $orderProduct->getProduct();
@@ -1215,6 +1217,15 @@ class OrderService
         }
 
         return (int) $normalized;
+    }
+
+    private function clearAnonymousCartExternalCode(Order $order): void
+    {
+        $externalCode = (string) ($order->getExternalCode() ?? '');
+
+        if (str_starts_with($externalCode, self::ANONYMOUS_CART_EXTERNAL_CODE_PREFIX)) {
+            $order->setExternalCode(null);
+        }
     }
 
     private function isDirectOrderResourceEditRequest(): bool

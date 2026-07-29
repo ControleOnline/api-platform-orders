@@ -15,6 +15,7 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
 use ControleOnline\Controller\AddProductsOrderAction;
+use ControleOnline\Controller\AnonymousCartController;
 use ControleOnline\Controller\AutoConferencePrintOrderAction;
 use ControleOnline\Controller\CreateNFeAction;
 use ControleOnline\Controller\DiscoveryCart;
@@ -45,9 +46,25 @@ use stdClass;
             normalizationContext: ['groups' => ['order_details:read']],
         ),
         new GetCollection(
-            security: 'is_granted(\'PUBLIC_ACCESS\')',
+            security: 'is_granted(\'ROLE_HUMAN\') or is_granted(\'ROLE_CLIENT\')',
             uriTemplate: '/cart',
             controller: DiscoveryCart::class
+        ),
+        new GetCollection(
+            security: 'is_granted(\'PUBLIC_ACCESS\')',
+            uriTemplate: '/anonymous-cart',
+            controller: AnonymousCartController::class,
+            read: false,
+            paginationEnabled: false,
+            normalizationContext: ['groups' => ['order_details:read']],
+        ),
+        new Post(
+            security: 'is_granted(\'PUBLIC_ACCESS\')',
+            uriTemplate: '/anonymous-cart/items',
+            controller: AnonymousCartController::class,
+            read: false,
+            deserialize: false,
+            normalizationContext: ['groups' => ['order_details:read']],
         ),
         new GetCollection(
             security: 'is_granted(\'ROLE_HUMAN\') or is_granted(\'ROLE_CLIENT\')',

@@ -202,14 +202,134 @@ class AnonymousCartController
 
     private function serializeCart(Order $cart): array
     {
-        $data = $this->hydratorService->item(
-            Order::class,
-            $cart->getId(),
-            'order_details:read'
-        );
-        $data['anonymous'] = true;
+        $provider = $cart->getProvider();
 
-        return $data;
+        return [
+            '@id' => sprintf('/orders/%d', $cart->getId()),
+            '@type' => 'Order',
+            'id' => $cart->getId(),
+            'anonymous' => true,
+            'app' => $cart->getApp(),
+            'externalCode' => $cart->getExternalCode(),
+            'orderType' => $cart->getOrderType(),
+            'price' => (float) $cart->getPrice(),
+            'provider' => $provider instanceof People ? $this->serializePeople($provider) : null,
+            'status' => $this->serializeStatus($cart->getStatus()),
+            'orderProducts' => $this->serializeOrderProducts($cart),
+        ];
+    }
+
+    private function serializeOrderProducts(Order $cart): array
+    {
+        $items = [];
+
+        foreach ($cart->getOrderProducts() as $orderProduct) {
+            if (!$orderProduct instanceof OrderProduct) {
+                continue;
+            }
+
+            $items[] = [
+                '@id' => sprintf('/order_products/%d', $orderProduct->getId()),
+                '@type' => 'OrderProduct',
+                'id' => $orderProduct->getId(),
+                'quantity' => (float) $orderProduct->getQuantity(),
+                'price' => (float) $orderProduct->getPrice(),
+                'total' => (float) $orderProduct->getTotal(),
+                'product' => $this->serializeProduct($orderProduct->getProduct()),
+                'productShowcaseItem' => $this->serializeProductShowcaseItem($orderProduct),
+                'status' => $this->serializeStatus($orderProduct->getStatus()),
+            ];
+        }
+
+        return $items;
+    }
+
+    private function serializeProduct(?Product $product): ?array
+    {
+        if (!$product instanceof Product) {
+            return null;
+        }
+
+        return [
+            '@id' => sprintf('/products/%d', $product->getId()),
+            '@type' => 'Product',
+            'id' => $product->getId(),
+            'product' => $product->getProduct(),
+            'sku' => $product->getSku(),
+            'type' => $product->getType(),
+            'price' => (float) $product->getPrice(),
+            'description' => $product->getDescription(),
+            'productFiles' => $this->serializeProductFiles($product),
+        ];
+    }
+
+    private function serializeProductFiles(Product $product): array
+    {
+        $files = [];
+
+        foreach ($product->getProductFiles() as $productFile) {
+            $file = $productFile->getFile();
+            $files[] = [
+                '@id' => sprintf('/product_files/%d', $productFile->getId()),
+                '@type' => 'ProductFile',
+                'id' => $productFile->getId(),
+                'file' => [
+                    '@id' => sprintf('/files/%d', $file->getId()),
+                    '@type' => 'File',
+                    'id' => $file->getId(),
+                    'fileType' => $file->getFileType(),
+                    'fileName' => $file->getFileName(),
+                    'extension' => $file->getExtension(),
+                    'context' => $file->getContext(),
+                    'public' => $file->getPublic(),
+                ],
+            ];
+        }
+
+        return $files;
+    }
+
+    private function serializeProductShowcaseItem(OrderProduct $orderProduct): ?array
+    {
+        $showcaseItem = $orderProduct->getProductShowcaseItem();
+        if (!$showcaseItem) {
+            return null;
+        }
+
+        return [
+            '@id' => sprintf('/product_showcase_items/%d', $showcaseItem->getId()),
+            '@type' => 'ProductShowcaseItem',
+            'id' => $showcaseItem->getId(),
+            'price' => (float) $showcaseItem->getPrice(),
+            'externalCode' => $showcaseItem->getExternalCode(),
+        ];
+    }
+
+    private function serializePeople(People $people): array
+    {
+        return [
+            '@id' => sprintf('/people/%d', $people->getId()),
+            '@type' => 'People',
+            'id' => $people->getId(),
+            'name' => $people->getName(),
+            'alias' => $people->getAlias(),
+        ];
+    }
+
+    private function serializeStatus($status): ?array
+    {
+        if (!$status) {
+            return null;
+        }
+
+        return [
+            '@id' => sprintf('/statuses/%d', $status->getId()),
+            '@type' => 'Status',
+            'id' => $status->getId(),
+            'status' => $status->getStatus(),
+            'realStatus' => $status->getRealStatus(),
+            'context' => $status->getContext(),
+        ];
     }
 
     private function buildExternalCode(People $provider): string

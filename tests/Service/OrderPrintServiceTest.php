@@ -94,6 +94,58 @@ class OrderPrintServiceTest extends TestCase
         self::assertFalse($this->containsLine($capture->lines, 'ESCOLHA SEU QUEIJO'));
     }
 
+    public function testPrintVisibilityIsIndependentFromDisplayVisibility(): void
+    {
+        [$service, $capture] = $this->createServiceWithPrintSpy();
+        $group = $this->createProductGroup('Adicionais', true)->setShowInPrint(false);
+        $root = $this->createOrderProduct('Combo', 1);
+        $root->addOrderProductComponent($this->createOrderProduct('Bacon', 1, $group));
+
+        $this->invokePrivateMethod($service, 'printChildren', [
+            $root->getOrderProductComponents(),
+            true,
+            false,
+        ]);
+
+        self::assertFalse($this->containsLine($capture->lines, 'ADICIONAIS'));
+        self::assertTrue($this->containsLine($capture->lines, 'Bacon'));
+    }
+
+    public function testPrintUsesSemanticMarkersForAdditionRemovalAndNeutral(): void
+    {
+        [$service, $capture] = $this->createServiceWithPrintSpy();
+        $root = $this->createOrderProduct('Combo', 1);
+        $root->addOrderProductComponent($this->createOrderProduct(
+            'Bacon',
+            1,
+            $this->createProductGroup('Adicionais', false)
+                ->setCustomizationType(ProductGroup::CUSTOMIZATION_TYPE_ADDITION),
+        ));
+        $root->addOrderProductComponent($this->createOrderProduct(
+            'Remover Carne',
+            1,
+            $this->createProductGroup('Remoções', false)
+                ->setCustomizationType(ProductGroup::CUSTOMIZATION_TYPE_REMOVAL),
+        ));
+        $root->addOrderProductComponent($this->createOrderProduct(
+            'Cebola',
+            1,
+            $this->createProductGroup('Acompanhamentos', false)
+                ->setCustomizationType(ProductGroup::CUSTOMIZATION_TYPE_NEUTRAL),
+        ));
+
+        $this->invokePrivateMethod($service, 'printChildren', [
+            $root->getOrderProductComponents(),
+            false,
+            false,
+        ]);
+
+        self::assertTrue($this->containsLine($capture->lines, '+ Bacon'));
+        self::assertTrue($this->containsLine($capture->lines, '- Remover Carne'));
+        self::assertTrue($this->containsLine($capture->lines, 'Cebola'));
+        self::assertFalse($this->containsLine($capture->lines, '* Cebola'));
+    }
+
     private function createServiceWithPrintSpy(): array
     {
         $service = (new \ReflectionClass(OrderPrintService::class))->newInstanceWithoutConstructor();

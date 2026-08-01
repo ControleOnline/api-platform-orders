@@ -12,6 +12,7 @@ use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\OrderProductQueue;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\Phone;
+use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\Spool;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -606,6 +607,7 @@ class OrderPrintService
                     'groupOrder' => $groupOrder,
                     'sequence' => $sequence++,
                     'showLabel' => $groupPresentation['showLabel'],
+                    'customizationType' => $groupPresentation['customizationType'],
                     'items' => [],
                 ];
             }
@@ -911,6 +913,7 @@ class OrderPrintService
                     'groupOrder' => $groupOrder,
                     'sequence' => $sequence++,
                     'showLabel' => $groupPresentation['showLabel'],
+                    'customizationType' => $groupPresentation['customizationType'],
                     'items' => [],
                 ];
             }
@@ -940,7 +943,10 @@ class OrderPrintService
                     (float) $child->getQuantity()
                 );
 
-                $this->printWrappedBlock('   * ', $line);
+                $this->printWrappedBlock(
+                    '   ' . $this->resolvePrintCustomizationMarker($group['customizationType'] ?? 'neutral') . ' ',
+                    $line
+                );
                 $this->printOrderProductComment($child);
             }
         }
@@ -1711,6 +1717,7 @@ class OrderPrintService
                 'key' => $fallbackName,
                 'name' => $fallbackName,
                 'showLabel' => true,
+                'customizationType' => ProductGroup::CUSTOMIZATION_TYPE_NEUTRAL,
             ];
         }
 
@@ -1728,8 +1735,18 @@ class OrderPrintService
                 ? sprintf('group:%d', (int) $groupId)
                 : $groupName,
             'name' => $groupName,
-            'showLabel' => $productGroup->getShowInDisplay() !== false,
+            'showLabel' => $productGroup->getShowInPrint() !== false,
+            'customizationType' => $productGroup->getCustomizationType(),
         ];
+    }
+
+    private function resolvePrintCustomizationMarker(string $type): string
+    {
+        return match ($type) {
+            ProductGroup::CUSTOMIZATION_TYPE_ADDITION => '+',
+            ProductGroup::CUSTOMIZATION_TYPE_REMOVAL => '-',
+            default => ' ',
+        };
     }
 
     private function printSeparator(string $delimiter = '-'): void

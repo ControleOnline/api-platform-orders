@@ -63,7 +63,7 @@ class OrderTrackingApiResourceTest extends TestCase
             self::assertTrackingGroupOn(Product::class, $property);
         }
 
-        foreach (['id', 'productGroup', 'showInDisplay', 'groupOrder'] as $property) {
+        foreach (['id', 'productGroup', 'showInDisplay', 'showInPrint', 'showUnitQuantity', 'customizationType', 'groupOrder'] as $property) {
             self::assertTrackingGroupOn(ProductGroup::class, $property);
         }
 
@@ -71,7 +71,7 @@ class OrderTrackingApiResourceTest extends TestCase
             self::assertTrackingGroupOn(OrderProductQueue::class, $property);
         }
 
-        foreach (['id', 'queue'] as $property) {
+        foreach (['id', 'queue', 'shortLabel', 'icon'] as $property) {
             self::assertTrackingGroupOn(Queue::class, $property);
         }
 

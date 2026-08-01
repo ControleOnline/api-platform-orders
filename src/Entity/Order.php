@@ -71,6 +71,16 @@ use stdClass;
             provider: HydratedReadProvider::class,
             normalizationContext: ['groups' => ['order:read']],
         ),
+        new GetCollection(
+            uriTemplate: '/orders-tracking',
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            provider: HydratedReadProvider::class,
+            forceEager: false,
+            normalizationContext: [
+                'groups' => ['tracking:read'],
+                'enable_max_depth' => true,
+            ],
+        ),
         new Get(
             security: 'is_granted(\'ROLE_HUMAN\')',
             uriTemplate: '/orders/{id}/conference',
@@ -218,7 +228,7 @@ class Order
     #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'IDENTITY')]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'company_expense:read', 'coupon:read', 'logistic:read', 'order_invoice:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'company_expense:read', 'coupon:read', 'logistic:read', 'order_invoice:read', 'tracking:read'])]
     private $id;
 
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'company_expense:read', 'coupon:read', 'logistic:read', 'order_invoice:read'])]
@@ -240,11 +250,11 @@ class Order
 
     #[ApiFilter(DateFilter::class, properties: ['orderDate'])]
     #[ORM\Column(name: 'order_date', type: 'datetime', nullable: false, columnDefinition: 'DATETIME')]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read', 'tracking:read'])]
     private $orderDate;
 
     #[ORM\OneToMany(targetEntity: OrderProduct::class, mappedBy: 'order', cascade: ['persist'])]
-    #[Groups(['order_conference:read', 'order_details:read', 'orders-queue:read', 'order:write', 'order:write'])]
+    #[Groups(['order_conference:read', 'order_details:read', 'orders-queue:read', 'order:write', 'order:write', 'tracking:read'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderProducts.orderProductQueues.status' => 'exact'])]
     private $orderProducts;
 
@@ -291,22 +301,22 @@ class Order
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status.realStatus' => 'exact'])]
     #[ORM\JoinColumn(name: 'status_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: Status::class)]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read', 'tracking:read'])]
     private $status;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['orderType' => 'exact'])]
     #[ORM\Column(name: 'order_type', type: 'string', nullable: true)]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read', 'tracking:read'])]
     private $orderType;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['app' => 'exact'])]
     #[ORM\Column(name: 'app', type: 'string', nullable: true)]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read', 'tracking:read'])]
     private $app = 'POS';
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['externalCode' => 'exact'])]
     #[ORM\Column(name: 'external_code', type: 'string', length: 255, nullable: true)]
-    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order_invoice:read'])]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order_invoice:read', 'tracking:read'])]
     private $externalCode;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['otherInformations' => 'exact'])]

@@ -4,8 +4,10 @@ namespace ControleOnline\Controller;
 
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Service\HydratorService;
+use ControleOnline\Service\OrderProductRealtimeService;
 use ControleOnline\Service\StatusService;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -15,6 +17,8 @@ class MarkOrderProductCheckedAction
         private EntityManagerInterface $manager,
         private StatusService $statusService,
         private HydratorService $hydratorService,
+        private OrderProductRealtimeService $realtimeService,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -38,6 +42,15 @@ class MarkOrderProductCheckedAction
             $orderProduct->setStatus($checkedStatus);
             $this->manager->persist($orderProduct);
             $this->manager->flush();
+
+            try {
+                $this->realtimeService->notifyChecked($orderProduct);
+            } catch (\Throwable $error) {
+                $this->logger->warning('Unable to broadcast checked order product.', [
+                    'orderProduct' => $orderProduct->getId(),
+                    'error' => $error->getMessage(),
+                ]);
+            }
         }
 
         return new JsonResponse(

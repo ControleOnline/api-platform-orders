@@ -703,6 +703,44 @@ class OrderServiceTest extends TestCase
         self::assertSame(100, $resolved->getProductGroup()->getId());
     }
 
+    public function testNormalizeOrderProductGroupLinksKeepsStandaloneOrderProductAtRoot(): void
+    {
+        $order = new Order();
+        $parentProduct = new Product();
+        $childProduct = new Product();
+
+        $parentOrderProduct = (new OrderProduct())
+            ->setOrder($order)
+            ->setProduct($parentProduct);
+        $this->setEntityId(OrderProduct::class, $parentOrderProduct, 106932);
+
+        $standaloneOrderProduct = (new OrderProduct())
+            ->setOrder($order)
+            ->setProduct($childProduct);
+        $this->setEntityId(OrderProduct::class, $standaloneOrderProduct, 106939);
+
+        $order->addOrderProduct($parentOrderProduct);
+        $order->addOrderProduct($standaloneOrderProduct);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager
+            ->expects(self::never())
+            ->method('getRepository');
+        $entityManager
+            ->expects(self::never())
+            ->method('flush');
+        $entityManager
+            ->expects(self::never())
+            ->method('refresh');
+
+        $service = $this->buildService('/orders', $entityManager);
+
+        self::assertFalse($service->normalizeOrderProductGroupLinks($order));
+        self::assertNull($standaloneOrderProduct->getOrderProduct());
+        self::assertNull($standaloneOrderProduct->getParentProduct());
+        self::assertNull($standaloneOrderProduct->getProductGroup());
+    }
+
     public function testPostPersistQueuesManagerPushNotificationForSaleOrder(): void
     {
         $provider = $this->createMock(People::class);

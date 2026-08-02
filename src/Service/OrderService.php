@@ -186,29 +186,16 @@ class OrderService
 
     public function normalizeOrderProductGroupLinks(Order $order): bool
     {
-        $orderProducts = $order->getOrderProducts()->toArray();
-        usort(
-            $orderProducts,
-            static fn (OrderProduct $left, OrderProduct $right): int =>
-                ((int) $left->getId()) <=> ((int) $right->getId())
-        );
-
         $changed = false;
 
-        foreach ($orderProducts as $childOrderProduct) {
+        foreach ($order->getOrderProducts() as $childOrderProduct) {
             $childProduct = $childOrderProduct->getProduct();
             if (!$childProduct instanceof Product) {
                 continue;
             }
 
             $parentOrderProduct = $childOrderProduct->getOrderProduct();
-            if (!$parentOrderProduct instanceof OrderProduct) {
-                $parentOrderProduct = $this->findNearestConfiguredParentOrderProduct(
-                    $childOrderProduct,
-                    $orderProducts,
-                );
-            }
-
+            // @agents Order hierarchy is transactional data. Never infer it from catalog groups.
             if (!$parentOrderProduct instanceof OrderProduct) {
                 continue;
             }
@@ -254,36 +241,6 @@ class OrderService
         }
 
         return $changed;
-    }
-
-    /**
-     * @agents Marketplace payloads can arrive as a flat list. Use the nearest previous
-     * configured parent in the same order to rebuild the operational hierarchy.
-     */
-    private function findNearestConfiguredParentOrderProduct(
-        OrderProduct $childOrderProduct,
-        array $orderProducts,
-    ): ?OrderProduct {
-        $childId = (int) $childOrderProduct->getId();
-        $childProduct = $childOrderProduct->getProduct();
-
-        if (!$childProduct instanceof Product) {
-            return null;
-        }
-
-        $candidates = array_values(array_filter(
-            $orderProducts,
-            fn (OrderProduct $candidate): bool =>
-                (int) $candidate->getId() < $childId &&
-                $candidate->getProduct() instanceof Product &&
-                $this->findProductGroupProductLink($candidate->getProduct(), $childProduct) instanceof ProductGroupProduct
-        ));
-
-        if (empty($candidates)) {
-            return null;
-        }
-
-        return $candidates[array_key_last($candidates)];
     }
 
     private function findProductGroupProductLink(

@@ -1,7 +1,6 @@
-## Orders
-- Keep this module focused on order-domain ownership, lifecycle boundaries, and thin controller orchestration.
-- Keep tests under this module and update the root AGENTS when a rule truly spans modules.
+## Ponto de entrada
 
-## Qualidade de código
-
-- A barra comum de modularizacao, testes, smoke tests e limite de tamanho de componentes vive em `https://github.com/ControleOnline/agents-mcp/blob/master/skills/shared/code-quality.md`.
+- A documentação funcional e de regras deste modulo vive na wiki do proprio repositório e na wiki principal da API.
+- Regras transversais de qualidade, modularizacao e limites de componente vivem em `https://github.com/ControleOnline/agents-mcp/blob/master/skills/shared/code-quality.md`.
+- Quando houver detalhe especifico de implementacao, prefira comentar no codigo em ingles perto da regra.
+- Este arquivo deve ficar curto e servir apenas como ponte para as fontes oficiais.

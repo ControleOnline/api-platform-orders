@@ -94,6 +94,7 @@ class OrderService
     private string $displayDeviceType = 'DISPLAY';
     private string $displayConfigKey = 'display-id';
     private $request;
+    private OrderProductTreePriceCalculator $treePriceCalculator;
 
     public function __construct(
         private EntityManagerInterface $manager,
@@ -105,9 +106,12 @@ class OrderService
         private MessageBusInterface $bus,
         private SerializerInterface $serializer,
         RequestStack $requestStack,
-        private ?IntegrationService $integrationService = null
+        private ?IntegrationService $integrationService = null,
+        ?OrderProductTreePriceCalculator $treePriceCalculator = null,
     ) {
         $this->request  = $requestStack->getCurrentRequest();
+        $this->treePriceCalculator = $treePriceCalculator
+            ?? new OrderProductTreePriceCalculator();
     }
 
     public function calculateOrderPrice(Order $order)
@@ -133,6 +137,41 @@ class OrderService
 
     public function calculateGroupProductPrice(Order $order)
     {
+        foreach ($order->getOrderProducts() as $rootOrderProduct) {
+            if (
+                !$rootOrderProduct instanceof OrderProduct
+                || $rootOrderProduct->getOrderProduct() instanceof OrderProduct
+                || trim((string) $rootOrderProduct->getComment()) === OrderProductService::LOYALTY_GIFT_COMMENT
+            ) {
+                continue;
+            }
+
+            $this->treePriceCalculator->recalculateComponents(
+                $rootOrderProduct,
+                function (OrderProduct $component): float {
+                    $parent = $component->getOrderProduct();
+                    $product = $component->getProduct();
+                    if (
+                        !$parent instanceof OrderProduct
+                        || !$product instanceof Product
+                    ) {
+                        return (float) $component->getPrice();
+                    }
+
+                    $groupProduct = $this->findProductGroupProductLink(
+                        $parent->getProduct(),
+                        $product,
+                        $component->getProductGroup(),
+                    );
+
+                    return $groupProduct instanceof ProductGroupProduct
+                        ? (float) $groupProduct->getPrice()
+                        : (float) $component->getPrice();
+                },
+            );
+        }
+        $this->manager->flush();
+
         $sql = 'UPDATE order_product OPO
                 INNER JOIN product P ON P.id = OPO.product_id
                 LEFT JOIN (

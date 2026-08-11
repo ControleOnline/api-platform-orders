@@ -363,7 +363,7 @@ class OrderProductService
     {
         $this->postPersist($orderProduct);
     }
-    
+
     public function postPersist(OrderProduct $orderProduct)
     {
         if (!self::$mainProduct || !$this->request) return;

@@ -4,6 +4,7 @@ namespace ControleOnline\Entity;
 
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Serializer\Attribute\MaxDepth;
+use Symfony\Component\Serializer\Attribute\SerializedName;
 
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\ApiFilter;
@@ -45,7 +46,14 @@ use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
             controller: OrderProductCollectionController::class,
             read: false,
         ),
-        new Get(security: "is_granted('ROLE_HUMAN')"),
+        new Get(
+            security: "is_granted('ROLE_HUMAN')",
+            forceEager: false,
+            normalizationContext: [
+                'groups' => ['order_product:read'],
+                'enable_max_depth' => true,
+            ],
+        ),
         new Post(security: "is_granted('ROLE_HUMAN')"),
         new Post(
             security: "is_granted('ROLE_HUMAN')",
@@ -148,7 +156,7 @@ class OrderProduct
 
     #[ORM\ManyToOne(targetEntity: ProductGroup::class)]
     #[ORM\JoinColumn(nullable: true)]
-    #[Groups(['order_product_queue:read', 'order_conference:read', 'order_product:write', 'orders-queue:read', 'order_product:read', 'tracking:read'])]
+    #[Groups(['order_product_queue:read', 'order_conference:read', 'order_details:read', 'order_product:write', 'orders-queue:read', 'order_product:read', 'tracking:read'])]
     private $productGroup;
 
     #[ORM\OneToMany(targetEntity: self::class, mappedBy: 'orderProduct')]
@@ -276,6 +284,21 @@ class OrderProduct
     public function getOrderProduct()
     {
         return $this->orderProduct;
+    }
+
+    #[SerializedName('orderProduct')]
+    #[Groups(['order_details:read'])]
+    public function getOrderProductSummary(): ?array
+    {
+        $parentOrderProduct = $this->getOrderProduct();
+        if (!$parentOrderProduct instanceof self || !$parentOrderProduct->getId()) {
+            return null;
+        }
+
+        return [
+            '@id' => sprintf('/order_products/%d', $parentOrderProduct->getId()),
+            'id' => $parentOrderProduct->getId(),
+        ];
     }
 
     public function setOrderProduct(?OrderProduct $orderProduct): self

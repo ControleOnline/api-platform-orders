@@ -880,6 +880,12 @@ class Order
         return $this->orderProducts;
     }
 
+    #[Groups(['order_details:read'])]
+    public function getOrderProductsTreeComplete(): bool
+    {
+        return true;
+    }
+
     public function addOrderProduct(OrderProduct $orderProduct): self
     {
         $this->orderProducts[] = $orderProduct;

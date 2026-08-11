@@ -5,7 +5,8 @@ services:
         public: true 
     ControleOnline\:
         resource: '../../src/*'
-        exclude: '../../src/{DependencyInjection,Entity,Resource,Migrations,Library,Message,Tests,Kernel.php}'
+        # OrderProductTreeConsolidator is assembled internally with mutation callbacks.
+        exclude: '../../src/{DependencyInjection,Entity,Resource,Migrations,Library,Message,Tests,Service/OrderProductTreeConsolidator.php,Kernel.php}'
     ControleOnline\Repository\:
         resource: '../../src/Repository'
         tags: ['doctrine.repository_service']

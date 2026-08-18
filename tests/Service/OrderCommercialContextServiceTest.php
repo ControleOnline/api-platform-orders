@@ -196,6 +196,59 @@ class OrderCommercialContextServiceTest extends TestCase
         );
     }
 
+    public function testServerAssignedTemporalPolicyRemainsImmutableAfterDeviceAssociation(): void
+    {
+        [$service, $order, $deviceConfig] = $this->buildChargeContext('POS', [
+            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => false,
+        ]);
+        $device = $deviceConfig->getDevice();
+        $order
+            ->setDevice(null)
+            ->setApp('POS')
+            ->setOrderType(Order::ORDER_TYPE_CART)
+            ->setPayBeforeProduction(true);
+
+        $service->prepare($order);
+        self::assertTrue($order->isPayBeforeProductionRequired());
+        self::assertSame(
+            'server-assigned',
+            $order->getOperationalSnapshot()['payBeforeProductionSource'],
+        );
+
+        $order->setDevice($device);
+        $service->prepare($order);
+
+        self::assertTrue($order->isPayBeforeProductionRequired());
+        self::assertSame(
+            'server-assigned',
+            $order->getOperationalSnapshot()['payBeforeProductionSource'],
+        );
+    }
+
+    public function testConfirmedDefaultSnapshotDoesNotRecalculateAfterDeviceAssociation(): void
+    {
+        [$service, $order, $deviceConfig] = $this->buildChargeContext('POS', [
+            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => true,
+        ]);
+        $device = $deviceConfig->getDevice();
+        $order
+            ->setDevice(null)
+            ->setApp('POS')
+            ->setOrderType(Order::ORDER_TYPE_SALE);
+
+        $service->prepare($order, true);
+        $confirmedSnapshot = $order->getOperationalSnapshot();
+        self::assertFalse($order->isPayBeforeProductionRequired());
+        self::assertSame('default', $confirmedSnapshot['payBeforeProductionSource']);
+        self::assertArrayHasKey('confirmedAt', $confirmedSnapshot);
+
+        $order->setDevice($device);
+        $service->prepare($order, true);
+
+        self::assertFalse($order->isPayBeforeProductionRequired());
+        self::assertSame($confirmedSnapshot, $order->getOperationalSnapshot());
+    }
+
     #[DataProvider('settlementTypeProvider')]
     public function testPaymentBeforeProductionIsRejectedForTableAndTab(string $rootType): void
     {

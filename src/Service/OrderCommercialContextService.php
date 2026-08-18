@@ -180,9 +180,17 @@ class OrderCommercialContextService
     {
         $snapshot = $order->getOperationalSnapshot();
         if (is_array($snapshot) && array_key_exists('payBeforeProduction', $snapshot)) {
-            $order->setPayBeforeProduction($snapshot['payBeforeProduction'] === true);
+            $snapshotSource = (string) ($snapshot['payBeforeProductionSource'] ?? 'order-snapshot');
+            $isConfirmed = isset($snapshot['confirmedAt']);
+            $canResolveProvisionalDefault = !$isConfirmed
+                && $snapshotSource === 'default'
+                && $order->getDevice() instanceof Device;
 
-            return (string) ($snapshot['payBeforeProductionSource'] ?? 'order-snapshot');
+            if (!$canResolveProvisionalDefault) {
+                $order->setPayBeforeProduction($snapshot['payBeforeProduction'] === true);
+
+                return $snapshotSource;
+            }
         }
 
         $provider = $order->getProvider();

@@ -5,6 +5,7 @@ namespace ControleOnline\Orders\Tests\Service;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Address;
+use ControleOnline\Entity\Device;
 use ControleOnline\Entity\Inventory;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\Product;
@@ -13,6 +14,7 @@ use ControleOnline\Entity\ProductGroupProduct;
 use ControleOnline\Entity\Status;
 use ControleOnline\Entity\DeviceConfig;
 use ControleOnline\Service\IntegrationService;
+use ControleOnline\Service\DeviceService;
 use ControleOnline\Service\OrderProductQueueService;
 use ControleOnline\Service\OrderCommercialContextService;
 use ControleOnline\Service\OrderService;
@@ -74,6 +76,79 @@ class OrderServiceTest extends TestCase
 
         self::assertSame(OrderService::ORDER_TYPE_CART, $order->getOrderType());
         self::assertSame($draftStatus, $order->getStatus());
+    }
+
+    public function testCreateOrderRecalculatesProvisionalDefaultAfterDeviceAssociation(): void
+    {
+        $receiver = $this->createMock(People::class);
+        $payer = $this->createMock(People::class);
+        $draftStatus = $this->createMock(Status::class);
+        $device = (new Device())->setDevice('pdv-after-create');
+        $deviceConfig = (new DeviceConfig())
+            ->setPeople($receiver)
+            ->setDevice($device)
+            ->setType('PDV')
+            ->setConfigs([
+                OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => true,
+            ]);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::once())->method('persist')->with(self::isInstanceOf(Order::class));
+        $entityManager->expects(self::once())->method('flush');
+        $statusService = $this->createMock(StatusService::class);
+        $statusService
+            ->expects(self::once())
+            ->method('discoveryStatus')
+            ->with('open', 'open', 'order')
+            ->willReturn($draftStatus);
+        $deviceService = $this->createMock(DeviceService::class);
+        $deviceService
+            ->expects(self::once())
+            ->method('findDeviceConfigs')
+            ->with($device, $receiver)
+            ->willReturn([$deviceConfig]);
+        $requestStack = new RequestStack();
+        $requestStack->push(Request::create('/orders', 'POST'));
+        $commercialContext = new OrderCommercialContextService(
+            $entityManager,
+            $this->createMock(PeopleService::class),
+            $deviceService,
+            $requestStack,
+        );
+        $queueService = $this->createMock(OrderProductQueueService::class);
+        $queueService->expects(self::once())->method('ensureOrderQueueEntries');
+        $service = $this->buildService(
+            '/orders',
+            $entityManager,
+            $statusService,
+            $queueService,
+            commercialContextService: $commercialContext,
+        );
+
+        // createOrder prepares before DefaultEventListener discovers the device.
+        $order = $service->createOrder($receiver, $payer, 'POS');
+        self::assertFalse($order->isPayBeforeProductionRequired());
+        self::assertSame('default', $order->getOperationalSnapshot()['payBeforeProductionSource']);
+        self::assertArrayNotHasKey('confirmedAt', $order->getOperationalSnapshot());
+
+        // Simulate DefaultEventListener device discovery followed by OrderService::prePersist.
+        $order->setDevice($device);
+        $service->prePersist($order);
+        self::assertTrue($order->isPayBeforeProductionRequired());
+        self::assertSame('device-config', $order->getOperationalSnapshot()['payBeforeProductionSource']);
+
+        self::assertTrue($service->convertDraftOrderToSale($order));
+        $confirmedSnapshot = $order->getOperationalSnapshot();
+        self::assertArrayHasKey('confirmedAt', $confirmedSnapshot);
+
+        $deviceConfig->setConfigs([
+            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => false,
+        ]);
+        $commercialContext->prepare($order, true);
+
+        self::assertTrue($order->isPayBeforeProductionRequired());
+        self::assertSame('device-config', $order->getOperationalSnapshot()['payBeforeProductionSource']);
+        self::assertSame($confirmedSnapshot, $order->getOperationalSnapshot());
     }
 
     public function testCreateOrderStartsMarketplaceFlowAsSale(): void

@@ -146,6 +146,56 @@ class OrderCommercialContextServiceTest extends TestCase
         self::assertTrue($service->isOwnOrderFullyPaid($order));
     }
 
+    public function testTrustedDevicePolicyIsAppliedAndFrozenInOrderSnapshot(): void
+    {
+        [$service, $order, $deviceConfig] = $this->buildChargeContext('POS', [
+            OrderCommercialContextService::CHARGE_CONFIG_KEY => true,
+            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => true,
+        ]);
+        $order
+            ->setApp('POS')
+            ->setOrderType(Order::ORDER_TYPE_CART)
+            ->setPrice(100);
+
+        $service->prepare($order);
+        self::assertTrue($order->isPayBeforeProductionRequired());
+        self::assertSame(
+            'device-config',
+            $order->getOperationalSnapshot()['payBeforeProductionSource'],
+        );
+
+        $deviceConfig->setConfigs([
+            OrderCommercialContextService::CHARGE_CONFIG_KEY => true,
+            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => false,
+        ]);
+        $service->prepare($order);
+        self::assertTrue($order->isPayBeforeProductionRequired());
+
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessage('Pagamento integral');
+        $service->assertConfirmationAllowed($order);
+    }
+
+    public function testTrustedFalseTemporalPolicyDoesNotForbidEarlyPaymentOrConfirmation(): void
+    {
+        [$service, $order] = $this->buildChargeContext('POS', [
+            OrderCommercialContextService::CHARGE_CONFIG_KEY => true,
+            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => false,
+        ]);
+        $order
+            ->setApp('POS')
+            ->setOrderType(Order::ORDER_TYPE_CART)
+            ->setPrice(100);
+
+        $service->assertConfirmationAllowed($order);
+
+        self::assertFalse($order->isPayBeforeProductionRequired());
+        self::assertSame(
+            'device-config',
+            $order->getOperationalSnapshot()['payBeforeProductionSource'],
+        );
+    }
+
     #[DataProvider('settlementTypeProvider')]
     public function testPaymentBeforeProductionIsRejectedForTableAndTab(string $rootType): void
     {
@@ -386,6 +436,7 @@ class OrderCommercialContextServiceTest extends TestCase
             ->setDevice($device)
             ->setType($deviceConfigType ?? ($appType === 'MANAGER' ? 'MANAGER' : 'PDV'))
             ->setConfigs($configs);
+        $order->setDevice($device);
 
         $deviceRepository = $this->createMock(EntityRepository::class);
         $deviceRepository
@@ -419,6 +470,7 @@ class OrderCommercialContextServiceTest extends TestCase
         return [
             $this->buildService($manager, $peopleService, $deviceService, $request),
             $order,
+            $deviceConfig,
         ];
     }
 

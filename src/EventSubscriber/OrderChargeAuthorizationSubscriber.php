@@ -10,7 +10,7 @@ use ControleOnline\Service\OrderCommercialContextService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Event\ControllerEvent;
+use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\KernelEvents;
 
@@ -23,12 +23,14 @@ class OrderChargeAuthorizationSubscriber implements EventSubscriberInterface
 
     public static function getSubscribedEvents(): array
     {
+        // Authorize against persisted state before API Platform deserializes a
+        // hostile invoice/order payload into the managed entity.
         return [
-            KernelEvents::CONTROLLER => 'onKernelController',
+            KernelEvents::REQUEST => ['onKernelRequest', 5],
         ];
     }
 
-    public function onKernelController(ControllerEvent $event): void
+    public function onKernelRequest(RequestEvent $event): void
     {
         $request = $event->getRequest();
         $this->assertTemporalPolicyIsNotClientControlled($request);

@@ -2,10 +2,12 @@ services:
     _defaults:
         autowire: true
         autoconfigure: true
-        public: true 
+        public: true
     ControleOnline\:
         resource: '../../src/*'
-        exclude: '../../src/{DependencyInjection,Entity,Resource,Migrations,Library,Message,Tests,Kernel.php,Service/OrderProductTreeConsolidator.php}'
+        exclude:
+            - '../../src/{DependencyInjection,Entity,Resource,Migrations,Library,Message,Tests,Kernel.php}'
+            - '../../src/Service/OrderProductTreeConsolidator.php'
     ControleOnline\Repository\:
         resource: '../../src/Repository'
         tags: ['doctrine.repository_service']

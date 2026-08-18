@@ -26,6 +26,11 @@
  * - `/orders-queue` can expose the visual component tree through the dedicated `orders-queue-tree:read` group. That group must not include cyclical backrefs such as `orderProduct`.
  * - `orders` and `tv` continue to consume the full `OrderProduct` tree; `showInParentQueue` only decides the visual hierarchy on the consumer side, not whether the item exists in the collection.
  * - The operational view must not synthesize children or rewrite the queue to simulate hidden parent items.
+ * - `Order.channel` is limited to `pos`, `shop`, `totem`, and `external`; concrete platforms remain in `app`.
+ * - `fulfillmentType` records commercial intent only. Fulfillment execution, quantities, actors, devices, and idempotency belong to the dedicated fulfillment ledger.
+ * - `payBeforeProduction=false` means payment is not a prerequisite; it does not require production before payment and must not create a `produce_before_payment` policy.
+ * - Payment capability is independent from POS operation mode. The backend contract in `OrderCommercialContextService` must protect direct payment routes, while `waiter` and `cashier` remain workflow presets only.
+ * - A confirmed `sale` never regresses to `cart`; post-confirmation corrections use their dedicated audited actions.
  * - In order printing, `ProductGroup.showInDisplay=false` must hide only the group title. Items and components continue to be printed and grouped.
  * - Paper queue printing must mirror the matching display: materialized items must not show `2x`, while internal non-materialized items may only show a quantity prefix above 1.
  * - Shop loyalty uses a root order with `orderType = fidelity`. Closed and eligible `sale` orders are linked as children through `mainOrderId`; when the card is already full, the next closed sale with the gift closes that card and a closed sale without the gift opens the next card.
@@ -106,6 +111,7 @@ class OrderService
         private MessageBusInterface $bus,
         private SerializerInterface $serializer,
         RequestStack $requestStack,
+        private OrderCommercialContextService $commercialContextService,
         private ?IntegrationService $integrationService = null,
         ?OrderProductTreePriceCalculator $treePriceCalculator = null,
     ) {
@@ -400,6 +406,7 @@ class OrderService
         );
         $order->setStatus($status);
         $order->setApp($app);
+        $this->commercialContextService->prepare($order, !$startsAsCart);
 
         $this->manager->persist($order);
         $this->manager->flush();
@@ -591,8 +598,7 @@ class OrderService
     {
         if (
             !$this->shouldStartAsCart($order->getApp())
-            || $this->hasClosedInvoices($order)
-            || $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_CART
+            || $this->normalizeStatusValue($order->getOrderType()) !== self::ORDER_TYPE_QUOTE
         ) {
             return false;
         }
@@ -608,7 +614,10 @@ class OrderService
             return false;
         }
 
+        $this->commercialContextService->assertConfirmationAllowed($order);
+
         $order->setOrderType(self::ORDER_TYPE_SALE);
+        $this->commercialContextService->freezeConfirmedContext($order);
         $this->clearAnonymousCartExternalCode($order);
 
         foreach ($order->getOrderProducts() as $orderProduct) {
@@ -710,8 +719,23 @@ class OrderService
         );
     }
 
+    public function prePersist(Order $order): void
+    {
+        $isSale = $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_SALE;
+        if ($isSale && $order->isPayBeforeProductionRequired()) {
+            $this->commercialContextService->assertConfirmationAllowed($order);
+        }
+
+        $this->commercialContextService->prepare($order, $isSale);
+    }
+
     public function preUpdate(Order $order): void
     {
+        $this->commercialContextService->prepare(
+            $order,
+            $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_SALE,
+        );
+
         if (
             !$this->isMarketplaceIntegrationOrder($order)
             || !$this->isDirectOrderResourceEditRequest()
@@ -752,6 +776,18 @@ class OrderService
             }
         }
 
+        if (
+            $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_SALE
+            && array_intersect(
+                ['provider', 'channel', 'fulfillmentType', 'payBeforeProduction', 'mainOrder', 'mainOrderId'],
+                array_keys($payload),
+            ) !== []
+        ) {
+            throw new BadRequestHttpException(
+                'Contexto comercial de sale nao pode ser alterado por PUT.'
+            );
+        }
+
         if (!array_key_exists('orderType', $payload)) {
             return;
         }
@@ -771,6 +807,15 @@ class OrderService
 
         if ($requestedOrderType === $currentOrderType) {
             return;
+        }
+
+        if (
+            $currentOrderType === self::ORDER_TYPE_SALE
+            && $requestedOrderType === self::ORDER_TYPE_CART
+        ) {
+            throw new BadRequestHttpException(
+                'Sale nao pode voltar para cart por PUT.'
+            );
         }
 
         if (!in_array($currentOrderType, [
@@ -1011,18 +1056,6 @@ class OrderService
     {
         return $order->getAddressDestination() !== null
             || $order->getDeliveryPeople() !== null;
-    }
-
-    private function hasClosedInvoices(Order $order): bool
-    {
-        foreach ($order->getInvoice() as $orderInvoice) {
-            $invoice = $orderInvoice->getInvoice();
-            if ($this->normalizeStatusValue($invoice?->getStatus()?->getRealStatus()) === 'closed') {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function resolveImmediateMainOrder(Order $order): ?Order

@@ -33,6 +33,12 @@ class OrderInvoiceService
             throw new \InvalidArgumentException('Order reference is required');
         }
 
+        // This service is the public OrderInvoice route. Every attempt to link
+        // or reprocess an invoice must pass the financial capability check,
+        // including idempotent repeats and same-tenant consolidation. Internal
+        // automatic settlement remains in InvoiceService, outside this route.
+        $this->commercialContextService->assertChargeAllowed($order);
+
         $invoice = $this->resolveInvoiceReference($invoiceData);
         $existingOrderInvoice = $this->findExistingOrderInvoice($order, $invoice);
         if ($existingOrderInvoice instanceof OrderInvoice) {
@@ -61,11 +67,6 @@ class OrderInvoiceService
             if ($orderInvoice instanceof OrderInvoice) {
                 $existingLinks[] = $orderInvoice;
             }
-        }
-
-        if ($existingLinks === []) {
-            $this->commercialContextService->assertChargeAllowed($order);
-            return;
         }
 
         $targetProviderId = (int) ($order->getProvider()?->getId() ?? 0);

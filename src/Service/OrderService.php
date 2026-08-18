@@ -777,6 +777,15 @@ class OrderService
         }
 
         if (
+            array_key_exists('payBeforeProduction', $payload)
+            || array_key_exists('pay_before_production', $payload)
+        ) {
+            throw new BadRequestHttpException(
+                'payBeforeProduction e uma politica server-side e nao pode ser alterada pelo payload.'
+            );
+        }
+
+        if (
             $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_SALE
             && array_intersect(
                 ['provider', 'channel', 'fulfillmentType', 'payBeforeProduction', 'mainOrder', 'mainOrderId'],

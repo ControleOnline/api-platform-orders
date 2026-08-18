@@ -14,6 +14,7 @@ use ControleOnline\Entity\Status;
 use ControleOnline\Entity\DeviceConfig;
 use ControleOnline\Service\IntegrationService;
 use ControleOnline\Service\OrderProductQueueService;
+use ControleOnline\Service\OrderCommercialContextService;
 use ControleOnline\Service\OrderService;
 use ControleOnline\Service\PeopleService;
 use ControleOnline\Service\StatusService;
@@ -174,12 +175,90 @@ class OrderServiceTest extends TestCase
             ->method('ensureOrderQueueEntries')
             ->with($order);
 
-        $service = $this->buildService('/orders', $entityManager, null, $queueService);
+        $commercialContextService = $this->createMock(OrderCommercialContextService::class);
+        $commercialContextService
+            ->expects(self::once())
+            ->method('assertConfirmationAllowed')
+            ->with($order);
+        $commercialContextService
+            ->expects(self::once())
+            ->method('freezeConfirmedContext')
+            ->with($order);
+
+        $service = $this->buildService(
+            '/orders',
+            $entityManager,
+            null,
+            $queueService,
+            commercialContextService: $commercialContextService,
+        );
 
         self::assertTrue($service->convertDraftOrderToSale($order));
         self::assertSame(OrderService::ORDER_TYPE_SALE, $order->getOrderType());
         self::assertNull($order->getExternalCode());
         self::assertSame($defaultOutInventory, $orderProduct->getOutInventory());
+    }
+
+    public function testConvertDraftOrderRejectsBeforeSaleAndQueueWhenPolicyFails(): void
+    {
+        $order = (new Order())->setOrderType(OrderService::ORDER_TYPE_CART);
+        $queueService = $this->createMock(OrderProductQueueService::class);
+        $queueService->expects(self::never())->method('ensureOrderQueueEntries');
+        $commercialContextService = $this->createMock(OrderCommercialContextService::class);
+        $commercialContextService
+            ->expects(self::once())
+            ->method('assertConfirmationAllowed')
+            ->with($order)
+            ->willThrowException(new BadRequestHttpException('Pagamento integral obrigatorio.'));
+        $commercialContextService
+            ->expects(self::never())
+            ->method('freezeConfirmedContext');
+
+        $service = $this->buildService(
+            '/orders',
+            null,
+            null,
+            $queueService,
+            commercialContextService: $commercialContextService,
+        );
+
+        try {
+            $service->convertDraftOrderToSale($order);
+            self::fail('The unpaid order should not be promoted.');
+        } catch (BadRequestHttpException $exception) {
+            self::assertSame('Pagamento integral obrigatorio.', $exception->getMessage());
+        }
+
+        self::assertSame(OrderService::ORDER_TYPE_CART, $order->getOrderType());
+    }
+
+    public function testRepeatedConfirmationDoesNotDuplicateQueueMaterialization(): void
+    {
+        $order = (new Order())->setOrderType(OrderService::ORDER_TYPE_CART);
+        $queueService = $this->createMock(OrderProductQueueService::class);
+        $queueService
+            ->expects(self::once())
+            ->method('ensureOrderQueueEntries')
+            ->with($order);
+        $commercialContextService = $this->createMock(OrderCommercialContextService::class);
+        $commercialContextService
+            ->expects(self::once())
+            ->method('assertConfirmationAllowed')
+            ->with($order);
+        $commercialContextService
+            ->expects(self::once())
+            ->method('freezeConfirmedContext')
+            ->with($order);
+        $service = $this->buildService(
+            '/orders',
+            null,
+            null,
+            $queueService,
+            commercialContextService: $commercialContextService,
+        );
+
+        self::assertTrue($service->convertDraftOrderToSale($order));
+        self::assertFalse($service->convertDraftOrderToSale($order));
     }
 
     public function testResolvePostPaymentStatusPromotesCartToSaleBeforeClosedResolution(): void
@@ -334,38 +413,24 @@ class OrderServiceTest extends TestCase
         self::assertSame('Mesa 4', $order->getComments());
     }
 
-    public function testUpdateOrderFromPayloadNormalizesSaleBackToCartWhenAllowed(): void
+    public function testUpdateOrderFromPayloadRejectsSaleBackToCart(): void
     {
         $serializer = $this->createMock(SerializerInterface::class);
         $serializer
-            ->expects(self::once())
-            ->method('deserialize')
-            ->willReturnCallback(static function (string $json, string $class, string $format, array $context): Order {
-                $order = $context['object_to_populate'];
-                $order->setComments('Reclassificado');
-
-                return $order;
-            });
+            ->expects(self::never())
+            ->method('deserialize');
 
         $queueService = $this->createMock(OrderProductQueueService::class);
         $queueService
-            ->expects(self::once())
-            ->method('syncByOrderStatus')
-            ->with(self::callback(static function (Order $order): bool {
-                return $order->getOrderType() === OrderService::ORDER_TYPE_CART;
-            }));
+            ->expects(self::never())
+            ->method('syncByOrderStatus');
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager
-            ->expects(self::once())
-            ->method('persist')
-            ->with(self::callback(static function (mixed $entity): bool {
-                return $entity instanceof Order
-                    && $entity->getOrderType() === OrderService::ORDER_TYPE_CART
-                    && $entity->getComments() === 'Reclassificado';
-            }));
+            ->expects(self::never())
+            ->method('persist');
         $entityManager
-            ->expects(self::once())
+            ->expects(self::never())
             ->method('flush');
 
         $service = $this->buildService('/orders/903', $entityManager, null, $queueService, null, [], [], null, [], $serializer);
@@ -376,14 +441,13 @@ class OrderServiceTest extends TestCase
         $order->setStatus($this->createStatusEntity(10, 'open'));
         $this->setEntityId(Order::class, $order, 903);
 
-        $updatedOrder = $service->updateOrderFromPayload($order, [
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessage('Sale nao pode voltar para cart por PUT.');
+
+        $service->updateOrderFromPayload($order, [
             'orderType' => 'cart',
             'comments' => 'Reclassificado',
         ]);
-
-        self::assertSame($order, $updatedOrder);
-        self::assertSame(OrderService::ORDER_TYPE_CART, $order->getOrderType());
-        self::assertSame('Reclassificado', $order->getComments());
     }
 
     public function testUpdateOrderFromPayloadResolvesClientAndPayerWithoutSerializerIriLookup(): void
@@ -855,6 +919,7 @@ class OrderServiceTest extends TestCase
         array $query = [],
         ?SerializerInterface $serializer = null,
         array $roleNames = ['ROLE_HUMAN'],
+        ?OrderCommercialContextService $commercialContextService = null,
     ): OrderService
     {
         $peopleService = $this->createMock(PeopleService::class);
@@ -896,6 +961,7 @@ class OrderServiceTest extends TestCase
             $this->createMock(MessageBusInterface::class),
             $serializer ?? $this->createMock(SerializerInterface::class),
             $requestStack,
+            $commercialContextService ?? $this->createMock(OrderCommercialContextService::class),
             $integrationService,
         );
     }

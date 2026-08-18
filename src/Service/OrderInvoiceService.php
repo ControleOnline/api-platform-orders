@@ -19,6 +19,7 @@ class OrderInvoiceService
         private EntityManagerInterface $manager,
         private Security $security,
         private StatusService $statusService,
+        private OrderCommercialContextService $commercialContextService,
         private ?InvoiceService $invoiceService = null,
     ) {}
 
@@ -39,6 +40,8 @@ class OrderInvoiceService
             return $existingOrderInvoice;
         }
 
+        $this->assertInvoiceLinkAllowed($order, $invoice);
+
         $orderInvoice = new OrderInvoice();
         $orderInvoice->setOrder($order);
         $orderInvoice->setRealPrice($payload['realPrice'] ?? $invoice->getPrice() ?? 0);
@@ -49,6 +52,35 @@ class OrderInvoiceService
         $this->invoiceService?->payOrder($order);
 
         return $orderInvoice;
+    }
+
+    private function assertInvoiceLinkAllowed(Order $order, Invoice $invoice): void
+    {
+        $existingLinks = [];
+        foreach ($invoice->getOrder() as $orderInvoice) {
+            if ($orderInvoice instanceof OrderInvoice) {
+                $existingLinks[] = $orderInvoice;
+            }
+        }
+
+        if ($existingLinks === []) {
+            $this->commercialContextService->assertChargeAllowed($order);
+            return;
+        }
+
+        $targetProviderId = (int) ($order->getProvider()?->getId() ?? 0);
+        foreach ($existingLinks as $existingLink) {
+            $linkedProviderId = (int) ($existingLink->getOrder()?->getProvider()?->getId() ?? 0);
+            if (
+                $targetProviderId <= 0
+                || $linkedProviderId <= 0
+                || $linkedProviderId !== $targetProviderId
+            ) {
+                throw new \InvalidArgumentException(
+                    'Invoice nao pode ser vinculada a Order de outro tenant.'
+                );
+            }
+        }
     }
 
     public function createFromContent(?string $content): OrderInvoice

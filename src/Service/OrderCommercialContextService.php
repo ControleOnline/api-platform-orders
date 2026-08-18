@@ -16,6 +16,7 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 class OrderCommercialContextService
 {
     public const CHARGE_CONFIG_KEY = 'order-charge-enabled';
+    public const PAY_BEFORE_PRODUCTION_CONFIG_KEY = 'pay-before-production';
     public const CHARGE_MODE_LOCAL = 'local';
     public const CHARGE_MODE_REMOTE = 'remote';
     public const CHARGE_MODE_EXTERNAL = 'external';
@@ -42,6 +43,7 @@ class OrderCommercialContextService
             $order->setChannel($this->inferChannelFromApp($order->getApp()));
         }
 
+        $temporalPolicySource = $this->applyTrustedTemporalPolicy($order);
         $this->assertCanonicalValues($order);
         $mainOrder = $this->resolveMainOrder($order);
         $this->assertMainOrderIsTenantSafe($order, $mainOrder);
@@ -60,6 +62,7 @@ class OrderCommercialContextService
             'app' => $order->getApp(),
             'fulfillmentType' => $order->getFulfillmentType(),
             'payBeforeProduction' => $order->isPayBeforeProductionRequired(),
+            'payBeforeProductionSource' => $temporalPolicySource,
             'linkType' => $this->resolveLinkType($order, $mainOrder),
             'appliedAt' => $now,
         ];
@@ -171,6 +174,50 @@ class OrderCommercialContextService
         if ($fulfillmentType !== null && !in_array($fulfillmentType, Order::FULFILLMENT_TYPES, true)) {
             throw new BadRequestHttpException('Tipo de fulfillment invalido.');
         }
+    }
+
+    private function applyTrustedTemporalPolicy(Order $order): string
+    {
+        $snapshot = $order->getOperationalSnapshot();
+        if (is_array($snapshot) && array_key_exists('payBeforeProduction', $snapshot)) {
+            $order->setPayBeforeProduction($snapshot['payBeforeProduction'] === true);
+
+            return (string) ($snapshot['payBeforeProductionSource'] ?? 'order-snapshot');
+        }
+
+        $provider = $order->getProvider();
+        $device = $order->getDevice();
+        if ($provider instanceof People && $device instanceof Device) {
+            $configuredValues = [];
+            foreach ($this->deviceService->findDeviceConfigs($device, $provider) as $deviceConfig) {
+                if (!$deviceConfig instanceof DeviceConfig) {
+                    continue;
+                }
+
+                $configs = $deviceConfig->getConfigs(true);
+                if (
+                    !is_array($configs)
+                    || !array_key_exists(self::PAY_BEFORE_PRODUCTION_CONFIG_KEY, $configs)
+                ) {
+                    continue;
+                }
+
+                $configuredValues[] = $this->normalizeBoolean(
+                    $configs[self::PAY_BEFORE_PRODUCTION_CONFIG_KEY],
+                );
+            }
+
+            if ($configuredValues !== []) {
+                // Conflicting rows must never weaken a restrictive policy.
+                $order->setPayBeforeProduction(in_array(true, $configuredValues, true));
+
+                return 'device-config';
+            }
+        }
+
+        return $order->getPayBeforeProduction() !== null
+            ? 'server-assigned'
+            : 'default';
     }
 
     private function assertTemporalPolicyIsCompatible(Order $order, ?Order $mainOrder): void
@@ -318,10 +365,10 @@ class OrderCommercialContextService
 
     /**
      * Device metadata and request headers are client-controlled and therefore
-     * cannot identify the application or grant a financial capability. Until
-     * T7 supplies a stronger server-issued device context, only persisted
-     * DeviceConfig rows identify a known POS/Manager context, and a missing or
-     * ambiguous context fails closed for local charging.
+     * cannot identify the application or grant a financial capability. Only
+     * persisted DeviceConfig rows protected by the tenant-administrative guard
+     * identify a known POS/Manager context. Known legacy contexts are
+     * explicitly backfilled; a new missing or ambiguous context fails closed.
      *
      * @return array{enabled: bool, local: bool, source: string, appType: string}
      */

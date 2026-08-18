@@ -19,14 +19,23 @@ use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
-use Symfony\Component\HttpKernel\Event\ControllerEvent;
+use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
+use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 #[AllowMockObjectsWithoutExpectations]
 class OrderChargeAuthorizationSubscriberTest extends TestCase
 {
+    public function testAuthorizationRunsBeforeApiPlatformDeserialization(): void
+    {
+        self::assertSame(
+            ['onKernelRequest', 5],
+            OrderChargeAuthorizationSubscriber::getSubscribedEvents()[KernelEvents::REQUEST],
+        );
+    }
+
     public function testDirectInvoiceRouteUsesBackendChargeContract(): void
     {
         $order = new Order();
@@ -63,7 +72,7 @@ class OrderChargeAuthorizationSubscriberTest extends TestCase
             $manager,
             $commercialContextService,
         );
-        $subscriber->onKernelController($this->createControllerEvent($request));
+        $subscriber->onKernelRequest($this->createRequestEvent($request));
     }
 
     public function testDirectInvoiceRouteRejectsManagerDisguisedByClientMetadata(): void
@@ -126,7 +135,7 @@ class OrderChargeAuthorizationSubscriberTest extends TestCase
         );
 
         $this->expectException(AccessDeniedHttpException::class);
-        $subscriber->onKernelController($this->createControllerEvent($request));
+        $subscriber->onKernelRequest($this->createRequestEvent($request));
     }
 
     public function testUnrelatedInvoiceDoesNotInvokeOrderChargeContract(): void
@@ -149,7 +158,7 @@ class OrderChargeAuthorizationSubscriberTest extends TestCase
             $manager,
             $commercialContextService,
         );
-        $subscriber->onKernelController($this->createControllerEvent($request));
+        $subscriber->onKernelRequest($this->createRequestEvent($request));
     }
 
     public function testClosingLinkedInvoiceAlsoUsesBackendChargeContract(): void
@@ -192,7 +201,7 @@ class OrderChargeAuthorizationSubscriberTest extends TestCase
             $manager,
             $commercialContextService,
         );
-        $subscriber->onKernelController($this->createControllerEvent($request));
+        $subscriber->onKernelRequest($this->createRequestEvent($request));
     }
 
     public function testDirectOrderRoutesCannotSetOrWeakenTemporalPolicy(): void
@@ -219,7 +228,7 @@ class OrderChargeAuthorizationSubscriberTest extends TestCase
             );
 
             try {
-                $subscriber->onKernelController($this->createControllerEvent($request));
+                $subscriber->onKernelRequest($this->createRequestEvent($request));
                 self::fail(sprintf('%s %s should reject client-controlled policy.', $method, $path));
             } catch (BadRequestHttpException $exception) {
                 self::assertStringContainsString('politica server-side', $exception->getMessage());
@@ -227,11 +236,10 @@ class OrderChargeAuthorizationSubscriberTest extends TestCase
         }
     }
 
-    private function createControllerEvent(Request $request): ControllerEvent
+    private function createRequestEvent(Request $request): RequestEvent
     {
-        return new ControllerEvent(
+        return new RequestEvent(
             $this->createMock(HttpKernelInterface::class),
-            static fn(): null => null,
             $request,
             HttpKernelInterface::MAIN_REQUEST,
         );

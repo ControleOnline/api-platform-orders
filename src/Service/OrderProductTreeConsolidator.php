@@ -8,10 +8,12 @@ use ControleOnline\Entity\Product;
 use ControleOnline\Entity\ProductGroup;
 use ControleOnline\Entity\ProductShowcaseItem;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Exclude;
 
 /**
  * Finds, increments and persists recursive OrderProduct component trees.
  */
+#[Exclude]
 final class OrderProductTreeConsolidator
 {
     public function __construct(

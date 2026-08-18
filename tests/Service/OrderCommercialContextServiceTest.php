@@ -248,7 +248,7 @@ class OrderCommercialContextServiceTest extends TestCase
         $service->prepare($order, true);
     }
 
-    public function testLegacyPosDeviceCanChargeRegardlessOfOperationalPreset(): void
+    public function testDeviceWithoutExplicitCapabilityFailsClosedRegardlessOfOperationalPreset(): void
     {
         foreach (['waiter', 'cashier'] as $operationMode) {
             [$service, $order] = $this->buildChargeContext('POS', [
@@ -256,8 +256,8 @@ class OrderCommercialContextServiceTest extends TestCase
             ]);
 
             $capability = $service->resolveChargeCapability($order);
-            self::assertTrue($capability['local']);
-            self::assertSame('legacy-default', $capability['source']);
+            self::assertFalse($capability['local']);
+            self::assertSame('device-config-missing', $capability['source']);
         }
     }
 
@@ -288,7 +288,9 @@ class OrderCommercialContextServiceTest extends TestCase
 
     public function testManagerCannotChargeLocallyButKeepsRemoteAndExternalModes(): void
     {
-        [$service, $order] = $this->buildChargeContext('MANAGER', []);
+        [$service, $order] = $this->buildChargeContext('MANAGER', [
+            OrderCommercialContextService::CHARGE_CONFIG_KEY => true,
+        ]);
         $capability = $service->resolveChargeCapability($order);
 
         self::assertFalse($capability['local']);
@@ -297,6 +299,39 @@ class OrderCommercialContextServiceTest extends TestCase
 
         $this->expectException(AccessDeniedHttpException::class);
         $service->assertChargeAllowed($order, OrderCommercialContextService::CHARGE_MODE_LOCAL);
+    }
+
+    public function testClientWritableMetadataCannotDisguiseManagerAsPos(): void
+    {
+        [$service, $order] = $this->buildChargeContext(
+            'POS',
+            [OrderCommercialContextService::CHARGE_CONFIG_KEY => true],
+            true,
+            'MANAGER',
+        );
+
+        $capability = $service->resolveChargeCapability($order);
+        self::assertSame('MANAGER', $capability['appType']);
+        self::assertFalse($capability['local']);
+        self::assertTrue($capability['remote']);
+
+        $this->expectException(AccessDeniedHttpException::class);
+        $service->assertChargeAllowed($order, OrderCommercialContextService::CHARGE_MODE_LOCAL);
+    }
+
+    public function testUnknownPersistedDeviceContextCannotGrantLocalCharge(): void
+    {
+        [$service, $order] = $this->buildChargeContext(
+            'POS',
+            [OrderCommercialContextService::CHARGE_CONFIG_KEY => true],
+            true,
+            'DEVICE',
+        );
+
+        $capability = $service->resolveChargeCapability($order);
+        self::assertFalse($capability['enabled']);
+        self::assertFalse($capability['local']);
+        self::assertSame('device-context-untrusted', $capability['source']);
     }
 
     public function testActorOutsideOrderTenantCannotCharge(): void
@@ -339,6 +374,7 @@ class OrderCommercialContextServiceTest extends TestCase
         string $appType,
         array $configs,
         bool $actorHasCompany = true,
+        ?string $deviceConfigType = null,
     ): array {
         $provider = $this->createPeople(30);
         $order = (new Order())->setProvider($provider);
@@ -348,7 +384,7 @@ class OrderCommercialContextServiceTest extends TestCase
         $deviceConfig = (new DeviceConfig())
             ->setPeople($provider)
             ->setDevice($device)
-            ->setType('PDV')
+            ->setType($deviceConfigType ?? ($appType === 'MANAGER' ? 'MANAGER' : 'PDV'))
             ->setConfigs($configs);
 
         $deviceRepository = $this->createMock(EntityRepository::class);

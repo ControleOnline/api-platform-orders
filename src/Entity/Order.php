@@ -350,7 +350,7 @@ class Order
     private ?string $fulfillmentType = null;
 
     #[ORM\Column(name: 'pay_before_production', type: 'boolean', nullable: true)]
-    #[Groups(['order:read', 'order_details:read', 'order:write', 'order_invoice:read', 'tracking:read'])]
+    #[Groups(['order:read', 'order_details:read', 'order_invoice:read', 'tracking:read'])]
     private ?bool $payBeforeProduction = null;
 
     #[ORM\Column(name: 'operational_snapshot', type: 'json', nullable: true)]

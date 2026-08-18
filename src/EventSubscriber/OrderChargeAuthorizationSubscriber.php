@@ -31,6 +31,8 @@ class OrderChargeAuthorizationSubscriber implements EventSubscriberInterface
     public function onKernelController(ControllerEvent $event): void
     {
         $request = $event->getRequest();
+        $this->assertTemporalPolicyIsNotClientControlled($request);
+
         if ($this->isInvoiceClosingRequest($request)) {
             $this->assertInvoiceClosingAllowed($request);
             return;
@@ -61,6 +63,33 @@ class OrderChargeAuthorizationSubscriber implements EventSubscriberInterface
         $this->commercialContextService->assertChargeAllowed(
             $order,
             OrderCommercialContextService::CHARGE_MODE_LOCAL,
+        );
+    }
+
+    private function assertTemporalPolicyIsNotClientControlled(Request $request): void
+    {
+        $method = strtoupper($request->getMethod());
+        $path = rtrim($request->getPathInfo(), '/');
+        if (
+            !in_array($method, ['POST', 'PUT', 'PATCH'], true)
+            || preg_match('#^/orders(?:/\d+)?$#', $path) !== 1
+        ) {
+            return;
+        }
+
+        $payload = json_decode((string) $request->getContent(), true);
+        if (
+            !is_array($payload)
+            || (
+                !array_key_exists('payBeforeProduction', $payload)
+                && !array_key_exists('pay_before_production', $payload)
+            )
+        ) {
+            return;
+        }
+
+        throw new BadRequestHttpException(
+            'payBeforeProduction e uma politica server-side e nao pode ser alterada pelo payload.'
         );
     }
 

@@ -345,6 +345,29 @@ class OrderServiceTest extends TestCase
         ]);
     }
 
+    public function testDirectCartUpdateCannotWeakenTrustedPaymentPolicy(): void
+    {
+        $serializer = $this->createMock(SerializerInterface::class);
+        $serializer->expects(self::never())->method('deserialize');
+        $service = $this->buildService(
+            '/orders/905',
+            $this->createMock(EntityManagerInterface::class),
+            serializer: $serializer,
+        );
+        $order = (new Order())
+            ->setOrderType(OrderService::ORDER_TYPE_CART)
+            ->setPayBeforeProduction(true);
+
+        try {
+            $service->updateOrderFromPayload($order, ['payBeforeProduction' => false]);
+            self::fail('Client payload should not weaken server-side payment policy.');
+        } catch (BadRequestHttpException $exception) {
+            self::assertStringContainsString('politica server-side', $exception->getMessage());
+        }
+
+        self::assertTrue($order->isPayBeforeProductionRequired());
+    }
+
     public function testUpdateOrderFromPayloadPromotesCartToSaleAndDispatchesCreationEvent(): void
     {
         $provider = new People();

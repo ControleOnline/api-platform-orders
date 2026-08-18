@@ -146,20 +146,18 @@ class OrderCommercialContextService
             return $this->deniedCapability('device-missing');
         }
 
-        [$hasExplicitCapability, $enabled] = $this->resolveConfiguredChargeCapability(
+        $configuredCapability = $this->resolveConfiguredChargeCapability(
             $device,
             $provider,
         );
-        $appType = strtoupper(trim((string) ($device->getMetadata()['appType'] ?? '')));
-        $isManager = $appType === 'MANAGER';
 
         return [
-            'enabled' => $enabled,
-            'local' => $enabled && !$isManager,
-            'remote' => $enabled,
-            'external' => $enabled,
-            'source' => $hasExplicitCapability ? 'device-config' : 'legacy-default',
-            'appType' => $appType,
+            'enabled' => $configuredCapability['enabled'],
+            'local' => $configuredCapability['local'],
+            'remote' => $configuredCapability['enabled'],
+            'external' => $configuredCapability['enabled'],
+            'source' => $configuredCapability['source'],
+            'appType' => $configuredCapability['appType'],
         ];
     }
 
@@ -319,17 +317,22 @@ class OrderCommercialContextService
     }
 
     /**
-     * @return array{bool, bool}
+     * Device metadata and request headers are client-controlled and therefore
+     * cannot identify the application or grant a financial capability. Until
+     * T7 supplies a stronger server-issued device context, only persisted
+     * DeviceConfig rows identify a known POS/Manager context, and a missing or
+     * ambiguous context fails closed for local charging.
+     *
+     * @return array{enabled: bool, local: bool, source: string, appType: string}
      */
     private function resolveConfiguredChargeCapability(Device $device, People $provider): array
     {
         $deviceConfigs = $this->deviceService->findDeviceConfigs($device, $provider);
-        $selectedConfig = $this->deviceService->findDeviceConfig($device, $provider);
-        if ($selectedConfig instanceof DeviceConfig) {
-            array_unshift($deviceConfigs, $selectedConfig);
-        }
 
         $explicitValues = [];
+        $explicitPdvValues = [];
+        $hasManagerContext = false;
+        $hasPdvContext = false;
         $seenIds = [];
         foreach ($deviceConfigs as $deviceConfig) {
             if (!$deviceConfig instanceof DeviceConfig) {
@@ -344,21 +347,43 @@ class OrderCommercialContextService
                 $seenIds[$configId] = true;
             }
 
+            $configType = strtoupper(trim($deviceConfig->getType()));
+            $hasManagerContext = $hasManagerContext || $configType === 'MANAGER';
+            $hasPdvContext = $hasPdvContext || $configType === 'PDV';
+
             $configs = $deviceConfig->getConfigs(true);
             if (!is_array($configs) || !array_key_exists(self::CHARGE_CONFIG_KEY, $configs)) {
                 continue;
             }
 
-            $explicitValues[] = $this->normalizeBoolean($configs[self::CHARGE_CONFIG_KEY]);
+            $explicitValue = $this->normalizeBoolean($configs[self::CHARGE_CONFIG_KEY]);
+            $explicitValues[] = $explicitValue;
+            if ($configType === 'PDV') {
+                $explicitPdvValues[] = $explicitValue;
+            }
         }
 
-        if ($explicitValues === []) {
-            return [false, true];
-        }
+        $hasTrustedContext = $hasManagerContext || $hasPdvContext;
+        $hasExplicitCapability = $explicitValues !== [];
+        $enabled = $hasTrustedContext
+            && $hasExplicitCapability
+            && !in_array(false, $explicitValues, true);
+        $local = $enabled
+            && $hasPdvContext
+            && !$hasManagerContext
+            && $explicitPdvValues !== []
+            && !in_array(false, $explicitPdvValues, true);
 
-        // A false capability cannot be bypassed by omitting DEVICE-TYPE and
-        // forcing selection of another config row for the same device/company.
-        return [true, !in_array(false, $explicitValues, true)];
+        return [
+            'enabled' => $enabled,
+            'local' => $local,
+            'source' => !$hasTrustedContext
+                ? 'device-context-untrusted'
+                : ($hasExplicitCapability ? 'device-config' : 'device-config-missing'),
+            'appType' => $hasManagerContext
+                ? 'MANAGER'
+                : ($hasPdvContext ? 'POS' : ''),
+        ];
     }
 
     private function deniedCapability(string $source): array

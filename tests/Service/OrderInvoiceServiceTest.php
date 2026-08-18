@@ -15,6 +15,7 @@ use Doctrine\ORM\EntityRepository;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 #[AllowMockObjectsWithoutExpectations]
 class OrderInvoiceServiceTest extends TestCase
@@ -111,7 +112,7 @@ class OrderInvoiceServiceTest extends TestCase
         self::assertSame(15.75, $createdOrderInvoice->getRealPrice());
     }
 
-    public function testExistingSameTenantInvoiceCanBeConsolidatedWithoutNewCharge(): void
+    public function testExistingSameTenantInvoiceRequiresChargeCapabilityForConsolidation(): void
     {
         $provider = $this->createPeople(50);
         $sourceOrder = (new Order())->setProvider($provider);
@@ -132,7 +133,10 @@ class OrderInvoiceServiceTest extends TestCase
         $entityManager->expects(self::once())->method('persist')->with(self::isInstanceOf(OrderInvoice::class));
         $entityManager->expects(self::once())->method('flush');
         $commercialContextService = $this->createMock(OrderCommercialContextService::class);
-        $commercialContextService->expects(self::never())->method('assertChargeAllowed');
+        $commercialContextService
+            ->expects(self::once())
+            ->method('assertChargeAllowed')
+            ->with($targetOrder);
         $invoiceService = $this->createMock(InvoiceService::class);
         $invoiceService->expects(self::once())->method('payOrder')->with($targetOrder);
         $service = new OrderInvoiceService(
@@ -143,6 +147,46 @@ class OrderInvoiceServiceTest extends TestCase
             $invoiceService,
         );
 
+        $service->createFromPayload([
+            'order' => '/orders/10',
+            'invoice' => '/invoices/20',
+            'realPrice' => 25,
+        ]);
+    }
+
+    public function testDirectPublicConsolidationCannotLinkOrPayWithoutCapability(): void
+    {
+        $provider = $this->createPeople(53);
+        $sourceOrder = (new Order())->setProvider($provider);
+        $targetOrder = (new Order())->setProvider($provider);
+        $invoice = (new Invoice())->setPrice(25);
+        $invoice->addOrder(
+            (new OrderInvoice())
+                ->setOrder($sourceOrder)
+                ->setInvoice($invoice)
+                ->setRealPrice(25),
+        );
+
+        [$entityManager] = $this->buildReferenceRepositories($targetOrder, $invoice);
+        $entityManager->expects(self::never())->method('persist');
+        $entityManager->expects(self::never())->method('flush');
+        $commercialContextService = $this->createMock(OrderCommercialContextService::class);
+        $commercialContextService
+            ->expects(self::once())
+            ->method('assertChargeAllowed')
+            ->with($targetOrder)
+            ->willThrowException(new AccessDeniedHttpException('capacidade financeira ausente'));
+        $invoiceService = $this->createMock(InvoiceService::class);
+        $invoiceService->expects(self::never())->method('payOrder');
+        $service = new OrderInvoiceService(
+            $entityManager,
+            $this->createMock(TokenStorageInterface::class),
+            $this->createMock(StatusService::class),
+            $commercialContextService,
+            $invoiceService,
+        );
+
+        $this->expectException(AccessDeniedHttpException::class);
         $service->createFromPayload([
             'order' => '/orders/10',
             'invoice' => '/invoices/20',

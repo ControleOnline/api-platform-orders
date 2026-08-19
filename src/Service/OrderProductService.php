@@ -29,6 +29,7 @@ class OrderProductService
     private static $calculateBefore = [];
     private OrderProductTreeNormalizer $treeNormalizer;
     private OrderProductTreeConsolidator $treeConsolidator;
+    private ProposalProductCategoryGuard $proposalProductCategoryGuard;
 
     public function __construct(
         private EntityManagerInterface $manager,
@@ -41,6 +42,7 @@ class OrderProductService
         private InvoiceService $invoiceService,
         private ProductShowcaseCatalogService $productShowcaseCatalogService,
         ?OrderProductTreeNormalizer $treeNormalizer = null,
+        ?ProposalProductCategoryGuard $proposalProductCategoryGuard = null,
     ) {
         $this->request = $this->requestStack->getCurrentRequest();
         $this->treeNormalizer = $treeNormalizer ?? new OrderProductTreeNormalizer();
@@ -50,6 +52,7 @@ class OrderProductService
             fn (OrderProduct $parent, Product $product, ProductGroup $group, $qty) => $this->addSubproduct($parent, $product, $group, $qty),
             fn (?string $comment) => $this->normalizeOrderProductComment($comment),
         );
+        $this->proposalProductCategoryGuard = $proposalProductCategoryGuard ?? new ProposalProductCategoryGuard();
     }
 
     public function addOrderProduct(
@@ -197,12 +200,14 @@ class OrderProductService
     public function prePersist(OrderProduct $orderProduct): void
     {
         $this->guardDirectOrderProductMutation($orderProduct);
+        $this->guardProposalProductCategory($orderProduct);
         $this->applyDefaultStatus($orderProduct);
     }
 
     public function preUpdate(OrderProduct $orderProduct): void
     {
         $this->guardDirectOrderProductMutation($orderProduct);
+        $this->guardProposalProductCategory($orderProduct);
         $this->applyDefaultStatus($orderProduct);
     }
 
@@ -454,6 +459,24 @@ class OrderProductService
         }
 
         $this->orderService->securityFilter($queryBuilder, $resourceClass, $applyTo, 'orders');
+    }
+
+
+    private function guardProposalProductCategory(OrderProduct $orderProduct): void
+    {
+        $order = $orderProduct->getOrder();
+        $product = $orderProduct->getProduct();
+
+        if (
+            !$order instanceof Order
+            || !$product instanceof Product
+            || $orderProduct->getOrderProduct() instanceof OrderProduct
+            || $orderProduct->getParentProduct() instanceof Product
+        ) {
+            return;
+        }
+
+        $this->proposalProductCategoryGuard->assertOrderProductAllowed($order, $product);
     }
 
     public function __destruct()

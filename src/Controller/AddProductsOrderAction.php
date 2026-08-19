@@ -13,28 +13,32 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AddProductsOrderAction
 {
-
-
     public function __construct(
         private HydratorService $hydratorService,
         private OrderProductService $orderProductService,
         private OrderService $orderService
-
     ) {}
 
     public function __invoke(Request $request, int $id): JsonResponse
     {
         try {
-            $order = $this->orderService->findOrderById($id);
-            if (!$order)
-                return new JsonResponse(['error' => 'Order not found'], 404);
+            $order = $this->orderService->findAccessibleOrderById($id);
+            if (!$order) {
+                return new JsonResponse(
+                    ['error' => 'Pedido não encontrado ou acesso negado'],
+                    Response::HTTP_FORBIDDEN
+                );
+            }
 
             $this->orderProductService->addProductsToOrderFromContent(
                 $order,
                 $request->getContent()
             );
 
-            return new JsonResponse($this->hydratorService->item(Order::class, $order->getId(), "order:write"), Response::HTTP_OK);
+            return new JsonResponse(
+                $this->hydratorService->item(Order::class, $order->getId(), "order:write"),
+                Response::HTTP_OK
+            );
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         } catch (Exception $e) {

@@ -411,6 +411,49 @@ class OrderService
         return $this->manager->getRepository(Order::class)->find($orderId);
     }
 
+    /**
+     * Resolve an order only when the authenticated user can access its provider company.
+     * Returns null for both missing orders and access denied (do not leak existence).
+     */
+    public function findAccessibleOrderById(int $orderId): ?Order
+    {
+        $order = $this->findOrderById($orderId);
+        if (!$order instanceof Order) {
+            return null;
+        }
+
+        if (!$this->canAccessOrder($order)) {
+            return null;
+        }
+
+        return $order;
+    }
+
+    public function canAccessOrder(Order $order): bool
+    {
+        $token = $this->security->getToken();
+        $user = $token?->getUser();
+        if (!is_object($user) || !method_exists($user, 'getPeople')) {
+            return false;
+        }
+
+        $userPeople = $user->getPeople();
+        if (!$userPeople instanceof People) {
+            return false;
+        }
+
+        $provider = $order->getProvider();
+        if (!$provider instanceof People) {
+            return false;
+        }
+
+        if ($userPeople->getId() === $provider->getId()) {
+            return true;
+        }
+
+        return $this->peopleService->canAccessCompany($provider, $userPeople);
+    }
+
     public function updateOrderFromPayload(Order $order, array $payload): Order
     {
         $this->assertDirectOrderUpdateAllowed($order, $payload);

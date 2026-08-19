@@ -23,13 +23,13 @@ class ReplaceProductsOrderAction
     public function __invoke(Request $request, int $id): JsonResponse
     {
         try {
-            $order = $this->orderService->findOrderById($id);
+            $order = $this->orderService->findAccessibleOrderById($id);
             if (!$order) {
                 return new JsonResponse(
                     $this->hydratorService->error(
-                        new Exception('Order not found')
+                        new Exception('Pedido não encontrado ou acesso negado')
                     ),
-                    Response::HTTP_NOT_FOUND
+                    Response::HTTP_FORBIDDEN
                 );
             }
 

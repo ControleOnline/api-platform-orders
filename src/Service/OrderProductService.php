@@ -40,6 +40,7 @@ class OrderProductService
         private OrderProductQueueService $orderProductQueueService,
         private InvoiceService $invoiceService,
         private ProductShowcaseCatalogService $productShowcaseCatalogService,
+        private ProposalProductCategoryGuard $proposalProductCategoryGuard,
         ?OrderProductTreeNormalizer $treeNormalizer = null,
     ) {
         $this->request = $this->requestStack->getCurrentRequest();
@@ -98,6 +99,8 @@ class OrderProductService
             if (!$product instanceof Product) {
                 throw new \InvalidArgumentException('Product not found');
             }
+
+            $this->proposalProductCategoryGuard->assertOrderProductAllowed($order, $product);
 
             $quantity = (float) ($item['quantity'] ?? 0);
             $comment = $this->normalizeOrderProductComment($item['comment'] ?? null);
@@ -197,13 +200,32 @@ class OrderProductService
     public function prePersist(OrderProduct $orderProduct): void
     {
         $this->guardDirectOrderProductMutation($orderProduct);
+        $this->guardProposalProductCategory($orderProduct);
         $this->applyDefaultStatus($orderProduct);
     }
 
     public function preUpdate(OrderProduct $orderProduct): void
     {
         $this->guardDirectOrderProductMutation($orderProduct);
+        $this->guardProposalProductCategory($orderProduct);
         $this->applyDefaultStatus($orderProduct);
+    }
+
+    private function guardProposalProductCategory(OrderProduct $orderProduct): void
+    {
+        $order = $orderProduct->getOrder();
+        $product = $orderProduct->getProduct();
+
+        if (
+            !$order instanceof Order
+            || !$product instanceof Product
+            || $orderProduct->getOrderProduct() instanceof OrderProduct
+            || $orderProduct->getParentProduct() instanceof Product
+        ) {
+            return;
+        }
+
+        $this->proposalProductCategoryGuard->assertOrderProductAllowed($order, $product);
     }
 
     public function addSubproduct(OrderProduct $orderProduct, Product $product, ProductGroup $productGroup, $quantity): OrderProduct

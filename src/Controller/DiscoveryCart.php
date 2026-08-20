@@ -82,6 +82,7 @@ class DiscoveryCart
                         'provider' => $provider,
                         'status' => $status,
                         'app' => 'SHOP',
+                        'orderType' => OrderService::ORDER_TYPE_QUOTE,
                     ]);
                 }
 

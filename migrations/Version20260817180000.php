@@ -26,6 +26,11 @@ final class Version20260817180000 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
-        return;
+        // Reverse order of up(): drop indexes first, then columns.
+        // Data written into the new columns is intentionally discarded on rollback
+        // (columns are removed); that is the documented trade-off of this migration.
+        $this->addSql('DROP INDEX `order_fulfillment_type` ON `orders`');
+        $this->addSql('DROP INDEX `order_channel` ON `orders`');
+        $this->addSql('ALTER TABLE `orders` DROP COLUMN `operational_snapshot`, DROP COLUMN `pay_before_production`, DROP COLUMN `fulfillment_type`, DROP COLUMN `channel`');
     }
 }

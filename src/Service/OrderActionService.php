@@ -146,15 +146,27 @@ class OrderActionService
     private function resolveCancellationReason(Order $order, mixed $reasonId, ?People $company = null): ?Category
     {
         $normalizedReasonId = $this->normalizeOptionalNumericId($reasonId);
-        $reasonCompany = $this->getCancellationReasonCompany($order, $company);
-
-        if (!$normalizedReasonId || !$reasonCompany instanceof People) {
+        if (!$normalizedReasonId) {
             return null;
         }
 
-        $category = $this->entityManager->getRepository(Category::class)->findOneBy([
+        $reasonCompany = $this->getCancellationReasonCompany($order, $company);
+        $repository = $this->entityManager->getRepository(Category::class);
+
+        if ($reasonCompany instanceof People) {
+            $category = $repository->findOneBy([
+                'id' => $normalizedReasonId,
+                'company' => $reasonCompany,
+                'context' => self::ORDER_CANCELLATION_REASON_CONTEXT,
+            ]);
+            if ($category instanceof Category) {
+                return $category;
+            }
+        }
+
+        // Fallback: reason id is already scoped by the cancel-reasons list; accept by id+context.
+        $category = $repository->findOneBy([
             'id' => $normalizedReasonId,
-            'company' => $reasonCompany,
             'context' => self::ORDER_CANCELLATION_REASON_CONTEXT,
         ]);
 
@@ -456,10 +468,37 @@ class OrderActionService
 
     private function applyStatus(Order $order, string $realStatus, string $statusName, string $context): array
     {
-        $novoStatus = $this->statusService->discoveryStatus($realStatus, $statusName, $context);
+        $candidates = array_values(array_unique(array_filter([
+            $statusName,
+            $realStatus,
+            // Common PT-BR labels used in legacy status rows.
+            $realStatus === 'canceled' ? 'cancelado' : null,
+            $realStatus === 'canceled' ? 'Cancelado' : null,
+            $realStatus === 'closed' ? 'fechado' : null,
+            $realStatus === 'closed' ? 'Fechado' : null,
+            $realStatus === 'open' ? 'aberto' : null,
+            $realStatus === 'pending' ? 'pendente' : null,
+        ], static fn ($value) => is_string($value) && trim($value) !== '')));
+
+        $novoStatus = null;
+        $lastError = null;
+        foreach ($candidates as $candidateName) {
+            try {
+                $novoStatus = $this->statusService->discoveryStatus($realStatus, $candidateName, $context);
+                if ($novoStatus) {
+                    break;
+                }
+            } catch (\Throwable $e) {
+                $lastError = $e;
+            }
+        }
 
         if (!$novoStatus) {
-            return ['errno' => 1, 'errmsg' => 'Status não encontrado: ' . $realStatus];
+            $detail = $lastError instanceof \Throwable ? $lastError->getMessage() : '';
+            return [
+                'errno' => 1,
+                'errmsg' => 'Status não encontrado: ' . $realStatus . ($detail !== '' ? ' (' . $detail . ')' : ''),
+            ];
         }
 
         $order->setStatus($novoStatus);

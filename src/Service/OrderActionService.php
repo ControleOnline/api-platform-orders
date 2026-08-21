@@ -50,6 +50,32 @@ class OrderActionService
         return $normalized > 0 ? $normalized : null;
     }
 
+    /**
+     * Reattach People that may come detached from the security token / another
+     * EntityManager so Doctrine flush does not throw
+     * "A new entity was found through the relationship ... cascade persist".
+     */
+    private function reattachPeople(?People $people): ?People
+    {
+        if (!$people instanceof People) {
+            return null;
+        }
+
+        $id = $people->getId();
+        if (!$id) {
+            // Transient entity (unit tests / not yet persisted) — keep as provided.
+            return $people;
+        }
+
+        if ($this->entityManager->contains($people)) {
+            return $people;
+        }
+
+        $managed = $this->entityManager->getRepository(People::class)->find($id);
+
+        return $managed instanceof People ? $managed : $people;
+    }
+
     private function sanitizeActionPayload(array $payload): array
     {
         $sanitized = [];
@@ -78,8 +104,12 @@ class OrderActionService
 
     private function persistOrderAction(Order $order, string $action, array $payload = [], bool $remoteSync = true): void
     {
-        $otherInformations = $order->getOtherInformations(true);
-        if (!is_object($otherInformations)) {
+        $raw = $order->getOtherInformations(true);
+        if (is_object($raw)) {
+            $otherInformations = $raw;
+        } elseif (is_array($raw)) {
+            $otherInformations = (object) $raw;
+        } else {
             $otherInformations = (object) [];
         }
 
@@ -361,6 +391,10 @@ class OrderActionService
         if ($this->isTerminalOrder($order)) {
             return $this->buildTerminalOrderResponse();
         }
+
+        // Security token People may be detached; reattach before association + flush.
+        $canceledBy = $this->reattachPeople($canceledBy);
+        $company = $this->reattachPeople($company);
 
         $cancellationReason = $this->resolveCancellationReason($order, $reasonId, $company);
         $canceledById = $canceledBy instanceof People ? $canceledBy->getId() : null;

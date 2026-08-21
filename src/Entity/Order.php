@@ -622,14 +622,29 @@ class Order
     public function addOtherInformations($key, $value)
     {
         $otherInformations = $this->getOtherInformations(true);
+        if (!is_object($otherInformations)) {
+            $otherInformations = (object) [];
+        }
         $otherInformations->$key = $value;
-        $this->otherInformations = json_encode($otherInformations);
-        return $this;
+        return $this->setOtherInformations($otherInformations);
     }
 
     public function setOtherInformations($otherInformations)
     {
-        $this->otherInformations = json_encode($otherInformations);
+        // Column type is Doctrine "json": store PHP array/object, not a pre-encoded string
+        // (json_encode here would double-encode and break subsequent reads/writes).
+        if (is_string($otherInformations)) {
+            $decoded = json_decode($otherInformations, true);
+            $this->otherInformations = $decoded !== null ? $decoded : $otherInformations;
+            return $this;
+        }
+
+        if (is_object($otherInformations)) {
+            $this->otherInformations = json_decode(json_encode($otherInformations), true) ?: [];
+            return $this;
+        }
+
+        $this->otherInformations = $otherInformations;
         return $this;
     }
 

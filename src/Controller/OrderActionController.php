@@ -198,7 +198,21 @@ class OrderActionController extends AbstractController
                 'order_id' => $order->getId(),
                 'action' => $action,
                 'error' => $e->getMessage(),
+                'exception_class' => $e::class,
             ]);
+
+            $detail = trim((string) $e->getMessage());
+            // Keep the message short and actionable for the UI without leaking stack traces.
+            if ($detail !== '') {
+                $detail = preg_replace('/\s+/', ' ', $detail) ?? $detail;
+                if (strlen($detail) > 240) {
+                    $detail = substr($detail, 0, 237) . '...';
+                }
+                return [
+                    'errno' => 1,
+                    'errmsg' => sprintf('Falha ao executar acao %s: %s', $action, $detail),
+                ];
+            }
 
             return [
                 'errno' => 1,

@@ -19,6 +19,7 @@ class OrderInvoiceService
         private EntityManagerInterface $manager,
         private Security $security,
         private StatusService $statusService,
+        private OrderCommercialContextService $commercialContextService,
         private ?InvoiceService $invoiceService = null,
     ) {}
 
@@ -32,12 +33,20 @@ class OrderInvoiceService
             throw new \InvalidArgumentException('Order reference is required');
         }
 
+        // This service is the public OrderInvoice route. Every attempt to link
+        // or reprocess an invoice must pass the financial capability check,
+        // including idempotent repeats and same-tenant consolidation. Internal
+        // automatic settlement remains in InvoiceService, outside this route.
+        $this->commercialContextService->assertChargeAllowed($order);
+
         $invoice = $this->resolveInvoiceReference($invoiceData);
         $existingOrderInvoice = $this->findExistingOrderInvoice($order, $invoice);
         if ($existingOrderInvoice instanceof OrderInvoice) {
             $this->invoiceService?->payOrder($order);
             return $existingOrderInvoice;
         }
+
+        $this->assertInvoiceLinkAllowed($order, $invoice);
 
         $orderInvoice = new OrderInvoice();
         $orderInvoice->setOrder($order);
@@ -49,6 +58,30 @@ class OrderInvoiceService
         $this->invoiceService?->payOrder($order);
 
         return $orderInvoice;
+    }
+
+    private function assertInvoiceLinkAllowed(Order $order, Invoice $invoice): void
+    {
+        $existingLinks = [];
+        foreach ($invoice->getOrder() as $orderInvoice) {
+            if ($orderInvoice instanceof OrderInvoice) {
+                $existingLinks[] = $orderInvoice;
+            }
+        }
+
+        $targetProviderId = (int) ($order->getProvider()?->getId() ?? 0);
+        foreach ($existingLinks as $existingLink) {
+            $linkedProviderId = (int) ($existingLink->getOrder()?->getProvider()?->getId() ?? 0);
+            if (
+                $targetProviderId <= 0
+                || $linkedProviderId <= 0
+                || $linkedProviderId !== $targetProviderId
+            ) {
+                throw new \InvalidArgumentException(
+                    'Invoice nao pode ser vinculada a Order de outro tenant.'
+                );
+            }
+        }
     }
 
     public function createFromContent(?string $content): OrderInvoice

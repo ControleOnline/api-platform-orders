@@ -40,6 +40,7 @@ class OrderProductService
         private OrderProductQueueService $orderProductQueueService,
         private InvoiceService $invoiceService,
         private ProductShowcaseCatalogService $productShowcaseCatalogService,
+        private ProposalProductCategoryGuard $proposalProductCategoryGuard,
         ?OrderProductTreeNormalizer $treeNormalizer = null,
     ) {
         $this->request = $this->requestStack->getCurrentRequest();
@@ -98,6 +99,8 @@ class OrderProductService
             if (!$product instanceof Product) {
                 throw new \InvalidArgumentException('Product not found');
             }
+
+            $this->proposalProductCategoryGuard->assertOrderProductAllowed($order, $product);
 
             $quantity = (float) ($item['quantity'] ?? 0);
             $comment = $this->normalizeOrderProductComment($item['comment'] ?? null);

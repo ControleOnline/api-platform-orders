@@ -106,7 +106,7 @@ class OrderLoyaltyServiceTest extends TestCase
         self::assertSame(Order::ORDER_TYPE_FIDELITY, $createdCard->getOrderType());
         self::assertSame('open', $createdCard->getStatus()->getRealStatus());
 
-        $cardInfo = json_decode((string) $createdCard->getOtherInformations(), true, 512, JSON_THROW_ON_ERROR);
+        $cardInfo = json_decode(json_encode($createdCard->getOtherInformations()), true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(3, $cardInfo['loyalty_required_sales']);
         self::assertSame(40, $cardInfo['loyalty_gift_product_id']);
 
@@ -191,7 +191,7 @@ class OrderLoyaltyServiceTest extends TestCase
         self::assertSame(500, $sale->getMainOrderId());
         self::assertSame($card, $sale->getMainOrder());
         self::assertSame('open', $card->getStatus()->getRealStatus());
-        $cardInfo = json_decode((string) $card->getOtherInformations(), true, 512, JSON_THROW_ON_ERROR);
+        $cardInfo = json_decode(json_encode($card->getOtherInformations()), true, 512, JSON_THROW_ON_ERROR);
         self::assertArrayNotHasKey('loyalty_reward_order_id', $cardInfo);
         self::assertSame('{}', (string) $sale->getOtherInformations());
     }
@@ -387,7 +387,7 @@ class OrderLoyaltyServiceTest extends TestCase
         self::assertSame($card, $sale->getMainOrder());
         self::assertSame('closed', $card->getStatus()->getRealStatus());
 
-        $cardInfo = json_decode((string) $card->getOtherInformations(), true, 512, JSON_THROW_ON_ERROR);
+        $cardInfo = json_decode(json_encode($card->getOtherInformations()), true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(404, $cardInfo['loyalty_reward_order_id']);
         self::assertSame(40, $cardInfo['loyalty_reward_product_id']);
         self::assertNotEmpty($cardInfo['loyalty_reward_redeemed_at']);
@@ -483,7 +483,7 @@ class OrderLoyaltyServiceTest extends TestCase
         self::assertSame($card, $sale->getMainOrder());
         self::assertSame('closed', $card->getStatus()->getRealStatus());
 
-        $cardInfo = json_decode((string) $card->getOtherInformations(), true, 512, JSON_THROW_ON_ERROR);
+        $cardInfo = json_decode(json_encode($card->getOtherInformations()), true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(404, $cardInfo['loyalty_reward_order_id']);
         self::assertSame(47, $cardInfo['loyalty_reward_product_id']);
         self::assertNotEmpty($cardInfo['loyalty_reward_redeemed_at']);

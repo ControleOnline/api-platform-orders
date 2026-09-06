@@ -6,6 +6,7 @@ use ControleOnline\Entity\Invoice;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderInvoice;
 use ControleOnline\Service\InvoiceService;
+use ControleOnline\Service\OrderCommercialContextService;
 use ControleOnline\Service\OrderInvoiceService;
 use ControleOnline\Service\StatusService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -85,6 +86,7 @@ class OrderInvoiceServiceTest extends TestCase
             $entityManager,
             $this->createMock(TokenStorageInterface::class),
             $this->createMock(StatusService::class),
+            $this->createMock(OrderCommercialContextService::class),
             $invoiceService,
         );
 

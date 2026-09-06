@@ -9,7 +9,7 @@ use ControleOnline\Service\InvoiceService;
 use ControleOnline\Service\OrderInvoiceService;
 use ControleOnline\Service\StatusService;
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\Persistence\ObjectRepository;
+use Doctrine\ORM\EntityRepository;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 
@@ -21,21 +21,21 @@ class OrderInvoiceServiceTest extends TestCase
         $invoice = new Invoice();
         $invoice->setPrice(42.5);
 
-        $orderRepository = $this->createMock(ObjectRepository::class);
+        $orderRepository = $this->createMock(EntityRepository::class);
         $orderRepository
             ->expects(self::once())
             ->method('find')
             ->with(10)
             ->willReturn($order);
 
-        $invoiceRepository = $this->createMock(ObjectRepository::class);
+        $invoiceRepository = $this->createMock(EntityRepository::class);
         $invoiceRepository
             ->expects(self::once())
             ->method('find')
             ->with(20)
             ->willReturn($invoice);
 
-        $orderInvoiceRepository = $this->createMock(ObjectRepository::class);
+        $orderInvoiceRepository = $this->createMock(EntityRepository::class);
         $orderInvoiceRepository
             ->expects(self::once())
             ->method('findOneBy')
@@ -57,7 +57,7 @@ class OrderInvoiceServiceTest extends TestCase
                     Order::class => $orderRepository,
                     Invoice::class => $invoiceRepository,
                     OrderInvoice::class => $orderInvoiceRepository,
-                    default => $this->createMock(ObjectRepository::class),
+                    default => $this->createMock(EntityRepository::class),
                 };
             });
 

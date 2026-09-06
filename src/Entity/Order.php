@@ -37,6 +37,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use stdClass;
+use Symfony\Component\Validator\Constraints as Assert;
 
 #[ApiResource(
     operations: [
@@ -214,6 +215,28 @@ class Order
     public const APP_IFOOD = 'iFood';
     public const APP_FOOD99 = 'Food99';
     public const APP_MERCADO_LIVRE = 'MercadoLivre';
+    public const CHANNEL_POS = 'pos';
+    public const CHANNEL_SHOP = 'shop';
+    public const CHANNEL_TOTEM = 'totem';
+    public const CHANNEL_EXTERNAL = 'external';
+    public const CHANNELS = [
+        self::CHANNEL_POS,
+        self::CHANNEL_SHOP,
+        self::CHANNEL_TOTEM,
+        self::CHANNEL_EXTERNAL,
+    ];
+    public const FULFILLMENT_DINE_IN = 'dine_in';
+    public const FULFILLMENT_PICKUP = 'pickup';
+    public const FULFILLMENT_COUNTER = 'counter';
+    public const FULFILLMENT_DELIVERY = 'delivery';
+    public const FULFILLMENT_SHIPPING = 'shipping';
+    public const FULFILLMENT_TYPES = [
+        self::FULFILLMENT_DINE_IN,
+        self::FULFILLMENT_PICKUP,
+        self::FULFILLMENT_COUNTER,
+        self::FULFILLMENT_DELIVERY,
+        self::FULFILLMENT_SHIPPING,
+    ];
     public const ORDER_TYPE_CART = 'cart';
     public const ORDER_TYPE_QUOTE = 'quote';
     public const ORDER_TYPE_DELIVERY = 'delivery';
@@ -313,6 +336,26 @@ class Order
     #[ORM\Column(name: 'app', type: 'string', nullable: true)]
     #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order:write', 'order_invoice:read', 'tracking:read'])]
     private $app = 'POS';
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['channel' => 'exact'])]
+    #[ORM\Column(name: 'channel', type: 'string', length: 16, nullable: true)]
+    #[Assert\Choice(choices: self::CHANNELS)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'display:read', 'order:read', 'order_details:read', 'order:write', 'order_invoice:read', 'tracking:read'])]
+    private ?string $channel = null;
+
+    #[ApiFilter(filterClass: SearchFilter::class, properties: ['fulfillmentType' => 'exact'])]
+    #[ORM\Column(name: 'fulfillment_type', type: 'string', length: 16, nullable: true)]
+    #[Assert\Choice(choices: self::FULFILLMENT_TYPES)]
+    #[Groups(['order_product_queue:read', 'orders-queue:read', 'order:read', 'order_details:read', 'order:write', 'order_invoice:read', 'tracking:read'])]
+    private ?string $fulfillmentType = null;
+
+    #[ORM\Column(name: 'pay_before_production', type: 'boolean', nullable: true)]
+    #[Groups(['order:read', 'order_details:read', 'order_invoice:read', 'tracking:read'])]
+    private ?bool $payBeforeProduction = null;
+
+    #[ORM\Column(name: 'operational_snapshot', type: 'json', nullable: true)]
+    #[Groups(['order:read', 'order_details:read', 'order_invoice:read', 'tracking:read'])]
+    private ?array $operationalSnapshot = null;
 
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['externalCode' => 'exact'])]
     #[ORM\Column(name: 'external_code', type: 'string', length: 255, nullable: true)]
@@ -747,6 +790,61 @@ class Order
     public function getApp()
     {
         return $this->app;
+    }
+
+    public function setChannel(?string $channel): self
+    {
+        $normalizedChannel = strtolower(trim((string) $channel));
+        $this->channel = $normalizedChannel !== '' ? $normalizedChannel : null;
+
+        return $this;
+    }
+
+    public function getChannel(): ?string
+    {
+        return $this->channel;
+    }
+
+    public function setFulfillmentType(?string $fulfillmentType): self
+    {
+        $normalizedType = strtolower(trim((string) $fulfillmentType));
+        $this->fulfillmentType = $normalizedType !== '' ? $normalizedType : null;
+
+        return $this;
+    }
+
+    public function getFulfillmentType(): ?string
+    {
+        return $this->fulfillmentType;
+    }
+
+    public function setPayBeforeProduction(?bool $payBeforeProduction): self
+    {
+        $this->payBeforeProduction = $payBeforeProduction;
+
+        return $this;
+    }
+
+    public function getPayBeforeProduction(): ?bool
+    {
+        return $this->payBeforeProduction;
+    }
+
+    public function isPayBeforeProductionRequired(): bool
+    {
+        return $this->payBeforeProduction === true;
+    }
+
+    public function setOperationalSnapshot(?array $operationalSnapshot): self
+    {
+        $this->operationalSnapshot = $operationalSnapshot;
+
+        return $this;
+    }
+
+    public function getOperationalSnapshot(): ?array
+    {
+        return $this->operationalSnapshot;
     }
 
     public function setExternalCode($externalCode)

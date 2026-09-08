@@ -1042,7 +1042,7 @@ class OrderService
             && $order->getProvider() instanceof People;
     }
 
-    private function hasPendingFulfillment(Order $order): bool
+    public function hasPendingFulfillment(Order $order): bool
     {
         if ($this->hasPendingDelivery($order)) {
             return true;

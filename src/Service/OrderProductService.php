@@ -40,10 +40,11 @@ class OrderProductService
         private OrderProductQueueService $orderProductQueueService,
         private InvoiceService $invoiceService,
         private ProductShowcaseCatalogService $productShowcaseCatalogService,
-        private ProposalProductCategoryGuard $proposalProductCategoryGuard,
+        private ?ProposalProductCategoryGuard $proposalProductCategoryGuard = null,
         ?OrderProductTreeNormalizer $treeNormalizer = null,
     ) {
         $this->request = $this->requestStack->getCurrentRequest();
+        $this->proposalProductCategoryGuard ??= new ProposalProductCategoryGuard();
         $this->treeNormalizer = $treeNormalizer ?? new OrderProductTreeNormalizer();
         $this->treeConsolidator = new OrderProductTreeConsolidator(
             $this->manager,

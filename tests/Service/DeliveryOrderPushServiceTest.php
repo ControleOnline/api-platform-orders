@@ -64,7 +64,7 @@ class DeliveryOrderPushServiceTest extends TestCase
             ->with(
                 'fcm-token-1',
                 'Pedido #100 aguardando aceite',
-                'STORE: aceite a corrida para assumir a entrega.',
+                'Store: aceite a corrida para assumir a entrega.',
                 self::callback(static function (array $data): bool {
                     return ($data['event'] ?? null) === 'delivery.awaiting_acceptance'
                         && ($data['orderId'] ?? null) === '100'
@@ -148,7 +148,7 @@ class DeliveryOrderPushServiceTest extends TestCase
             ->with(
                 'fcm-token-2',
                 'Pedido #100 aguardando aceite',
-                'STORE: aceite a corrida para assumir a entrega.',
+                'Store: aceite a corrida para assumir a entrega.',
                 self::isType('array')
             );
 

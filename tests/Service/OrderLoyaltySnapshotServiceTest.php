@@ -509,7 +509,7 @@ class OrderLoyaltySnapshotServiceTest extends TestCase
         );
 
         self::assertSame([31458, 2], array_column(array_column($cards, 'provider'), 'id'));
-        self::assertSame(['MT - SORRISO', 'MT - CUIABA'], array_column(array_column($cards, 'provider'), 'alias'));
+        self::assertSame(['MT - Sorriso', 'MT - Cuiaba'], array_column(array_column($cards, 'provider'), 'alias'));
         self::assertSame([5, 5], array_column($cards, 'requiredSales'));
         self::assertSame([[701, 702, 703], [801]], array_map(
             static fn (array $card): array => array_column($card['stamps'], 'id'),

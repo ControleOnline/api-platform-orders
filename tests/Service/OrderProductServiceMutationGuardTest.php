@@ -177,6 +177,7 @@ class OrderProductServiceMutationGuardTest extends TestCase
             $this->createMock(OrderProductQueueService::class),
             $this->createMock(InvoiceService::class),
             $this->createMock(ProductShowcaseCatalogService::class),
+            $this->createMock(\ControleOnline\Service\ProposalProductCategoryGuard::class),
         );
     }
 

@@ -5,6 +5,7 @@ namespace ControleOnline\Service;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderProduct;
 use ControleOnline\Entity\Product;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 /**
  * Shared private helpers for OrderProductService (api-platform-orders#5 modularization).

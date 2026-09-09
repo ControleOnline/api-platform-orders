@@ -34,8 +34,8 @@ class DiscoveryCart
              * @var \ControleOnline\Entity\People
              */
             $user = $this->security->getToken()?->getUser();
-            $clientId = $request->get('client');
-            $providerId = $request->get('provider');
+            $clientId = $request->query->get('client');
+            $providerId = $request->query->get('provider');
 
             if (!$clientId) {
                 return new JsonResponse(['error' => 'Client é obrigatório'], Response::HTTP_BAD_REQUEST);

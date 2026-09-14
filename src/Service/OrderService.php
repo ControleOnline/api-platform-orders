@@ -1261,6 +1261,22 @@ class OrderService
         return (int) $normalized;
     }
 
+    /**
+     * TEMPORARY (#797) — allow direct status transition to paid/pago for mark-as-paid list flow.
+     */
+    private function isTemporaryMarkAsPaidStatusUpdateAllowed(int $requestedStatusId): bool
+    {
+        $status = $this->manager->getRepository(\ControleOnline\Entity\Status::class)->find($requestedStatusId);
+        if (!$status) {
+            return false;
+        }
+        $name = strtolower(trim((string) $status->getStatus()));
+        $real = strtolower(trim((string) $status->getRealStatus()));
+
+        return in_array($name, ['paid', 'pago'], true)
+            || ($real === 'closed' && $name === 'paid');
+    }
+
     private function clearAnonymousCartExternalCode(Order $order): void
     {
         $externalCode = (string) ($order->getExternalCode() ?? '');

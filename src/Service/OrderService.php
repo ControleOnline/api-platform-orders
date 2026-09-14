@@ -440,6 +440,20 @@ class OrderService
             $sanitizedPayload['orderProducts'],
         );
 
+        // TEMPORARY (#797): apply status when target is paid/pago (assert already allowed).
+        if (array_key_exists('status', $payload)) {
+            $requestedStatusId = $this->resolvePayloadEntityId($payload['status']);
+            if (
+                $requestedStatusId !== null
+                && $this->isTemporaryMarkAsPaidStatusUpdateAllowed($requestedStatusId)
+            ) {
+                $statusEntity = $this->manager->getRepository(\ControleOnline\Entity\Status::class)->find($requestedStatusId);
+                if ($statusEntity) {
+                    $order->setStatus($statusEntity);
+                }
+            }
+        }
+
         if (!empty($sanitizedPayload)) {
             $this->serializer->deserialize(
                 json_encode(

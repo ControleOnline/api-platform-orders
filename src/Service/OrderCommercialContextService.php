@@ -127,6 +127,14 @@ class OrderCommercialContextService
             return;
         }
 
+        // TEMPORARY (#797): allow local charge without DeviceConfig POS capability
+        // so list "Marcar como pago" can POST /invoices. REVERT when device
+        // charge capability is configured for Manager/web contexts or a
+        // dedicated mark-as-paid action bypasses generic invoice create.
+        if ($normalizedMode === self::CHARGE_MODE_LOCAL) {
+            return;
+        }
+
         throw new AccessDeniedHttpException(
             $normalizedMode === self::CHARGE_MODE_LOCAL
                 ? 'Este contexto nao possui capacidade para cobranca local.'

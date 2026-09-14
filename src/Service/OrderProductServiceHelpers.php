@@ -91,7 +91,10 @@ trait OrderProductServiceHelpers
         }
 
         // Importacoes e recalculos internos reutilizam este service, entao a trava so vale para rotas diretas.
-        if (!$this->isMutableCartOrder($order)) {
+        // TEMPORARY (#797): allow product mutation on non-cart orders so
+        // "Marcar como pago" can attach a single item + invoice. REVERT when
+        // mark-as-paid has a dedicated backend action that does not POST /order_products.
+        if (!$this->isMutableCartOrder($order) && !$this->isTemporaryMarkAsPaidMutationAllowed($order)) {
             throw new BadRequestHttpException(
                 'Produtos, quantidades e remocoes so podem ser alterados enquanto o pedido estiver em cart.'
             );
@@ -129,6 +132,18 @@ trait OrderProductServiceHelpers
 
         return OrderService::ORDER_TYPE_CART === $orderType
             && !in_array($realStatus, ['closed', 'canceled', 'cancelled'], true);
+    }
+
+    /**
+     * TEMPORARY (#797) — allow non-cart order product mutations while mark-as-paid
+     * still uses POST /order_products. Must be removed when a dedicated charge
+     * endpoint is introduced. Do not treat as permanent product policy.
+     */
+    private function isTemporaryMarkAsPaidMutationAllowed(Order $order): bool
+    {
+        $realStatus = strtolower(trim((string) $order->getStatus()?->getRealStatus()));
+
+        return !in_array($realStatus, ['closed', 'canceled', 'cancelled'], true);
     }
 
 }

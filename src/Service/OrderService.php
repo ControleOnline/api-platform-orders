@@ -770,9 +770,13 @@ class OrderService
 
             $currentStatusId = $this->resolvePayloadEntityId($order->getStatus()?->getId());
             if ($currentStatusId !== $requestedStatusId) {
-                throw new BadRequestHttpException(
-                    'Status do pedido nao pode ser alterado por PUT. Use as acoes do pedido.'
-                );
+                // TEMPORARY (#797): allow PUT status → paid so list "Marcar como pago"
+                // can reflect PAGO. REVERT when mark-as-paid has a dedicated action.
+                if (!$this->isTemporaryMarkAsPaidStatusUpdateAllowed($requestedStatusId)) {
+                    throw new BadRequestHttpException(
+                        'Status do pedido nao pode ser alterado por PUT. Use as acoes do pedido.'
+                    );
+                }
             }
         }
 

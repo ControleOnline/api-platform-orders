@@ -15,12 +15,12 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
-use Symfony\Component\Security\Http\Attribute\Security as SecurityAttribute;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
  * POST /orders/{orderId}/mark-as-paid — app-community#797
  */
-#[SecurityAttribute("is_granted('ROLE_HUMAN')")]
+#[IsGranted('ROLE_HUMAN')]
 class MarkOrderAsPaidController extends AbstractController
 {
     public function __construct(
@@ -65,10 +65,22 @@ class MarkOrderAsPaidController extends AbstractController
                 'message' => $e->getMessage(),
             ], Response::HTTP_BAD_REQUEST);
         } catch (\Throwable $e) {
-            return $this->json(
-                $this->hydratorService->error($e),
-                Response::HTTP_INTERNAL_SERVER_ERROR
-            );
+            $body = [
+                'outcome' => 'error',
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : 'Internal Server Error',
+                'detail' => $e->getMessage(),
+                'exception' => $e::class,
+            ];
+            try {
+                $hydrated = $this->hydratorService->error($e);
+                if (is_array($hydrated)) {
+                    $body = array_merge($body, $hydrated);
+                }
+            } catch (\Throwable) {
+                // keep body
+            }
+
+            return $this->json($body, Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 

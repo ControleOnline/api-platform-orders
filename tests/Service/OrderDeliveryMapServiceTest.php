@@ -80,7 +80,7 @@ class OrderDeliveryMapServiceTest extends TestCase
         self::assertSame('', $payload['androidGoogleMapsApiKey']);
         self::assertArrayNotHasKey('googleMapsApiKey', $payload);
         self::assertArrayNotHasKey('date', $payload);
-        self::assertSame('RUA TESTE, 123 - CENTRO - SAO PAULO / SP - 01234567', $payload['provider']['address']['formatted']);
+        self::assertSame('Rua Teste, 123 - Centro - Sao Paulo / SP - 01234567', $payload['provider']['address']['formatted']);
         self::assertSame(-23.55, $payload['provider']['address']['latitude']);
         self::assertSame(-46.63, $payload['provider']['address']['longitude']);
         self::assertFalse($payload['rules']['closedDateFilter']);
@@ -113,8 +113,8 @@ class OrderDeliveryMapServiceTest extends TestCase
         self::assertSame('Food99', $delivery['app']);
         self::assertSame('570002', $delivery['displayCode']);
         self::assertSame('way', $delivery['status']['status']);
-        self::assertSame('PAULA CLIENTE', $delivery['client']['name']);
-        self::assertSame('RUA TESTE, 123 - CENTRO - SAO PAULO / SP - 01234567', $delivery['address']['formatted']);
+        self::assertSame('Paula Cliente', $delivery['client']['name']);
+        self::assertSame('Rua Teste, 123 - Centro - Sao Paulo / SP - 01234567', $delivery['address']['formatted']);
         self::assertSame(-23.55, $delivery['address']['latitude']);
         self::assertSame(-46.63, $delivery['address']['longitude']);
     }

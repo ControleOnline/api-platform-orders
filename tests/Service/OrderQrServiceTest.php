@@ -131,7 +131,7 @@ class OrderQrServiceTest extends TestCase
     public function testResolveExpiredTokenDenied(): void
     {
         $context = new OrderQrContext();
-        $context->setTokenHash($this->service->hashToken('tok'));
+        $context->setTokenHash($this->service->hashToken('tok-123456789012'));
         $context->setStatus(OrderQrContext::STATUS_ACTIVE);
         $context->setExpiresAt(new \DateTime('-1 hour'));
         $context->setProvider($this->makePeople(1));
@@ -140,26 +140,26 @@ class OrderQrServiceTest extends TestCase
         $this->em->expects($this->once())->method('flush');
 
         $this->expectException(AccessDeniedHttpException::class);
-        $this->service->resolve('tok');
+        $this->service->resolve('tok-123456789012');
     }
 
     public function testResolveRevokedTokenDenied(): void
     {
         $context = new OrderQrContext();
-        $context->setTokenHash($this->service->hashToken('tok'));
+        $context->setTokenHash($this->service->hashToken('tok-123456789012'));
         $context->setStatus(OrderQrContext::STATUS_REVOKED);
         $context->setProvider($this->makePeople(1));
 
         $this->contextRepo->method('findOneByTokenHash')->willReturn($context);
 
         $this->expectException(AccessDeniedHttpException::class);
-        $this->service->resolve('tok');
+        $this->service->resolve('tok-123456789012');
     }
 
     public function testResolveValidReturnsPublicContextWithoutIds(): void
     {
         $context = new OrderQrContext();
-        $context->setTokenHash($this->service->hashToken('good-token'));
+        $context->setTokenHash($this->service->hashToken('good-token-123456'));
         $context->setStatus(OrderQrContext::STATUS_ACTIVE);
         $context->setPurpose(OrderQrContext::PURPOSE_PERMANENT);
         $context->setLinkType(OrderQrContext::LINK_TABLE);
@@ -169,7 +169,7 @@ class OrderQrServiceTest extends TestCase
 
         $this->contextRepo->method('findOneByTokenHash')->willReturn($context);
 
-        $public = $this->service->resolve('good-token');
+        $public = $this->service->resolve('good-token-123456');
 
         $this->assertSame('permanent', $public['purpose']);
         $this->assertSame('table', $public['linkType']);
@@ -189,7 +189,7 @@ class OrderQrServiceTest extends TestCase
     {
         $provider = $this->makePeople(5);
         $context = new OrderQrContext();
-        $context->setTokenHash($this->service->hashToken('none-token'));
+        $context->setTokenHash($this->service->hashToken('none-token-123456'));
         $context->setStatus(OrderQrContext::STATUS_ACTIVE);
         $context->setPurpose(OrderQrContext::PURPOSE_PERMANENT);
         $context->setLinkType(OrderQrContext::LINK_NONE);
@@ -211,7 +211,7 @@ class OrderQrServiceTest extends TestCase
         $this->em->method('flush');
 
         $result = $this->service->consume([
-            'token' => 'none-token',
+            'token' => 'none-token-123456',
             'idempotencyKey' => 'idem-none-1',
         ]);
 
@@ -228,7 +228,7 @@ class OrderQrServiceTest extends TestCase
         $root = $this->makeOrder(50, $provider, 'T-9');
 
         $context = new OrderQrContext();
-        $context->setTokenHash($this->service->hashToken('sess'));
+        $context->setTokenHash($this->service->hashToken('sess-123456789012'));
         $context->setStatus(OrderQrContext::STATUS_ACTIVE);
         $context->setPurpose(OrderQrContext::PURPOSE_SESSION);
         $context->setLinkType(OrderQrContext::LINK_TABLE);
@@ -241,7 +241,7 @@ class OrderQrServiceTest extends TestCase
         $this->consumeRepo->method('findOneByIdempotencyKey')->willReturn(null);
 
         $this->expectException(AccessDeniedHttpException::class);
-        $this->service->consume(['token' => 'sess', 'idempotencyKey' => 'k1']);
+        $this->service->consume(['token' => 'sess-123456789012', 'idempotencyKey' => 'k1']);
     }
 
     public function testConsumeIdempotentReplayReturnsSameOrder(): void
@@ -278,7 +278,7 @@ class OrderQrServiceTest extends TestCase
     {
         $provider = $this->makePeople(3);
         $context = new OrderQrContext();
-        $context->setTokenHash($this->service->hashToken('perm'));
+        $context->setTokenHash($this->service->hashToken('perm-123456789012'));
         $context->setStatus(OrderQrContext::STATUS_ACTIVE);
         $context->setPurpose(OrderQrContext::PURPOSE_PERMANENT);
         $context->setLinkType(OrderQrContext::LINK_TABLE);
@@ -301,7 +301,7 @@ class OrderQrServiceTest extends TestCase
         $this->em->method('flush');
 
         $result = $this->service->consume([
-            'token' => 'perm',
+            'token' => 'perm-123456789012',
             'idempotencyKey' => 'idem-perm-1',
         ]);
 

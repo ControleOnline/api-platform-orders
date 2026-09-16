@@ -315,7 +315,8 @@ class OrderQrService
         if (method_exists($order, 'setChannel')) {
             $order->setChannel('shop');
         }
-        $order->setMainOrder(null);
+        // An independent cart intentionally has no main order. The entity
+        // setter accepts only concrete Order instances, so leave it unset.
 
         // Prefer starting as cart/open via OrderService when available
         if (method_exists($this->orderService, 'shouldStartAsCart')) {
@@ -352,7 +353,6 @@ class OrderQrService
         if (method_exists($order, 'setChannel')) {
             $order->setChannel('shop');
         }
-        $order->setMainOrder(null);
         // unique external code for anonymous cart
         $order->setExternalCode('shop-qr:' . bin2hex(random_bytes(8)));
 

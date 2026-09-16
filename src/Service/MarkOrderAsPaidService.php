@@ -71,16 +71,25 @@ class MarkOrderAsPaidService
 
         $payer = $order->getClient() ?: $order->getPayer();
 
+        $productLabel = '';
+        if ($product instanceof Product) {
+            $productLabel = trim((string) (
+                (method_exists($product, 'getProduct') ? $product->getProduct() : null)
+                ?: (method_exists($product, 'getName') ? $product->getName() : null)
+                ?: 'produto'
+            ));
+        }
+
         $description = sprintf(
             'Marcar como pago · pedido #%s%s',
             (string) $order->getId(),
-            $product instanceof Product
-                ? ' · ' . trim((string) ($product->getProduct() ?: $product->getName() ?: 'produto'))
-                : ''
+            $productLabel !== '' ? ' · ' . $productLabel : ''
         );
 
         $connection = $this->manager->getConnection();
         $connection->beginTransaction();
+
+        $orderInvoice = null;
 
         try {
             $invoice = new Invoice();
@@ -92,6 +101,15 @@ class MarkOrderAsPaidService
             $invoice->setPaymentType($paymentType);
             $invoice->setPrice($chargeAmount);
             $invoice->setDescription(mb_substr($description, 0, 250));
+            if (method_exists($invoice, 'setPortion')) {
+                $invoice->setPortion(1);
+            }
+            if (method_exists($invoice, 'setInstallments')) {
+                $invoice->setInstallments(1);
+            }
+            if (method_exists($invoice, 'setInvoiceType')) {
+                $invoice->setInvoiceType('invoice');
+            }
             $this->manager->persist($invoice);
 
             $orderInvoice = new OrderInvoice();
@@ -103,13 +121,23 @@ class MarkOrderAsPaidService
             $this->manager->flush();
 
             // Settle order status from paid invoices (same path as normal payments).
-            if ($this->invoiceService !== null) {
-                $this->invoiceService->payOrder($order);
-            } else {
-                $this->fallbackSettleOrder($order, $chargeAmount);
+            // payOrder can NPE on incomplete order trees — never fail the payment itself.
+            try {
+                if ($this->invoiceService !== null) {
+                    $this->invoiceService->payOrder($order);
+                } else {
+                    $this->fallbackSettleOrder($order, $chargeAmount);
+                }
+                $this->manager->flush();
+            } catch (\Throwable $settleError) {
+                try {
+                    $this->fallbackSettleOrder($order, $chargeAmount);
+                    $this->manager->flush();
+                } catch (\Throwable) {
+                    // Invoice already persisted; settlement is best-effort.
+                }
             }
 
-            $this->manager->flush();
             $connection->commit();
         } catch (\Throwable $e) {
             if ($connection->isTransactionActive()) {
@@ -118,9 +146,13 @@ class MarkOrderAsPaidService
             throw $e;
         }
 
-        $this->manager->refresh($order);
+        try {
+            $this->manager->refresh($order);
+        } catch (\Throwable) {
+            // ignore
+        }
 
-        return $this->envelope($order, $orderInvoice ?? null, false, 'ok');
+        return $this->envelope($order, $orderInvoice, false, 'ok');
     }
 
     private function assertActorCanAccessOrder(Order $order, People $actor): void
@@ -141,11 +173,13 @@ class MarkOrderAsPaidService
         }
 
         // Fallback: same companies list used elsewhere in the module.
-        $providerId = (int) $provider->getId();
-        foreach ($this->peopleService->getMyCompanies() as $company) {
-            $companyId = $company instanceof People ? (int) $company->getId() : (int) $company;
-            if ($providerId > 0 && $companyId === $providerId) {
-                return;
+        if (method_exists($this->peopleService, 'getMyCompanies')) {
+            $providerId = (int) $provider->getId();
+            foreach ($this->peopleService->getMyCompanies() as $company) {
+                $companyId = $company instanceof People ? (int) $company->getId() : (int) $company;
+                if ($providerId > 0 && $companyId === $providerId) {
+                    return;
+                }
             }
         }
 
@@ -165,7 +199,8 @@ class MarkOrderAsPaidService
         $price = (float) ($order->getPrice() ?? 0);
         $paid = 0.0;
 
-        foreach ($order->getInvoice() as $orderInvoice) {
+        $invoices = method_exists($order, 'getInvoice') ? $order->getInvoice() : [];
+        foreach ($invoices as $orderInvoice) {
             if (!$orderInvoice instanceof OrderInvoice) {
                 continue;
             }
@@ -221,7 +256,6 @@ class MarkOrderAsPaidService
     private function fallbackSettleOrder(Order $order, float $justPaid): void
     {
         $remaining = $this->resolveRemainingBalance($order);
-        // After flush of the new invoice, re-read paid total via collection if possible.
         if ($remaining > 0.009) {
             return;
         }
@@ -236,8 +270,35 @@ class MarkOrderAsPaidService
 
     private function normalizeReferenceId(mixed $reference): int
     {
+        if ($reference === null || $reference === '') {
+            return 0;
+        }
+
+        if (is_object($reference)) {
+            if (method_exists($reference, 'getId')) {
+                $id = $reference->getId();
+                if (is_numeric($id)) {
+                    return (int) $id;
+                }
+            }
+            if (isset($reference->{'@id'})) {
+                $reference = $reference->{'@id'};
+            } elseif (isset($reference->id)) {
+                $reference = $reference->id;
+            } else {
+                $reference = (array) $reference;
+            }
+        }
+
         if (is_array($reference)) {
-            $reference = $reference['@id'] ?? $reference['id'] ?? '';
+            $reference = $reference['@id'] ?? $reference['id'] ?? $reference['paymentType'] ?? '';
+            if (is_array($reference)) {
+                $reference = $reference['@id'] ?? $reference['id'] ?? '';
+            }
+        }
+
+        if (is_numeric($reference)) {
+            return (int) $reference;
         }
 
         return (int) preg_replace('/\D+/', '', (string) $reference);

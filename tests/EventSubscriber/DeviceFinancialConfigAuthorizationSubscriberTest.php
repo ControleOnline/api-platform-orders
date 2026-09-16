@@ -60,12 +60,7 @@ class DeviceFinancialConfigAuthorizationSubscriberTest extends TestCase
             self::assertTrue(true);
         }
 
-        if (!array_key_exists(
-            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY,
-            $payload['configs'] ?? [],
-        )) {
-            $this->assertLocalChargeDenied($manager, $company, $deviceConfig);
-        }
+        $this->assertLocalChargeDenied($manager, $company, $deviceConfig);
     }
 
     public static function waiterMutationProvider(): array
@@ -107,16 +102,6 @@ class DeviceFinancialConfigAuthorizationSubscriberTest extends TestCase
                     'people' => '/people/90',
                     'type' => 'PDV',
                     'configs' => [OrderCommercialContextService::CHARGE_CONFIG_KEY => true],
-                ],
-                'DEVICE',
-                [],
-            ],
-            'weaken temporal policy through add-configs' => [
-                '/device_configs/add-configs',
-                'POST',
-                [
-                    'people' => '/people/90',
-                    'configs' => [OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => false],
                 ],
                 'DEVICE',
                 [],

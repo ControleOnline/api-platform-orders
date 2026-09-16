@@ -20,7 +20,6 @@ class DeviceFinancialConfigAuthorizationSubscriber implements EventSubscriberInt
     private const PROTECTED_DEVICE_TYPES = ['PDV', 'MANAGER'];
     private const PROTECTED_CONFIG_KEYS = [
         OrderCommercialContextService::CHARGE_CONFIG_KEY,
-        OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY,
     ];
 
     public function __construct(

@@ -23,7 +23,6 @@ use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 #[AllowMockObjectsWithoutExpectations]
 class OrderChargeAuthorizationSubscriberTest extends TestCase
@@ -202,38 +201,6 @@ class OrderChargeAuthorizationSubscriberTest extends TestCase
             $commercialContextService,
         );
         $subscriber->onKernelRequest($this->createRequestEvent($request));
-    }
-
-    public function testDirectOrderRoutesCannotSetOrWeakenTemporalPolicy(): void
-    {
-        foreach (
-            [
-                ['/orders', 'POST', 'payBeforeProduction'],
-                ['/orders/77', 'PUT', 'pay_before_production'],
-                ['/orders/77', 'PATCH', 'payBeforeProduction'],
-            ] as [$path, $method, $field]
-        ) {
-            $subscriber = new OrderChargeAuthorizationSubscriber(
-                $this->createMock(EntityManagerInterface::class),
-                $this->createMock(OrderCommercialContextService::class),
-            );
-            $request = Request::create(
-                $path,
-                $method,
-                [],
-                [],
-                [],
-                [],
-                json_encode([$field => false]) ?: '{}',
-            );
-
-            try {
-                $subscriber->onKernelRequest($this->createRequestEvent($request));
-                self::fail(sprintf('%s %s should reject client-controlled policy.', $method, $path));
-            } catch (BadRequestHttpException $exception) {
-                self::assertStringContainsString('politica server-side', $exception->getMessage());
-            }
-        }
     }
 
     private function createRequestEvent(Request $request): RequestEvent

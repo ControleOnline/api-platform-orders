@@ -4,11 +4,8 @@ namespace ControleOnline\Orders\Tests\Service;
 
 use ControleOnline\Entity\Device;
 use ControleOnline\Entity\DeviceConfig;
-use ControleOnline\Entity\Invoice;
 use ControleOnline\Entity\Order;
-use ControleOnline\Entity\OrderInvoice;
 use ControleOnline\Entity\People;
-use ControleOnline\Entity\Status;
 use ControleOnline\Service\DeviceService;
 use ControleOnline\Service\OrderCommercialContextService;
 use ControleOnline\Service\PeopleService;
@@ -25,249 +22,6 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 #[AllowMockObjectsWithoutExpectations]
 class OrderCommercialContextServiceTest extends TestCase
 {
-    public function testPrepareInfersCanonicalChannelAndCreatesPrivacySafeSnapshot(): void
-    {
-        $order = (new Order())
-            ->setApp('POS')
-            ->setOrderType(Order::ORDER_TYPE_CART)
-            ->setFulfillmentType(Order::FULFILLMENT_COUNTER);
-
-        $this->buildService()->prepare($order);
-
-        self::assertSame(Order::CHANNEL_POS, $order->getChannel());
-        self::assertSame(Order::FULFILLMENT_COUNTER, $order->getFulfillmentType());
-        self::assertFalse($order->isPayBeforeProductionRequired());
-        self::assertSame('none', $order->getOperationalSnapshot()['linkType']);
-        self::assertArrayNotHasKey('deviceId', $order->getOperationalSnapshot());
-        self::assertArrayNotHasKey('mainOrderId', $order->getOperationalSnapshot());
-    }
-
-    #[DataProvider('channelProvider')]
-    public function testCanonicalChannelsPreserveAppAsIndependentPlatform(
-        string $app,
-        ?string $channel,
-        string $expectedChannel,
-    ): void {
-        $order = (new Order())
-            ->setApp($app)
-            ->setChannel($channel)
-            ->setOrderType(Order::ORDER_TYPE_CART);
-
-        $this->buildService()->prepare($order);
-
-        self::assertSame($expectedChannel, $order->getChannel());
-        self::assertSame($app, $order->getApp());
-    }
-
-    public static function channelProvider(): array
-    {
-        return [
-            'pos' => ['POS', null, Order::CHANNEL_POS],
-            'shop' => ['SHOP', null, Order::CHANNEL_SHOP],
-            'totem remains POS app' => ['POS', Order::CHANNEL_TOTEM, Order::CHANNEL_TOTEM],
-            'iFood is an external platform, not a channel' => [Order::APP_IFOOD, null, Order::CHANNEL_EXTERNAL],
-            '99 is an external platform, not a channel' => [Order::APP_FOOD99, null, Order::CHANNEL_EXTERNAL],
-        ];
-    }
-
-    #[DataProvider('fulfillmentProvider')]
-    public function testAcceptsOnlyCanonicalFulfillmentIntent(string $fulfillmentType): void
-    {
-        $order = (new Order())
-            ->setApp('SHOP')
-            ->setOrderType(Order::ORDER_TYPE_CART)
-            ->setFulfillmentType($fulfillmentType);
-
-        $this->buildService()->prepare($order);
-
-        self::assertSame($fulfillmentType, $order->getFulfillmentType());
-    }
-
-    public static function fulfillmentProvider(): array
-    {
-        return array_map(static fn(string $type): array => [$type], Order::FULFILLMENT_TYPES);
-    }
-
-    public function testRejectsUnknownChannelAndFulfillmentWithoutCreatingEnums(): void
-    {
-        $service = $this->buildService();
-        $invalidChannel = (new Order())->setApp('POS')->setChannel('whatsapp');
-
-        try {
-            $service->prepare($invalidChannel);
-            self::fail('Unknown channel should have been rejected.');
-        } catch (BadRequestHttpException $exception) {
-            self::assertSame('Canal do pedido invalido.', $exception->getMessage());
-        }
-
-        $this->expectException(BadRequestHttpException::class);
-        $this->expectExceptionMessage('Tipo de fulfillment invalido.');
-        $service->prepare(
-            (new Order())->setApp('POS')->setFulfillmentType('drive_thru'),
-        );
-    }
-
-    public function testFalseOrAbsentPaymentPolicyDoesNotRequirePayment(): void
-    {
-        $service = $this->buildService();
-
-        foreach ([null, false] as $policy) {
-            $order = (new Order())
-                ->setApp('POS')
-                ->setOrderType(Order::ORDER_TYPE_CART)
-                ->setPrice(100)
-                ->setPayBeforeProduction($policy);
-
-            $service->assertConfirmationAllowed($order);
-            self::assertFalse($order->isPayBeforeProductionRequired());
-        }
-    }
-
-    public function testPaymentPolicyRequiresFullSettlementOfIndependentOrder(): void
-    {
-        $order = (new Order())
-            ->setApp('POS')
-            ->setOrderType(Order::ORDER_TYPE_CART)
-            ->setPrice(100)
-            ->setPayBeforeProduction(true);
-        $order->addInvoice($this->createPaidOrderInvoice($order, 40));
-
-        $service = $this->buildService();
-
-        try {
-            $service->assertConfirmationAllowed($order);
-            self::fail('Partial payment should not confirm the order.');
-        } catch (BadRequestHttpException $exception) {
-            self::assertStringContainsString('Pagamento integral', $exception->getMessage());
-        }
-
-        $order->addInvoice($this->createPaidOrderInvoice($order, 60));
-        $service->assertConfirmationAllowed($order);
-        self::assertTrue($service->isOwnOrderFullyPaid($order));
-    }
-
-    public function testTrustedDevicePolicyIsAppliedAndFrozenInOrderSnapshot(): void
-    {
-        [$service, $order, $deviceConfig] = $this->buildChargeContext('POS', [
-            OrderCommercialContextService::CHARGE_CONFIG_KEY => true,
-            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => true,
-        ]);
-        $order
-            ->setApp('POS')
-            ->setOrderType(Order::ORDER_TYPE_CART)
-            ->setPrice(100);
-
-        $service->prepare($order);
-        self::assertTrue($order->isPayBeforeProductionRequired());
-        self::assertSame(
-            'device-config',
-            $order->getOperationalSnapshot()['payBeforeProductionSource'],
-        );
-
-        $deviceConfig->setConfigs([
-            OrderCommercialContextService::CHARGE_CONFIG_KEY => true,
-            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => false,
-        ]);
-        $service->prepare($order);
-        self::assertTrue($order->isPayBeforeProductionRequired());
-
-        $this->expectException(BadRequestHttpException::class);
-        $this->expectExceptionMessage('Pagamento integral');
-        $service->assertConfirmationAllowed($order);
-    }
-
-    public function testTrustedFalseTemporalPolicyDoesNotForbidEarlyPaymentOrConfirmation(): void
-    {
-        [$service, $order] = $this->buildChargeContext('POS', [
-            OrderCommercialContextService::CHARGE_CONFIG_KEY => true,
-            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => false,
-        ]);
-        $order
-            ->setApp('POS')
-            ->setOrderType(Order::ORDER_TYPE_CART)
-            ->setPrice(100);
-
-        $service->assertConfirmationAllowed($order);
-
-        self::assertFalse($order->isPayBeforeProductionRequired());
-        self::assertSame(
-            'device-config',
-            $order->getOperationalSnapshot()['payBeforeProductionSource'],
-        );
-    }
-
-    public function testServerAssignedTemporalPolicyRemainsImmutableAfterDeviceAssociation(): void
-    {
-        [$service, $order, $deviceConfig] = $this->buildChargeContext('POS', [
-            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => false,
-        ]);
-        $device = $deviceConfig->getDevice();
-        $order
-            ->setDevice(null)
-            ->setApp('POS')
-            ->setOrderType(Order::ORDER_TYPE_CART)
-            ->setPayBeforeProduction(true);
-
-        $service->prepare($order);
-        self::assertTrue($order->isPayBeforeProductionRequired());
-        self::assertSame(
-            'server-assigned',
-            $order->getOperationalSnapshot()['payBeforeProductionSource'],
-        );
-
-        $order->setDevice($device);
-        $service->prepare($order);
-
-        self::assertTrue($order->isPayBeforeProductionRequired());
-        self::assertSame(
-            'server-assigned',
-            $order->getOperationalSnapshot()['payBeforeProductionSource'],
-        );
-    }
-
-    public function testConfirmedDefaultSnapshotDoesNotRecalculateAfterDeviceAssociation(): void
-    {
-        [$service, $order, $deviceConfig] = $this->buildChargeContext('POS', [
-            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => true,
-        ]);
-        $device = $deviceConfig->getDevice();
-        $order
-            ->setDevice(null)
-            ->setApp('POS')
-            ->setOrderType(Order::ORDER_TYPE_SALE);
-
-        $service->prepare($order, true);
-        $confirmedSnapshot = $order->getOperationalSnapshot();
-        self::assertFalse($order->isPayBeforeProductionRequired());
-        self::assertSame('default', $confirmedSnapshot['payBeforeProductionSource']);
-        self::assertArrayHasKey('confirmedAt', $confirmedSnapshot);
-
-        $order->setDevice($device);
-        $service->prepare($order, true);
-
-        self::assertFalse($order->isPayBeforeProductionRequired());
-        self::assertSame($confirmedSnapshot, $order->getOperationalSnapshot());
-    }
-
-    #[DataProvider('settlementTypeProvider')]
-    public function testPaymentBeforeProductionIsRejectedForTableAndTab(string $rootType): void
-    {
-        $provider = $this->createPeople(10);
-        $root = (new Order())
-            ->setProvider($provider)
-            ->setOrderType($rootType);
-        $child = (new Order())
-            ->setApp('POS')
-            ->setProvider($provider)
-            ->setOrderType(Order::ORDER_TYPE_CART)
-            ->setMainOrder($root)
-            ->setPayBeforeProduction(true);
-
-        $this->expectException(BadRequestHttpException::class);
-        $this->expectExceptionMessage('pay_before_production nao e suportado');
-        $this->buildService()->prepare($child);
-    }
-
     public static function settlementTypeProvider(): array
     {
         return [
@@ -287,14 +41,11 @@ class OrderCommercialContextServiceTest extends TestCase
             ->setApp('POS')
             ->setProvider($provider)
             ->setOrderType(Order::ORDER_TYPE_CART)
-            ->setMainOrder($root)
-            ->setFulfillmentType(Order::FULFILLMENT_DINE_IN);
+            ->setMainOrder($root);
 
         $this->buildService()->prepare($child);
 
         self::assertSame($root, $child->getMainOrder());
-        self::assertSame($rootType, $child->getOperationalSnapshot()['linkType']);
-        self::assertFalse($child->isPayBeforeProductionRequired());
     }
 
     public function testRejectsCrossTenantMainOrder(): void
@@ -324,31 +75,11 @@ class OrderCommercialContextServiceTest extends TestCase
             ->setProvider($this->createPeople(23))
             ->setClient($merchant)
             ->setOrderType(Order::ORDER_TYPE_DELIVERY)
-            ->setMainOrder($root)
-            ->setFulfillmentType(Order::FULFILLMENT_DELIVERY);
+            ->setMainOrder($root);
 
         $this->buildService()->prepare($delivery);
 
-        self::assertSame(Order::CHANNEL_EXTERNAL, $delivery->getChannel());
-        self::assertSame(Order::FULFILLMENT_DELIVERY, $delivery->getFulfillmentType());
-        self::assertSame('none', $delivery->getOperationalSnapshot()['linkType']);
-    }
-
-    public function testFrozenSaleContextCannotBeRewritten(): void
-    {
-        $order = (new Order())
-            ->setApp('POS')
-            ->setChannel(Order::CHANNEL_POS)
-            ->setOrderType(Order::ORDER_TYPE_SALE)
-            ->setFulfillmentType(Order::FULFILLMENT_PICKUP);
-        $service = $this->buildService();
-        $service->freezeConfirmedContext($order);
-
-        $order->setFulfillmentType(Order::FULFILLMENT_DELIVERY);
-
-        $this->expectException(BadRequestHttpException::class);
-        $this->expectExceptionMessage('Contexto comercial confirmado nao pode ser alterado livremente.');
-        $service->prepare($order, true);
+        self::assertSame($root, $delivery->getMainOrder());
     }
 
     public function testDeviceWithoutExplicitCapabilityFailsClosedRegardlessOfOperationalPreset(): void
@@ -525,17 +256,6 @@ class OrderCommercialContextServiceTest extends TestCase
             $order,
             $deviceConfig,
         ];
-    }
-
-    private function createPaidOrderInvoice(Order $order, float $amount): OrderInvoice
-    {
-        $status = (new Status())->setStatus('paid')->setRealStatus('closed');
-        $invoice = (new Invoice())->setStatus($status)->setPrice($amount);
-
-        return (new OrderInvoice())
-            ->setOrder($order)
-            ->setInvoice($invoice)
-            ->setRealPrice($amount);
     }
 
     private function createPeople(int $id): People

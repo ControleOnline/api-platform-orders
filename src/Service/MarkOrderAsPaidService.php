@@ -26,7 +26,6 @@ class MarkOrderAsPaidService
         private EntityManagerInterface $manager,
         private PeopleService $peopleService,
         private StatusService $statusService,
-        private ?InvoiceService $invoiceService = null,
     ) {}
 
     /**
@@ -120,22 +119,12 @@ class MarkOrderAsPaidService
 
             $this->manager->flush();
 
-            // Settle order status from paid invoices (same path as normal payments).
-            // payOrder can NPE on incomplete order trees — never fail the payment itself.
+            // Settle order status without InvoiceService (avoids optional DI 500).
             try {
-                if ($this->invoiceService !== null) {
-                    $this->invoiceService->payOrder($order);
-                } else {
-                    $this->fallbackSettleOrder($order, $chargeAmount);
-                }
+                $this->fallbackSettleOrder($order, $chargeAmount);
                 $this->manager->flush();
-            } catch (\Throwable $settleError) {
-                try {
-                    $this->fallbackSettleOrder($order, $chargeAmount);
-                    $this->manager->flush();
-                } catch (\Throwable) {
-                    // Invoice already persisted; settlement is best-effort.
-                }
+            } catch (\Throwable) {
+                // Invoice already persisted; settlement is best-effort.
             }
 
             $connection->commit();

@@ -4,7 +4,6 @@ namespace ControleOnline\EventSubscriber;
 
 use ControleOnline\Entity\DeviceConfig;
 use ControleOnline\Entity\People;
-use ControleOnline\Entity\PeopleLink;
 use ControleOnline\Service\OrderCommercialContextService;
 use ControleOnline\Service\PeopleRoleService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -81,8 +80,7 @@ class DeviceFinancialConfigAuthorizationSubscriber implements EventSubscriberInt
         }
 
         foreach ($companies as $company) {
-            $permissions = $this->peopleRoleService->getCompanyPermissions($company);
-            if (array_intersect([...PeopleLink::ADMIN_LINK, 'super'], $permissions) !== []) {
+            if ($this->peopleRoleService->canAdministerCompany($company)) {
                 continue;
             }
 

@@ -26,6 +26,9 @@
  * - `/orders-queue` can expose the visual component tree through the dedicated `orders-queue-tree:read` group. That group must not include cyclical backrefs such as `orderProduct`.
  * - `orders` and `tv` continue to consume the full `OrderProduct` tree; `showInParentQueue` only decides the visual hierarchy on the consumer side, not whether the item exists in the collection.
  * - The operational view must not synthesize children or rewrite the queue to simulate hidden parent items.
+ * - `Order.channel` is limited to `pos`, `shop`, `totem`, and `external`; concrete platforms remain in `app`.
+ * - `fulfillmentType` records commercial intent only. Fulfillment execution, quantities, actors, devices, and idempotency belong to the dedicated fulfillment ledger.
+ * - `payBeforeProduction=false` means payment is not a prerequisite; it does not require production before payment and must not create a `produce_before_payment` policy.
  * - Payment capability is independent from POS operation mode. The backend contract in `OrderCommercialContextService` must protect direct payment routes, while `waiter` and `cashier` remain workflow presets only.
  * - A confirmed `sale` never regresses to `cart`; post-confirmation corrections use their dedicated audited actions.
  * - In order printing, `ProductGroup.showInDisplay=false` must hide only the group title. Items and components continue to be printed and grouped.
@@ -403,7 +406,7 @@ class OrderService
         );
         $order->setStatus($status);
         $order->setApp($app);
-        $this->commercialContextService->prepare($order);
+        $this->commercialContextService->prepare($order, !$startsAsCart);
 
         $this->manager->persist($order);
         $this->manager->flush();
@@ -611,9 +614,10 @@ class OrderService
             return false;
         }
 
-        $this->commercialContextService->prepare($order);
+        $this->commercialContextService->assertConfirmationAllowed($order);
 
         $order->setOrderType(self::ORDER_TYPE_SALE);
+        $this->commercialContextService->freezeConfirmedContext($order);
         $this->clearAnonymousCartExternalCode($order);
 
         foreach ($order->getOrderProducts() as $orderProduct) {
@@ -717,12 +721,20 @@ class OrderService
 
     public function prePersist(Order $order): void
     {
-        $this->commercialContextService->prepare($order);
+        $isSale = $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_SALE;
+        if ($isSale && $order->isPayBeforeProductionRequired()) {
+            $this->commercialContextService->assertConfirmationAllowed($order);
+        }
+
+        $this->commercialContextService->prepare($order, $isSale);
     }
 
     public function preUpdate(Order $order): void
     {
-        $this->commercialContextService->prepare($order);
+        $this->commercialContextService->prepare(
+            $order,
+            $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_SALE,
+        );
 
         if (
             !$this->isMarketplaceIntegrationOrder($order)
@@ -765,9 +777,18 @@ class OrderService
         }
 
         if (
+            array_key_exists('payBeforeProduction', $payload)
+            || array_key_exists('pay_before_production', $payload)
+        ) {
+            throw new BadRequestHttpException(
+                'payBeforeProduction e uma politica server-side e nao pode ser alterada pelo payload.'
+            );
+        }
+
+        if (
             $this->normalizeStatusValue($order->getOrderType()) === self::ORDER_TYPE_SALE
             && array_intersect(
-                ['provider', 'mainOrder', 'mainOrderId'],
+                ['provider', 'channel', 'fulfillmentType', 'payBeforeProduction', 'mainOrder', 'mainOrderId'],
                 array_keys($payload),
             ) !== []
         ) {

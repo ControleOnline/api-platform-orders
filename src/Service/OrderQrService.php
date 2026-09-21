@@ -312,6 +312,9 @@ class OrderQrService
         $order->setProvider($provider);
         $order->setExternalCode($externalCode);
         $order->setApp('SHOP');
+        if (method_exists($order, 'setChannel')) {
+            $order->setChannel('shop');
+        }
         // An independent cart intentionally has no main order. The entity
         // setter accepts only concrete Order instances, so leave it unset.
 
@@ -347,6 +350,9 @@ class OrderQrService
         $order = new Order();
         $order->setProvider($provider);
         $order->setApp('SHOP');
+        if (method_exists($order, 'setChannel')) {
+            $order->setChannel('shop');
+        }
         // unique external code for anonymous cart
         $order->setExternalCode('shop-qr:' . bin2hex(random_bytes(8)));
 
@@ -371,6 +377,9 @@ class OrderQrService
         $order = new Order();
         $order->setProvider($provider);
         $order->setApp('SHOP');
+        if (method_exists($order, 'setChannel')) {
+            $order->setChannel('shop');
+        }
         $order->setMainOrder($rootOrder);
         $order->setExternalCode('shop-round:' . substr(hash('sha256', $idempotencyKey), 0, 16));
 
@@ -437,6 +446,9 @@ class OrderQrService
             'externalCode' => $order->getExternalCode(),
             'app' => method_exists($order, 'getApp') ? $order->getApp() : null,
         ];
+        if (method_exists($order, 'getChannel')) {
+            $payload['channel'] = $order->getChannel();
+        }
         $main = $order->getMainOrder();
         if ($main instanceof Order) {
             $payload['mainOrder'] = [

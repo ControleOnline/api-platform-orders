@@ -13,8 +13,9 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
  * Canonical order finalization (checkout) contract for all operational modes.
  * Checkout is the finalization process; Invoice is only a financial consequence.
  *
- * Charge capacity enforcement is owned by
- * api-platform-orders#12 / OrderCommercialContextService.
+ * Charge capacity and pay_before_production enforcement are owned by T1
+ * (api-platform-orders#12 / OrderCommercialContextService). When that service
+ * is present on the runtime line, wire it via a follow-up or RC that includes both.
  *
  * @see https://github.com/ControleOnline/api-community/issues/60
  */

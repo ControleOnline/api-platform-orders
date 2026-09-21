@@ -99,6 +99,11 @@ class MarkOrderAsPaidService
             $orderInvoice->setInvoice($invoice);
             $orderInvoice->setRealPrice($chargeAmount);
             $this->manager->persist($orderInvoice);
+            // Keep inverse collection in sync so settle sees the new paid invoice
+            // without relying solely on a DB re-fetch (app-community#837).
+            if (method_exists($order, 'addInvoice')) {
+                $order->addInvoice($orderInvoice);
+            }
 
             $this->manager->flush();
 
@@ -106,8 +111,12 @@ class MarkOrderAsPaidService
             if ($this->invoiceService !== null) {
                 $this->invoiceService->payOrder($order);
             } else {
-                $this->fallbackSettleOrder($order, $chargeAmount);
+                $this->fallbackSettleOrder($order, $chargeAmount, $remaining);
             }
+
+            // Safety net: invoice may be paid while order status stayed open when the
+            // in-memory invoice collection was stale or payOrder did not transition.
+            $this->ensureOrderMarkedPaid($order, $chargeAmount, $remaining);
 
             $this->manager->flush();
             $connection->commit();
@@ -218,14 +227,39 @@ class MarkOrderAsPaidService
         return $product instanceof Product ? $product : null;
     }
 
-    private function fallbackSettleOrder(Order $order, float $justPaid): void
+    private function fallbackSettleOrder(Order $order, float $justPaid, float $remainingBeforeCharge): void
     {
         $remaining = $this->resolveRemainingBalance($order);
-        // After flush of the new invoice, re-read paid total via collection if possible.
-        if ($remaining > 0.009) {
+        // After flush, collection may still omit the invoice just linked via owning side only.
+        // If the charge covered the pre-charge balance, treat as fully settled (#837).
+        if ($remaining > 0.009 && ($justPaid + 0.009) < $remainingBeforeCharge) {
             return;
         }
 
+        $this->applyPaidOrderStatus($order);
+    }
+
+    /**
+     * Force order status to paid/closed when the charge covers the outstanding balance.
+     */
+    private function ensureOrderMarkedPaid(Order $order, float $justPaid, float $remainingBeforeCharge): void
+    {
+        $real = strtolower(trim((string) $order->getStatus()?->getRealStatus()));
+        if (in_array($real, ['closed', 'paid'], true)) {
+            return;
+        }
+
+        $remaining = $this->resolveRemainingBalance($order);
+        $covered = $remaining <= 0.009 || ($justPaid + 0.009) >= $remainingBeforeCharge;
+        if (!$covered) {
+            return;
+        }
+
+        $this->applyPaidOrderStatus($order);
+    }
+
+    private function applyPaidOrderStatus(Order $order): void
+    {
         $orderStatus = $this->statusService->discoveryStatus('closed', 'paid', 'order')
             ?: $this->statusService->discoveryStatus('closed', 'closed', 'order');
         if ($orderStatus !== null) {

@@ -45,6 +45,10 @@ class MarkOrderAsPaidService
 
         $remaining = $this->resolveRemainingBalance($order);
         if ($remaining <= 0.00001) {
+            // Invoice balance may already be zero while order status is still open (#837).
+            $this->applyPaidOrderStatus($order);
+            $this->manager->flush();
+            $this->manager->refresh($order);
             return $this->envelope($order, null, true, 'Pedido ja esta quitado.');
         }
 

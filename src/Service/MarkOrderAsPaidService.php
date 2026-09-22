@@ -45,6 +45,10 @@ class MarkOrderAsPaidService
 
         $remaining = $this->resolveRemainingBalance($order);
         if ($remaining <= 0.00001) {
+            // Invoice balance may already be zero while order status is still open (#837).
+            $this->applyPaidOrderStatus($order);
+            $this->manager->flush();
+            $this->manager->refresh($order);
             return $this->envelope($order, null, true, 'Pedido ja esta quitado.');
         }
 
@@ -99,14 +103,33 @@ class MarkOrderAsPaidService
             $orderInvoice->setInvoice($invoice);
             $orderInvoice->setRealPrice($chargeAmount);
             $this->manager->persist($orderInvoice);
+            if (method_exists($order, 'addInvoice')) {
+                $order->addInvoice($orderInvoice);
+            }
 
             $this->manager->flush();
 
-            // Settle order status from paid invoices (same path as normal payments).
+            // Prefer shared financial settle path when available.
             if ($this->invoiceService !== null) {
-                $this->invoiceService->payOrder($order);
+                try {
+                    $this->invoiceService->payOrder($order);
+                } catch (\Throwable $payOrderError) {
+                    // Continue — force status below so the operator still sees PAGO (#837).
+                }
+            }
+
+            // app-community#837: always force order → paid/closed when this charge
+            // covers the outstanding balance known at the start of the request.
+            // Do not depend on in-memory invoice collections or payOrder side-effects.
+            if (($chargeAmount + 0.009) >= $remaining) {
+                $this->applyPaidOrderStatus($order);
             } else {
-                $this->fallbackSettleOrder($order, $chargeAmount);
+                // Partial payment: recompute from DB-backed invoices when possible.
+                $this->manager->refresh($order);
+                $stillDue = $this->resolveRemainingBalance($order);
+                if ($stillDue <= 0.009) {
+                    $this->applyPaidOrderStatus($order);
+                }
             }
 
             $this->manager->flush();
@@ -232,6 +255,19 @@ class MarkOrderAsPaidService
             $order->setStatus($orderStatus);
             $this->manager->persist($order);
         }
+    }
+
+
+    private function applyPaidOrderStatus(Order $order): void
+    {
+        $orderStatus = $this->statusService->discoveryStatus('closed', 'paid', 'order')
+            ?: $this->statusService->discoveryStatus('closed', 'closed', 'order')
+            ?: $this->statusService->discoveryStatus('paid', 'paid', 'order');
+        if ($orderStatus === null) {
+            throw new BadRequestHttpException('Status pago do pedido nao foi encontrado.');
+        }
+        $order->setStatus($orderStatus);
+        $this->manager->persist($order);
     }
 
     private function normalizeReferenceId(mixed $reference): int

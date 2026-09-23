@@ -4,7 +4,7 @@ namespace ControleOnline\Orders\Tests\Service;
 
 use ControleOnline\Entity\People;
 use ControleOnline\Service\MarkOrderAsPaidService;
-use PHUNIT\Framework\TestCount;
+use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 

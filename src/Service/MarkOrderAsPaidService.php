@@ -51,12 +51,8 @@ class MarkOrderAsPaidService
         $wallet = $this->resolveWallet($payload['destinationWallet'] ?? null);
         $product = $this->resolveProduct($payload['product'] ?? null);
 
-        // Client-suggested amount is advisory only; server balance wins.
-        $clientPrice = $this->normalizeMoney($payload['price'] ?? null);
+        // Mark-as-paid is a settlement action: the server balance must be paid in full.
         $chargeAmount = $remaining;
-        if ($clientPrice > 0 && $clientPrice <= $remaining + 0.009) {
-            $chargeAmount = $clientPrice;
-        }
 
         $paidInvoiceStatus = $this->statusService->discoveryStatus('closed', 'paid', 'invoice');
         if ($paidInvoiceStatus === null) {
@@ -115,17 +111,16 @@ class MarkOrderAsPaidService
             $orderInvoice->setOrder($order);
             $orderInvoice->setInvoice($invoice);
             $orderInvoice->setRealPrice($chargeAmount);
+            // Keep both sides in sync for balance calculation before the ORM refreshes the order.
+            $order->addInvoice($orderInvoice);
+            $invoice->addOrder($orderInvoice);
             $this->manager->persist($orderInvoice);
 
             $this->manager->flush();
 
-            // Settle order status without InvoiceService (avoids optional DI 500).
-            try {
-                $this->fallbackSettleOrder($order, $chargeAmount);
-                $this->manager->flush();
-            } catch (\Throwable) {
-                // Invoice already persisted; settlement is best-effort.
-            }
+            // Settlement is part of the transaction; failures must roll back instead of reporting success.
+            $this->fallbackSettleOrder($order, $chargeAmount);
+            $this->manager->flush();
 
             $connection->commit();
         } catch (\Throwable $e) {
@@ -291,15 +286,6 @@ class MarkOrderAsPaidService
         }
 
         return (int) preg_replace('/\D+/', '', (string) $reference);
-    }
-
-    private function normalizeMoney(mixed $value): float
-    {
-        if (!is_numeric($value)) {
-            return 0.0;
-        }
-
-        return max(0.0, round((float) $value, 2));
     }
 
     private function envelope(

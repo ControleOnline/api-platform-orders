@@ -47,9 +47,9 @@ class DeviceFinancialConfigAuthorizationSubscriberTest extends TestCase
         $manager = $this->buildManager($company, $deviceConfig);
         $roleService = $this->createMock(PeopleRoleService::class);
         $roleService
-            ->method('canAdministerCompany')
+            ->method('getCompanyPermissions')
             ->with($company)
-            ->willReturn(false);
+            ->willReturn(['employee']);
         $subscriber = new DeviceFinancialConfigAuthorizationSubscriber($manager, $roleService);
         $request = $this->createRequest($path, $method, $payload);
 
@@ -60,7 +60,12 @@ class DeviceFinancialConfigAuthorizationSubscriberTest extends TestCase
             self::assertTrue(true);
         }
 
-        $this->assertLocalChargeDenied($manager, $company, $deviceConfig);
+        if (!array_key_exists(
+            OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY,
+            $payload['configs'] ?? [],
+        )) {
+            $this->assertLocalChargeDenied($manager, $company, $deviceConfig);
+        }
     }
 
     public static function waiterMutationProvider(): array
@@ -106,6 +111,16 @@ class DeviceFinancialConfigAuthorizationSubscriberTest extends TestCase
                 'DEVICE',
                 [],
             ],
+            'weaken temporal policy through add-configs' => [
+                '/device_configs/add-configs',
+                'POST',
+                [
+                    'people' => '/people/90',
+                    'configs' => [OrderCommercialContextService::PAY_BEFORE_PRODUCTION_CONFIG_KEY => false],
+                ],
+                'DEVICE',
+                [],
+            ],
         ];
     }
 
@@ -119,9 +134,9 @@ class DeviceFinancialConfigAuthorizationSubscriberTest extends TestCase
         $roleService = $this->createMock(PeopleRoleService::class);
         $roleService
             ->expects(self::once())
-            ->method('canAdministerCompany')
+            ->method('getCompanyPermissions')
             ->with($targetCompany)
-            ->willReturn(false);
+            ->willReturn(['employee']);
         $subscriber = new DeviceFinancialConfigAuthorizationSubscriber($manager, $roleService);
 
         $this->expectException(AccessDeniedHttpException::class);
@@ -160,8 +175,10 @@ class DeviceFinancialConfigAuthorizationSubscriberTest extends TestCase
             },
         );
         $roleService = $this->createMock(PeopleRoleService::class);
-        $roleService->method('canAdministerCompany')->willReturnCallback(
-            static fn(People $company): bool => $company === $requestedCompany,
+        $roleService->method('getCompanyPermissions')->willReturnCallback(
+            static fn(People $company): array => $company === $requestedCompany
+                ? ['manager']
+                : ['employee'],
         );
         $subscriber = new DeviceFinancialConfigAuthorizationSubscriber($manager, $roleService);
 
@@ -177,7 +194,8 @@ class DeviceFinancialConfigAuthorizationSubscriberTest extends TestCase
         )));
     }
 
-    public function testResolvedAdministrativeAuthorityCanManageProtectedConfig(): void
+    #[DataProvider('administrativePermissionProvider')]
+    public function testTenantAdministrativeAuthorityCanManageProtectedConfig(string $permission): void
     {
         $company = $this->createPeople(92);
         $deviceConfig = $this->createDeviceConfig($company, 'PDV', [
@@ -185,7 +203,7 @@ class DeviceFinancialConfigAuthorizationSubscriberTest extends TestCase
         ]);
         $manager = $this->buildManager($company, $deviceConfig);
         $roleService = $this->createMock(PeopleRoleService::class);
-        $roleService->method('canAdministerCompany')->with($company)->willReturn(true);
+        $roleService->method('getCompanyPermissions')->with($company)->willReturn([$permission]);
         $subscriber = new DeviceFinancialConfigAuthorizationSubscriber($manager, $roleService);
 
         $subscriber->onKernelRequest($this->createRequestEvent($this->createRequest(
@@ -201,6 +219,16 @@ class DeviceFinancialConfigAuthorizationSubscriberTest extends TestCase
         self::assertTrue(true);
     }
 
+    public static function administrativePermissionProvider(): array
+    {
+        return [
+            'owner' => ['owner'],
+            'director' => ['director'],
+            'manager' => ['manager'],
+            'super' => ['super'],
+        ];
+    }
+
     public function testRejectedPromotionLeavesWaiterUnableToCharge(): void
     {
         $company = $this->createPeople(93);
@@ -208,7 +236,7 @@ class DeviceFinancialConfigAuthorizationSubscriberTest extends TestCase
         $deviceConfig = $this->createDeviceConfig($company, 'DEVICE', [], $device);
         $manager = $this->buildManager($company, $deviceConfig, $device);
         $roleService = $this->createMock(PeopleRoleService::class);
-        $roleService->method('canAdministerCompany')->willReturn(false);
+        $roleService->method('getCompanyPermissions')->willReturn(['employee']);
         $subscriber = new DeviceFinancialConfigAuthorizationSubscriber($manager, $roleService);
         $mutation = $this->createRequest('/device_configs/15', 'PUT', [
             'people' => '/people/93',

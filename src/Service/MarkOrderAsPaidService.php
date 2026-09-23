@@ -26,7 +26,6 @@ class MarkOrderAsPaidService
         private EntityManagerInterface $manager,
         private PeopleService $peopleService,
         private StatusService $statusService,
-        private ?InvoiceService $invoiceService = null,
     ) {}
 
     /**
@@ -43,6 +42,11 @@ class MarkOrderAsPaidService
         $this->assertActorCanAccessOrder($order, $actor);
         $this->assertOrderEligible($order);
 
+        $provider = $order->getProvider();
+        if (!$provider instanceof People) {
+            throw new BadRequestHttpException('Pedido sem empresa provedora.');
+        }
+
         $remaining = $this->resolveRemainingBalance($order);
         if ($remaining <= 0.00001) {
             // Invoice balance may already be zero while order status is still open (#837).
@@ -52,39 +56,41 @@ class MarkOrderAsPaidService
             return $this->envelope($order, null, true, 'Pedido ja esta quitado.');
         }
 
-        $paymentType = $this->requirePaymentType($payload['paymentType'] ?? null);
-        $wallet = $this->resolveWallet($payload['destinationWallet'] ?? null);
+        $paymentType = $this->requirePaymentType($payload['paymentType'] ?? null, $provider);
+        $wallet = $this->resolveWallet($payload['destinationWallet'] ?? null, $provider);
         $product = $this->resolveProduct($payload['product'] ?? null);
 
-        // Client-suggested amount is advisory only; server balance wins.
-        $clientPrice = $this->normalizeMoney($payload['price'] ?? null);
+        // Mark-as-paid is a settlement action: the server balance must be paid in full.
         $chargeAmount = $remaining;
-        if ($clientPrice > 0 && $clientPrice <= $remaining + 0.009) {
-            $chargeAmount = $clientPrice;
-        }
 
         $paidInvoiceStatus = $this->statusService->discoveryStatus('closed', 'paid', 'invoice');
         if ($paidInvoiceStatus === null) {
             throw new BadRequestHttpException('Status pago da invoice nao foi encontrado.');
         }
 
-        $receiver = $order->getProvider();
-        if (!$receiver instanceof People) {
-            throw new BadRequestHttpException('Pedido sem empresa provedora.');
-        }
+        $receiver = $provider;
 
         $payer = $order->getClient() ?: $order->getPayer();
+
+        $productLabel = '';
+        if ($product instanceof Product) {
+            $productLabel = trim((string) (
+                (method_exists($product, 'getProduct') ? $product->getProduct() : null)
+                ?: (method_exists($product, 'getName') ? $product->getName() : null)
+                ?: 'produto'
+            ));
+        }
 
         $description = sprintf(
             'Marcar como pago · pedido #%s%s',
             (string) $order->getId(),
-            $product instanceof Product
-                ? ' · ' . trim((string) ($product->getProduct() ?: $product->getName() ?: 'produto'))
-                : ''
+            $productLabel !== '' ? ' · ' . $productLabel : ''
         );
 
         $connection = $this->manager->getConnection();
         $connection->beginTransaction();
+
+        $orderInvoice = null;
 
         try {
             $invoice = new Invoice();
@@ -96,43 +102,32 @@ class MarkOrderAsPaidService
             $invoice->setPaymentType($paymentType);
             $invoice->setPrice($chargeAmount);
             $invoice->setDescription(mb_substr($description, 0, 250));
+            if (method_exists($invoice, 'setPortion')) {
+                $invoice->setPortion(1);
+            }
+            if (method_exists($invoice, 'setInstallments')) {
+                $invoice->setInstallments(1);
+            }
+            if (method_exists($invoice, 'setInvoiceType')) {
+                $invoice->setInvoiceType('invoice');
+            }
             $this->manager->persist($invoice);
 
             $orderInvoice = new OrderInvoice();
             $orderInvoice->setOrder($order);
             $orderInvoice->setInvoice($invoice);
             $orderInvoice->setRealPrice($chargeAmount);
+            // Keep both sides in sync for balance calculation before the ORM refreshes the order.
+            $order->addInvoice($orderInvoice);
+            $invoice->addOrder($orderInvoice);
             $this->manager->persist($orderInvoice);
-            if (method_exists($order, 'addInvoice')) {
-                $order->addInvoice($orderInvoice);
-            }
 
             $this->manager->flush();
 
-            // Prefer shared financial settle path when available.
-            if ($this->invoiceService !== null) {
-                try {
-                    $this->invoiceService->payOrder($order);
-                } catch (\Throwable $payOrderError) {
-                    // Continue — force status below so the operator still sees PAGO (#837).
-                }
-            }
-
-            // app-community#837: always force order → paid/closed when this charge
-            // covers the outstanding balance known at the start of the request.
-            // Do not depend on in-memory invoice collections or payOrder side-effects.
-            if (($chargeAmount + 0.009) >= $remaining) {
-                $this->applyPaidOrderStatus($order);
-            } else {
-                // Partial payment: recompute from DB-backed invoices when possible.
-                $this->manager->refresh($order);
-                $stillDue = $this->resolveRemainingBalance($order);
-                if ($stillDue <= 0.009) {
-                    $this->applyPaidOrderStatus($order);
-                }
-            }
-
+            // The action always charges the complete remaining balance; guarantee paid/closed.
+            $this->applyPaidOrderStatus($order);
             $this->manager->flush();
+
             $connection->commit();
         } catch (\Throwable $e) {
             if ($connection->isTransactionActive()) {
@@ -141,9 +136,13 @@ class MarkOrderAsPaidService
             throw $e;
         }
 
-        $this->manager->refresh($order);
+        try {
+            $this->manager->refresh($order);
+        } catch (\Throwable) {
+            // ignore
+        }
 
-        return $this->envelope($order, $orderInvoice ?? null, false, 'ok');
+        return $this->envelope($order, $orderInvoice, false, 'ok');
     }
 
     private function assertActorCanAccessOrder(Order $order, People $actor): void
@@ -164,11 +163,13 @@ class MarkOrderAsPaidService
         }
 
         // Fallback: same companies list used elsewhere in the module.
-        $providerId = (int) $provider->getId();
-        foreach ($this->peopleService->getMyCompanies() as $company) {
-            $companyId = $company instanceof People ? (int) $company->getId() : (int) $company;
-            if ($providerId > 0 && $companyId === $providerId) {
-                return;
+        if (method_exists($this->peopleService, 'getMyCompanies')) {
+            $providerId = (int) $provider->getId();
+            foreach ($this->peopleService->getMyCompanies() as $company) {
+                $companyId = $company instanceof People ? (int) $company->getId() : (int) $company;
+                if ($providerId > 0 && $companyId === $providerId) {
+                    return;
+                }
             }
         }
 
@@ -188,7 +189,8 @@ class MarkOrderAsPaidService
         $price = (float) ($order->getPrice() ?? 0);
         $paid = 0.0;
 
-        foreach ($order->getInvoice() as $orderInvoice) {
+        $invoices = method_exists($order, 'getInvoice') ? $order->getInvoice() : [];
+        foreach ($invoices as $orderInvoice) {
             if (!$orderInvoice instanceof OrderInvoice) {
                 continue;
             }
@@ -206,7 +208,7 @@ class MarkOrderAsPaidService
         return max(0.0, round($price - $paid, 2));
     }
 
-    private function requirePaymentType(mixed $reference): PaymentType
+    private function requirePaymentType(mixed $reference, People $provider): PaymentType
     {
         $id = $this->normalizeReferenceId($reference);
         $paymentType = $id > 0
@@ -215,19 +217,33 @@ class MarkOrderAsPaidService
         if (!$paymentType instanceof PaymentType) {
             throw new BadRequestHttpException('Forma de pagamento invalida.');
         }
+        $this->assertReferenceBelongsToProvider($paymentType->getPeople(), $provider);
 
         return $paymentType;
     }
 
-    private function resolveWallet(mixed $reference): ?Wallet
+    private function resolveWallet(mixed $reference, People $provider): ?Wallet
     {
         $id = $this->normalizeReferenceId($reference);
         if ($id <= 0) {
             return null;
         }
         $wallet = $this->manager->getRepository(Wallet::class)->find($id);
+        if (!$wallet instanceof Wallet) {
+            throw new BadRequestHttpException('Carteira de destino invalida.');
+        }
+        $this->assertReferenceBelongsToProvider($wallet->getPeople(), $provider);
 
-        return $wallet instanceof Wallet ? $wallet : null;
+        return $wallet;
+    }
+
+    private function assertReferenceBelongsToProvider(?People $owner, People $provider): void
+    {
+        $ownerId = (int) ($owner?->getId() ?? 0);
+        $providerId = (int) ($provider->getId() ?? 0);
+        if ($owner !== $provider && ($providerId <= 0 || $ownerId !== $providerId)) {
+            throw new AccessDeniedHttpException('Referencia financeira pertence a outra empresa.');
+        }
     }
 
     private function resolveProduct(mixed $reference): ?Product
@@ -240,23 +256,6 @@ class MarkOrderAsPaidService
 
         return $product instanceof Product ? $product : null;
     }
-
-    private function fallbackSettleOrder(Order $order, float $justPaid): void
-    {
-        $remaining = $this->resolveRemainingBalance($order);
-        // After flush of the new invoice, re-read paid total via collection if possible.
-        if ($remaining > 0.009) {
-            return;
-        }
-
-        $orderStatus = $this->statusService->discoveryStatus('closed', 'paid', 'order')
-            ?: $this->statusService->discoveryStatus('closed', 'closed', 'order');
-        if ($orderStatus !== null) {
-            $order->setStatus($orderStatus);
-            $this->manager->persist($order);
-        }
-    }
-
 
     private function applyPaidOrderStatus(Order $order): void
     {
@@ -272,20 +271,38 @@ class MarkOrderAsPaidService
 
     private function normalizeReferenceId(mixed $reference): int
     {
+        if ($reference === null || $reference === '') {
+            return 0;
+        }
+
+        if (is_object($reference)) {
+            if (method_exists($reference, 'getId')) {
+                $id = $reference->getId();
+                if (is_numeric($id)) {
+                    return (int) $id;
+                }
+            }
+            if (isset($reference->{'@id'})) {
+                $reference = $reference->{'@id'};
+            } elseif (isset($reference->id)) {
+                $reference = $reference->id;
+            } else {
+                $reference = (array) $reference;
+            }
+        }
+
         if (is_array($reference)) {
-            $reference = $reference['@id'] ?? $reference['id'] ?? '';
+            $reference = $reference['@id'] ?? $reference['id'] ?? $reference['paymentType'] ?? '';
+            if (is_array($reference)) {
+                $reference = $reference['@id'] ?? $reference['id'] ?? '';
+            }
+        }
+
+        if (is_numeric($reference)) {
+            return (int) $reference;
         }
 
         return (int) preg_replace('/\D+/', '', (string) $reference);
-    }
-
-    private function normalizeMoney(mixed $value): float
-    {
-        if (!is_numeric($value)) {
-            return 0.0;
-        }
-
-        return max(0.0, round((float) $value, 2));
     }
 
     private function envelope(

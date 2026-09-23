@@ -42,13 +42,18 @@ class MarkOrderAsPaidService
         $this->assertActorCanAccessOrder($order, $actor);
         $this->assertOrderEligible($order);
 
+        $provider = $order->getProvider();
+        if (!$provider instanceof People) {
+            throw new BadRequestHttpException('Pedido sem empresa provedora.');
+        }
+
         $remaining = $this->resolveRemainingBalance($order);
         if ($remaining <= 0.00001) {
             return $this->envelope($order, null, true, 'Pedido ja esta quitado.');
         }
 
-        $paymentType = $this->requirePaymentType($payload['paymentType'] ?? null);
-        $wallet = $this->resolveWallet($payload['destinationWallet'] ?? null);
+        $paymentType = $this->requirePaymentType($payload['paymentType'] ?? null, $provider);
+        $wallet = $this->resolveWallet($payload['destinationWallet'] ?? null, $provider);
         $product = $this->resolveProduct($payload['product'] ?? null);
 
         // Mark-as-paid is a settlement action: the server balance must be paid in full.
@@ -59,10 +64,7 @@ class MarkOrderAsPaidService
             throw new BadRequestHttpException('Status pago da invoice nao foi encontrado.');
         }
 
-        $receiver = $order->getProvider();
-        if (!$receiver instanceof People) {
-            throw new BadRequestHttpException('Pedido sem empresa provedora.');
-        }
+        $receiver = $provider;
 
         $payer = $order->getClient() ?: $order->getPayer();
 
@@ -202,7 +204,7 @@ class MarkOrderAsPaidService
         return max(0.0, round($price - $paid, 2));
     }
 
-    private function requirePaymentType(mixed $reference): PaymentType
+    private function requirePaymentType(mixed $reference, People $provider): PaymentType
     {
         $id = $this->normalizeReferenceId($reference);
         $paymentType = $id > 0
@@ -211,19 +213,33 @@ class MarkOrderAsPaidService
         if (!$paymentType instanceof PaymentType) {
             throw new BadRequestHttpException('Forma de pagamento invalida.');
         }
+        $this->assertReferenceBelongsToProvider($paymentType->getPeople(), $provider);
 
         return $paymentType;
     }
 
-    private function resolveWallet(mixed $reference): ?Wallet
+    private function resolveWallet(mixed $reference, People $provider): ?Wallet
     {
         $id = $this->normalizeReferenceId($reference);
         if ($id <= 0) {
             return null;
         }
         $wallet = $this->manager->getRepository(Wallet::class)->find($id);
+        if (!$wallet instanceof Wallet) {
+            throw new BadRequestHttpException('Carteira de destino invalida.');
+        }
+        $this->assertReferenceBelongsToProvider($wallet->getPeople(), $provider);
 
-        return $wallet instanceof Wallet ? $wallet : null;
+        return $wallet;
+    }
+
+    private function assertReferenceBelongsToProvider(?People $owner, People $provider): void
+    {
+        $ownerId = (int) ($owner?->getId() ?? 0);
+        $providerId = (int) ($provider->getId() ?? 0);
+        if ($owner !== $provider && ($providerId <= 0 || $ownerId !== $providerId)) {
+            throw new AccessDeniedHttpException('Referencia financeira pertence a outra empresa.');
+        }
     }
 
     private function resolveProduct(mixed $reference): ?Product

@@ -23,7 +23,8 @@ final class MarkOrderAsPaidSettlementTest extends TestCase
         $order->setStatus($this->createStatusEntity('open', 'open'));
         $order->setPrice(125.00);
 
-        $paymentType = (new PaymentType())->setId(9);
+        $provider = $order->getProvider();
+        $paymentType = (new PaymentType())->setId(9)->setPeople($provider);
         $repository = $this->createMock(EntityRepository::class);
         $repository->method('find')->with(9)->willReturn($paymentType);
 
@@ -61,6 +62,32 @@ final class MarkOrderAsPaidSettlementTest extends TestCase
         self::assertSame('closed', $result['order']['realStatus']);
         self::assertSame(0.0, $result['order']['balance']);
         self::assertSame(125.0, $result['invoice']['realPrice']);
+    }
+
+    public function testRejectsPaymentTypeOwnedByAnotherCompanyBeforeMutation(): void
+    {
+        $provider = new People();
+        $order = new Order();
+        $order->setProvider($provider);
+        $order->setStatus($this->createStatusEntity('open', 'open'));
+        $order->setPrice(50.00);
+
+        $paymentType = (new PaymentType())->setId(9)->setPeople(new People());
+        $repository = $this->createMock(EntityRepository::class);
+        $repository->method('find')->with(9)->willReturn($paymentType);
+        $manager = $this->createMock(EntityManagerInterface::class);
+        $manager->method('getRepository')->with(PaymentType::class)->willReturn($repository);
+        $manager->expects(self::never())->method('persist');
+        $manager->expects(self::never())->method('getConnection');
+
+        $service = new MarkOrderAsPaidService(
+            $manager,
+            $this->createMock(PeopleService::class),
+            $this->createMock(StatusService::class),
+        );
+
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException::class);
+        $service->markAsPaid($order, ['paymentType' => 9], $provider);
     }
 
     private function createStatusEntity(string $realStatus, string $status): Status

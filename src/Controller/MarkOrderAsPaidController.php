@@ -4,7 +4,6 @@ namespace ControleOnline\Controller;
 
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\People;
-use ControleOnline\Service\HydratorService;
 use ControleOnline\Service\MarkOrderAsPaidService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -15,19 +14,18 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface as Security;
-use Symfony\Component\Security\Http\Attribute\Security as SecurityAttribute;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
  * POST /orders/{orderId}/mark-as-paid — app-community#797
  */
-#[SecurityAttribute("is_granted('ROLE_HUMAN')")]
+#[IsGranted('ROLE_HUMAN')]
 class MarkOrderAsPaidController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $manager,
         private Security $security,
         private MarkOrderAsPaidService $markOrderAsPaidService,
-        private HydratorService $hydratorService,
     ) {}
 
     #[Route('/orders/{orderId}/mark-as-paid', name: 'order_mark_as_paid', methods: ['POST'])]
@@ -65,10 +63,12 @@ class MarkOrderAsPaidController extends AbstractController
                 'message' => $e->getMessage(),
             ], Response::HTTP_BAD_REQUEST);
         } catch (\Throwable $e) {
-            return $this->json(
-                $this->hydratorService->error($e),
-                Response::HTTP_INTERNAL_SERVER_ERROR
-            );
+            return $this->json([
+                'outcome' => 'error',
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : 'Internal Server Error',
+                'detail' => $e->getMessage(),
+                'exception' => $e::class,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 

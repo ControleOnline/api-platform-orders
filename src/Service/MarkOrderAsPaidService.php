@@ -226,12 +226,18 @@ class MarkOrderAsPaidService
             return;
         }
 
-        $orderStatus = $this->statusService->discoveryStatus('closed', 'paid', 'order')
-            ?: $this->statusService->discoveryStatus('closed', 'closed', 'order');
-        if ($orderStatus !== null) {
-            $order->setStatus($orderStatus);
-            $this->manager->persist($order);
+        // Lave-Go / Controle Online: paid = real_status open + status paid (#909).
+        // Never fall back to closed/closed after successful payment.
+        $orderStatus = $this->statusService->discoveryStatus('open', 'paid', 'order')
+            ?: $this->statusService->discoveryStatus('closed', 'paid', 'order');
+        if ($orderStatus === null) {
+            throw new BadRequestHttpException(
+                'Status de pedido pago (open/paid) nao encontrado no catalogo do tenant.'
+            );
         }
+
+        $order->setStatus($orderStatus);
+        $this->manager->persist($order);
     }
 
     private function normalizeReferenceId(mixed $reference): int

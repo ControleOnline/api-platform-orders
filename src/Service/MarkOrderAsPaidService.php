@@ -226,12 +226,19 @@ class MarkOrderAsPaidService
             return;
         }
 
-        $orderStatus = $this->statusService->discoveryStatus('closed', 'paid', 'order')
-            ?: $this->statusService->discoveryStatus('closed', 'closed', 'order');
-        if ($orderStatus !== null) {
-            $order->setStatus($orderStatus);
-            $this->manager->persist($order);
+        // Tenant catalog (Lave-Go / Controle Online): order "paid" is real_status=open + status=paid.
+        // There is no order status closed+paid; closed+closed means cancelled workflow end, NOT payment.
+        // Never fall back to closed/closed after a successful payment (app-community#909).
+        $orderStatus = $this->statusService->discoveryStatus('open', 'paid', 'order')
+            ?: $this->statusService->discoveryStatus('closed', 'paid', 'order');
+        if ($orderStatus === null) {
+            throw new BadRequestHttpException(
+                'Status de pedido pago (open/paid) nao encontrado no catalogo do tenant.'
+            );
         }
+
+        $order->setStatus($orderStatus);
+        $this->manager->persist($order);
     }
 
     private function normalizeReferenceId(mixed $reference): int

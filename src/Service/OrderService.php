@@ -647,7 +647,7 @@ class OrderService
     {
         $currentRealStatus = $this->normalizeStatusValue($order->getStatus()?->getRealStatus());
         if (in_array($currentRealStatus, ['closed', 'canceled', 'cancelled'], true)) {
-            return $this->statusService->discoveryStatus('closed', 'closed', 'order');
+            return $this->requireStatus('closed', 'closed', 'order');
         }
 
         /*
@@ -658,13 +658,32 @@ class OrderService
         }
 
         /*
-         * @agents Payment only closes the order when nothing else is waiting to be prepared or delivered.
+         * @agents Pending fulfillment → preparing. Fully settled → open/paid.
+         * Missing catalog rows fail closed — no silent status substitution.
          */
         if ($this->hasPendingFulfillment($order)) {
-            return $this->statusService->discoveryStatus('open', 'preparing', 'order');
+            return $this->requireStatus('open', 'preparing', 'order');
         }
 
-        return $this->statusService->discoveryStatus('closed', 'closed', 'order');
+        return $this->requireStatus('open', 'paid', 'order');
+    }
+
+    /**
+     * Resolve a status or fail closed — never silently substitute another status.
+     */
+    private function requireStatus(string $realStatus, string $name, string $context): Status
+    {
+        $status = $this->statusService->discoveryStatus($realStatus, $name, $context);
+        if ($status === null) {
+            throw new BadRequestHttpException(sprintf(
+                'Status %s/%s (context=%s) nao encontrado no catalogo do tenant.',
+                $realStatus,
+                $name,
+                $context,
+            ));
+        }
+
+        return $status;
     }
 
     public function dispatchOrderCreated(Order $order): void

@@ -226,12 +226,16 @@ class MarkOrderAsPaidService
             return;
         }
 
-        $orderStatus = $this->statusService->discoveryStatus('closed', 'paid', 'order')
-            ?: $this->statusService->discoveryStatus('closed', 'closed', 'order');
-        if ($orderStatus !== null) {
-            $order->setStatus($orderStatus);
-            $this->manager->persist($order);
+        // No silent fallback: tenant must have open+paid for order (#909).
+        $orderStatus = $this->statusService->discoveryStatus('open', 'paid', 'order');
+        if ($orderStatus === null) {
+            throw new BadRequestHttpException(
+                'Status de pedido pago (open/paid) nao encontrado no catalogo do tenant.'
+            );
         }
+
+        $order->setStatus($orderStatus);
+        $this->manager->persist($order);
     }
 
     private function normalizeReferenceId(mixed $reference): int

@@ -1,0 +1,14 @@
+{
+  "version": "1.10.33",
+  "rc": 4,
+  "branch": "rc/1.10.33-rc.4",
+  "baseMaster": "4c1eb70e6a5c51c02d9e4b34d4d08effdb5b6d3e",
+  "tasks": [
+    909
+  ],
+  "repositories": {
+    "ControleOnline/api-platform-orders": "484c5f7fbf7326ecebc045b5d130cbe394c0573f"
+  },
+  "frozen": true,
+  "notes": "#909 open/paid only"
+}

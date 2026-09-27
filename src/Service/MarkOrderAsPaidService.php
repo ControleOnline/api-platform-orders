@@ -106,7 +106,7 @@ class MarkOrderAsPaidService
             if ($this->invoiceService !== null) {
                 $this->invoiceService->payOrder($order);
             } else {
-                $this->fallbackSettleOrder($order, $chargeAmount);
+                $this->settlePaidOrderStatus($order, $chargeAmount);
             }
 
             $this->manager->flush();
@@ -218,7 +218,7 @@ class MarkOrderAsPaidService
         return $product instanceof Product ? $product : null;
     }
 
-    private function fallbackSettleOrder(Order $order, float $justPaid): void
+    private function settlePaidOrderStatus(Order $order, float $justPaid): void
     {
         $remaining = $this->resolveRemainingBalance($order);
         // After flush of the new invoice, re-read paid total via collection if possible.
@@ -226,12 +226,16 @@ class MarkOrderAsPaidService
             return;
         }
 
-        $orderStatus = $this->statusService->discoveryStatus('closed', 'paid', 'order')
-            ?: $this->statusService->discoveryStatus('closed', 'closed', 'order');
-        if ($orderStatus !== null) {
-            $order->setStatus($orderStatus);
-            $this->manager->persist($order);
+        // No silent fallback: tenant must have open+paid for order (#909).
+        $orderStatus = $this->statusService->discoveryStatus('open', 'paid', 'order');
+        if ($orderStatus === null) {
+            throw new BadRequestHttpException(
+                'Status de pedido pago (open/paid) nao encontrado no catalogo do tenant.'
+            );
         }
+
+        $order->setStatus($orderStatus);
+        $this->manager->persist($order);
     }
 
     private function normalizeReferenceId(mixed $reference): int

@@ -45,6 +45,12 @@ class MarkOrderAsPaidService
 
         $remaining = $this->resolveRemainingBalance($order);
         if ($remaining <= 0.00001) {
+            // Financially quitado but status may still be open/closed wrong (#909):
+            // surface alreadyPaid to the client and force open/paid on the order.
+            $this->applyPaidOrderStatus($order);
+            $this->manager->flush();
+            $this->manager->refresh($order);
+
             return $this->envelope($order, null, true, 'Pedido ja esta quitado.');
         }
 
@@ -226,7 +232,14 @@ class MarkOrderAsPaidService
             return;
         }
 
-        // No silent fallback: tenant must have open+paid for order (#909).
+        $this->applyPaidOrderStatus($order);
+    }
+
+    /**
+     * Force order status to open/paid. Never substitutes closed.
+     */
+    private function applyPaidOrderStatus(Order $order): void
+    {
         $orderStatus = $this->statusService->discoveryStatus('open', 'paid', 'order');
         if ($orderStatus === null) {
             throw new BadRequestHttpException(

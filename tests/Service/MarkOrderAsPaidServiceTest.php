@@ -44,7 +44,7 @@ class MarkOrderAsPaidServiceTest extends TestCase
             ->with('open', 'paid', 'order')
             ->willReturn($paid);
         $order->expects($this->once())->method('setStatus')->with($paid);
-        $m = new ReflectionMethod(MarkOrderAsPaidService::class, 'fallbackSettleOrder');
+        $m = new ReflectionMethod(MarkOrderAsPaidService::class, 'settlePaidOrderStatus');
         $m->setAccessible(true);
         $m->invoke($this->service, $order, 10.0);
     }
@@ -57,7 +57,7 @@ class MarkOrderAsPaidServiceTest extends TestCase
         $this->statusService->method('discoveryStatus')->willReturn(null);
         $order->expects($this->never())->method('setStatus');
         $this->expectException(BadRequestHttpException::class);
-        $m = new ReflectionMethod(MarkOrderAsPaidService::class, 'fallbackSettleOrder');
+        $m = new ReflectionMethod(MarkOrderAsPaidService::class, 'settlePaidOrderStatus');
         $m->setAccessible(true);
         $m->invoke($this->service, $order, 10.0);
     }

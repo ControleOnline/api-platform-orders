@@ -106,7 +106,7 @@ class MarkOrderAsPaidService
             if ($this->invoiceService !== null) {
                 $this->invoiceService->payOrder($order);
             } else {
-                $this->fallbackSettleOrder($order, $chargeAmount);
+                $this->settlePaidOrderStatus($order, $chargeAmount);
             }
 
             $this->manager->flush();
@@ -218,7 +218,7 @@ class MarkOrderAsPaidService
         return $product instanceof Product ? $product : null;
     }
 
-    private function fallbackSettleOrder(Order $order, float $justPaid): void
+    private function settlePaidOrderStatus(Order $order, float $justPaid): void
     {
         $remaining = $this->resolveRemainingBalance($order);
         // After flush of the new invoice, re-read paid total via collection if possible.

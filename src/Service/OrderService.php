@@ -646,8 +646,8 @@ class OrderService
     public function resolvePostPaymentStatus(Order $order): Status
     {
         $currentRealStatus = $this->normalizeStatusValue($order->getStatus()?->getRealStatus());
-        if (in_array($currentRealStatus, ['closed', 'canceled', 'cancelled'], true)) {
-            return $this->requireStatus('closed', 'closed', 'order');
+        if (in_array($currentRealStatus, ['canceled', 'cancelled'], true)) {
+            throw new BadRequestHttpException('Pedido cancelado nao pode ser marcado como pago.');
         }
 
         /*
@@ -658,7 +658,7 @@ class OrderService
         }
 
         /*
-         * @agents Pending fulfillment → preparing. Fully settled → open/paid.
+         * @agents Pending fulfillment → preparing. Fully settled → always open/paid (never closed).
          * Missing catalog rows fail closed — no silent status substitution.
          */
         if ($this->hasPendingFulfillment($order)) {

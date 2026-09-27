@@ -1,14 +1,14 @@
 {
   "version": "1.10.33",
-  "rc": 5,
-  "branch": "rc/1.10.33-rc.5",
-  "baseMaster": "c7e0e61e1f306b05cfaa4d07595c0723fc7373d5",
+  "rc": 6,
+  "branch": "rc/1.10.33-rc.6",
+  "baseMaster": "22d6c3cb556755395c15e32383d978ddae93af77",
   "tasks": [
     909
   ],
   "repositories": {
-    "ControleOnline/api-platform-orders": "71711befc0dc74fa3bd203abce77ef4d8117460e"
+    "ControleOnline/api-platform-orders": "40411de9accbd3bf963b12b6c809583eb9a0f34c"
   },
   "frozen": true,
-  "notes": "#909 already-quitado forces open/paid"
+  "notes": "#909 reconcile quitado via payOrder"
 }

@@ -112,11 +112,20 @@ class MarkOrderAsPaidService
 
             $this->manager->flush();
 
-            // Settle order status from paid invoices (same path as normal payments).
+            // Reload order so getInvoice() includes the OrderInvoice just persisted.
+            // Without refresh, resolveRemainingBalance still sees the old total and
+            // skips open/paid (success message without status change).
+            $this->manager->refresh($order);
+
             if ($this->invoiceService !== null) {
                 $this->invoiceService->payOrder($order);
-            } else {
-                $this->settlePaidOrderStatus($order, $chargeAmount);
+            }
+
+            // Mark-as-paid must set open/paid when this charge covers the balance,
+            // even if payOrder chose preparing or collection math lagged.
+            $remainingAfter = $this->resolveRemainingBalance($order);
+            if ($remainingAfter <= 0.009 || $chargeAmount + 0.009 >= $remaining) {
+                $this->applyPaidOrderStatus($order);
             }
 
             $this->manager->flush();

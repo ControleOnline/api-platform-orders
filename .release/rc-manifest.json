@@ -1,14 +1,14 @@
 {
   "version": "1.10.33",
-  "rc": 6,
-  "branch": "rc/1.10.33-rc.6",
-  "baseMaster": "22d6c3cb556755395c15e32383d978ddae93af77",
+  "rc": 8,
+  "branch": "rc/1.10.33-rc.8",
+  "baseMaster": "82df53b57aceb652e01234fa59850925594177d7",
   "tasks": [
     909
   ],
   "repositories": {
-    "ControleOnline/api-platform-orders": "40411de9accbd3bf963b12b6c809583eb9a0f34c"
+    "ControleOnline/api-platform-orders": "3db13c88768b01680733e51a1cd670edbea9d8fb"
   },
   "frozen": true,
-  "notes": "#909 reconcile quitado via payOrder"
+  "notes": "#909 refresh+apply paid after new invoice"
 }

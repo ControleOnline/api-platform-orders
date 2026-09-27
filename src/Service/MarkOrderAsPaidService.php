@@ -45,9 +45,13 @@ class MarkOrderAsPaidService
 
         $remaining = $this->resolveRemainingBalance($order);
         if ($remaining <= 0.00001) {
-            // Financially quitado but status may still be open/closed wrong (#909):
-            // surface alreadyPaid to the client and force open/paid on the order.
-            $this->applyPaidOrderStatus($order);
+            // Invoices already cover the order price: reconcile status (e.g. still
+            // "awaiting payment") to open/paid. Message stays alreadyPaid for the UI.
+            if ($this->invoiceService !== null) {
+                $this->invoiceService->payOrder($order);
+            } else {
+                $this->applyPaidOrderStatus($order);
+            }
             $this->manager->flush();
             $this->manager->refresh($order);
 
@@ -236,7 +240,8 @@ class MarkOrderAsPaidService
     }
 
     /**
-     * Force order status to open/paid. Never substitutes closed.
+     * Reconcile order status when balance is covered: open/paid only (never closed).
+     * Same outcome expected right after invoices sum >= order price while still awaiting payment.
      */
     private function applyPaidOrderStatus(Order $order): void
     {

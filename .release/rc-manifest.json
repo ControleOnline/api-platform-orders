@@ -7,7 +7,7 @@
     167
   ],
   "repositories": {
-    "ControleOnline/api-platform-orders": "d04cf4c860af7e837298f3e92be7d1207362e4a5"
+    "ControleOnline/api-platform-orders": "a595af73b3b81e54c86bbcfd847b82ef5241edb2"
   },
   "frozen": true,
   "notes": "#167 vendor paths + remove modules deploy"

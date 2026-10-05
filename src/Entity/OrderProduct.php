@@ -98,6 +98,8 @@ use ApiPlatform\Doctrine\Orm\Filter\NumericFilter;
 ])]
 class OrderProduct
 {
+    use \ControleOnline\Entity\Traits\OrderProductDetailsHierarchy;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: 'integer')]

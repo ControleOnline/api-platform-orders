@@ -50,6 +50,7 @@
  * - Aggregated data for the operational delivery map must come from the single `/orders-delivery-map` endpoint, keeping the backend rule: `way`/`away` statuses are not day-limited and `closed` is limited to the 10 most recent closed orders, without a date filter.
  */
 
+
 namespace ControleOnline\Service;
 
 use ControleOnline\Entity\DeviceConfig;
@@ -71,52 +72,198 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Serializer\SerializerInterface;
 
-class OrderService
+/** Methods shared by the original class; contracts and visibility are unchanged. */
+trait OrderServiceOperations4
 {
-    use OrderServiceOperations1, OrderServiceOperations2, OrderServiceOperations3, OrderServiceOperations4;
+    private function excludeDeviceConfigs(array $deviceConfigs, array $excludedDeviceConfigs): array
+    {
+        if (empty($deviceConfigs) || empty($excludedDeviceConfigs)) {
+            return $deviceConfigs;
+        }
 
-    public const ORDER_TYPE_CART = Order::ORDER_TYPE_CART;
-    public const ORDER_TYPE_QUOTE = Order::ORDER_TYPE_QUOTE;
-    public const ORDER_TYPE_DELIVERY = Order::ORDER_TYPE_DELIVERY;
-    public const ORDER_TYPE_SALE = Order::ORDER_TYPE_SALE;
-    public const ORDER_TYPE_TAB = Order::ORDER_TYPE_TAB;
-    public const ORDER_TYPE_TABLE = Order::ORDER_TYPE_TABLE;
-    public const ORDER_TYPE_STAMP = Order::ORDER_TYPE_STAMP;
-    public const ORDER_TYPE_FIDELITY = Order::ORDER_TYPE_FIDELITY;
-    private const ANONYMOUS_CART_EXTERNAL_CODE_PREFIX = 'anonymous-cart:';
+        $excludedDeviceIds = [];
+        foreach ($excludedDeviceConfigs as $deviceConfig) {
+            if (!$deviceConfig instanceof DeviceConfig) {
+                continue;
+            }
 
-    private const DRAFT_ORDER_APPS = [
-        'pos',
-        'shop',
-    ];
-    private const SETTLEMENT_ORDER_TYPES = [
-        self::ORDER_TYPE_TAB,
-        self::ORDER_TYPE_TABLE,
-        self::ORDER_TYPE_STAMP,
-    ];
+            $excludedDeviceIds[$deviceConfig->getDevice()->getId()] = true;
+        }
 
-    private string $displayDeviceType = 'DISPLAY';
-    private string $displayConfigKey = 'display-id';
-    private $request;
-    private OrderProductTreePriceCalculator $treePriceCalculator;
+        return array_values(array_filter(
+            $deviceConfigs,
+            function ($deviceConfig) use ($excludedDeviceIds): bool {
+                if (!$deviceConfig instanceof DeviceConfig) {
+                    return false;
+                }
 
-    public function __construct(
-        private EntityManagerInterface $manager,
-        private Security $security,
-        private PeopleService $peopleService,
-        private StatusService $statusService,
-        private OrderProductQueueService $orderProductQueueService,
-        private WebsocketClient $websocketClient,
-        private MessageBusInterface $bus,
-        private SerializerInterface $serializer,
-        RequestStack $requestStack,
-        private OrderCommercialContextService $commercialContextService,
-        private ?IntegrationService $integrationService = null,
-        ?OrderProductTreePriceCalculator $treePriceCalculator = null,
-    ) {
-        $this->request  = $requestStack->getCurrentRequest();
-        $this->treePriceCalculator = $treePriceCalculator
-            ?? new OrderProductTreePriceCalculator();
+                return !isset($excludedDeviceIds[$deviceConfig->getDevice()->getId()]);
+            }
+        ));
     }
 
+    private function resolvePreparationAlertDeviceConfigs(
+        People $company,
+        Order $order
+    ): array {
+        $deviceConfigs = array_values(array_filter(
+            $this->manager->getRepository(DeviceConfig::class)->findBy([
+                'people' => $company,
+            ]),
+            fn($deviceConfig) => $this->isDisplayDeviceConfig($deviceConfig)
+        ));
+
+        if (empty($deviceConfigs)) {
+            return [];
+        }
+
+        $displayIds = $this->resolveOrderDisplayIds($order);
+        if (empty($displayIds)) {
+            return $deviceConfigs;
+        }
+
+        $matchedDeviceConfigs = array_values(array_filter(
+            $deviceConfigs,
+            function (DeviceConfig $deviceConfig) use ($displayIds): bool {
+                $configs = $deviceConfig->getConfigs(true);
+                if (!is_array($configs)) {
+                    return false;
+                }
+
+                $displayId = $this->normalizeEntityId(
+                    $configs[$this->displayConfigKey] ?? null
+                );
+
+                return $displayId !== null && isset($displayIds[$displayId]);
+            }
+        ));
+
+        return !empty($matchedDeviceConfigs) ? $matchedDeviceConfigs : $deviceConfigs;
+    }
+
+    private function resolveOrderDisplayIds(Order $order): array
+    {
+        $queues = [];
+
+        foreach ($order->getOrderProducts() as $orderProduct) {
+            if ($orderProduct->getOrderProduct() !== null) {
+                continue;
+            }
+
+            foreach ($orderProduct->getOrderProductQueues() as $queueEntry) {
+                $queue = $queueEntry->getQueue();
+                $queueId = $this->normalizeEntityId($queue?->getId());
+
+                if ($queue !== null && $queueId !== null) {
+                    $queues[$queueId] = $queue;
+                }
+            }
+        }
+
+        if (empty($queues)) {
+            return [];
+        }
+
+        $displayRows = $this->manager->getRepository(DisplayQueue::class)->findBy([
+            'queue' => array_values($queues),
+        ]);
+
+        $displayIds = [];
+        foreach ($displayRows as $displayRow) {
+            $displayId = $this->normalizeEntityId($displayRow->getDisplay()?->getId());
+            if ($displayId !== null) {
+                $displayIds[$displayId] = true;
+            }
+        }
+
+        return $displayIds;
+    }
+
+    private function isDisplayDeviceConfig(mixed $deviceConfig): bool
+    {
+        return $deviceConfig instanceof DeviceConfig &&
+            strtoupper(trim((string) $deviceConfig->getType())) === $this->displayDeviceType;
+    }
+
+    private function normalizeStatusValue(?string $value): string
+    {
+        return strtolower(trim((string) $value));
+    }
+
+    private function normalizeOrderTypeValue(mixed $value): string
+    {
+        if (is_object($value) && method_exists($value, 'getId')) {
+            $value = $value->getId();
+        }
+
+        if (is_array($value)) {
+            $value = $value['@id'] ?? $value['id'] ?? $value['orderType'] ?? null;
+        }
+
+        return $this->normalizeStatusValue($value);
+    }
+
+    private function resolvePayloadEntityId(mixed $value): ?int
+    {
+        if (is_object($value) && method_exists($value, 'getId')) {
+            $value = $value->getId();
+        }
+
+        if (is_array($value)) {
+            $value = $value['@id'] ?? $value['id'] ?? null;
+        }
+
+        $normalized = preg_replace('/\D+/', '', (string) $value);
+        if ($normalized === null || $normalized === '') {
+            return null;
+        }
+
+        return (int) $normalized;
+    }
+
+    private function normalizeEntityId(mixed $value): ?int
+    {
+        if (is_object($value) && method_exists($value, 'getId')) {
+            $value = $value->getId();
+        }
+
+        $normalized = preg_replace('/\D+/', '', (string) $value);
+        if ($normalized === null || $normalized === '') {
+            return null;
+        }
+
+        return (int) $normalized;
+    }
+
+    private function clearAnonymousCartExternalCode(Order $order): void
+    {
+        $externalCode = (string) ($order->getExternalCode() ?? '');
+
+        if (str_starts_with($externalCode, self::ANONYMOUS_CART_EXTERNAL_CODE_PREFIX)) {
+            $order->setExternalCode(null);
+        }
+    }
+
+    private function isDirectOrderResourceEditRequest(): bool
+    {
+        if (!$this->request) {
+            return false;
+        }
+
+        $method = strtoupper((string) $this->request->getMethod());
+        if (!in_array($method, ['PUT', 'PATCH'], true)) {
+            return false;
+        }
+
+        return (bool) preg_match('#^/orders/\d+$#', (string) $this->request->getPathInfo());
+    }
+
+    private function isOrdersQueueRequest(): bool
+    {
+        if (!$this->request) {
+            return false;
+        }
+
+        return (string) $this->request->getPathInfo() === '/orders-queue';
+    }
 }

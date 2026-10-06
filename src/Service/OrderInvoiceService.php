@@ -2,6 +2,8 @@
 
 namespace ControleOnline\Service;
 
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+
 use ControleOnline\Entity\Invoice;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderInvoice;
@@ -139,7 +141,13 @@ class OrderInvoiceService
             $invoice->setDueDate(new \DateTime($invoiceData['dueDate']));
             $invoice->setPayer($this->findPeopleReference($invoiceData['payer'] ?? null));
             $invoice->setReceiver($this->findPeopleReference($invoiceData['receiver'] ?? null));
-            $invoice->setStatus($this->statusService->discoveryStatus('closed', 'paid', 'invoice'));
+            $paidInvoiceStatus = $this->statusService->discoveryStatus('closed', 'paid', 'invoice');
+            if ($paidInvoiceStatus === null) {
+                throw new BadRequestHttpException(
+                    'Status pago da invoice (closed/paid) nao encontrado no catalogo do tenant.'
+                );
+            }
+            $invoice->setStatus($paidInvoiceStatus);
             $invoice->setDestinationWallet($this->findWalletReference($invoiceData['destinationWallet'] ?? null));
             $invoice->setPaymentType($this->findPaymentTypeReference($invoiceData['paymentType'] ?? null));
             $invoice->setInvoiceType($invoiceData['invoiceType'] ?? $invoiceData['type'] ?? null);

@@ -25,7 +25,7 @@ class OrderDetailsController
                 return new JsonResponse(['error' => 'Order not found'], Response::HTTP_NOT_FOUND);
             }
 
-            $this->orderService->normalizeOrderProductGroupLinks($order);
+            $this->orderService->prepareOrderDetailsRead($order);
 
             return new JsonResponse(
                 $this->hydratorService->item(

@@ -45,7 +45,7 @@ class AddProductsOrderAction
             );
 
             return new JsonResponse(
-                $this->hydratorService->item(Order::class, $order->getId(), 'order:write'),
+                $this->hydratorService->data($order, ['order:write', 'order_cart_hierarchy:read']),
                 Response::HTTP_OK
             );
         } catch (\InvalidArgumentException $e) {

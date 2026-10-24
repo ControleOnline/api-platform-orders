@@ -281,7 +281,13 @@ class OrderActionController extends AbstractController
         }
         $canceledBy = $this->getAuthenticatedPeople();
 
-        $result = $this->safeRunOrderAction('cancel', function () use ($order, $reasonId, $reason, $canceledBy, $company) {
+        $draftOnly = ($payload['draft_only'] ?? false) === true;
+        $expectedMainOrderId = $this->requestPayloadService->normalizeOptionalNumericId($payload['expected_main_order_id'] ?? null);
+        $result = $this->safeRunOrderAction('cancel', function () use ($order, $reasonId, $reason, $canceledBy, $company, $draftOnly, $expectedMainOrderId) {
+            if ($draftOnly) {
+                return $this->orderActionService->discardDraft($order, (int) $expectedMainOrderId,
+                    $reason !== '' ? $reason : null, $canceledBy, $company);
+            }
             return $this->orderActionService->cancel(
                 $order,
                 $reasonId,

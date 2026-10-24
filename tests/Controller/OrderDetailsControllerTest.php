@@ -23,6 +23,8 @@ class OrderDetailsControllerTest extends TestCase
             ->with(71760)
             ->willReturn($order);
 
+        $orderService->expects(self::once())->method('prepareOrderDetailsRead')->with($order);
+
         $hydratorService = $this->createMock(HydratorService::class);
         $hydratorService
             ->expects(self::once())

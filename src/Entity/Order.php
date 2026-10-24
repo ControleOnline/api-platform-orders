@@ -323,6 +323,15 @@ class Order
     )]
     private $salesSummary = null;
 
+    #[CollectionSummary(
+        name: 'operational',
+        parameter: 'summary',
+        parameterValue: 'operational',
+        groups: ['order:read'],
+        resolver: OrderSalesSummaryResolver::class
+    )]
+    private $operationalSummary = null;
+
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status' => 'exact'])]
     #[ApiFilter(filterClass: SearchFilter::class, properties: ['status.realStatus' => 'exact'])]
     #[ORM\JoinColumn(name: 'status_id', referencedColumnName: 'id')]

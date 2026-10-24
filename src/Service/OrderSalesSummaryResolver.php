@@ -25,6 +25,10 @@ class OrderSalesSummaryResolver implements CollectionSummaryResolverInterface
             return null;
         }
 
+        if (($summaryField['name'] ?? null) === 'operational') {
+            return $this->orderRepository->resolveOperationalStatusSummary($filteredIdsQueryBuilder);
+        }
+
         return [
             'sales' => $this->orderRepository->resolveSalesSummary(
                 $filteredIdsQueryBuilder,

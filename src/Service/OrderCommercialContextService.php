@@ -372,8 +372,8 @@ class OrderCommercialContextService
     }
 
     /**
-     * Device metadata and request headers are client-controlled and therefore
-     * cannot identify the application or grant a financial capability. Only
+     * Device metadata cannot grant a financial capability. The request type
+     * selects an existing persisted profile; it never supplies permissions. Only
      * persisted DeviceConfig rows protected by the tenant-administrative guard
      * identify a known POS/Manager context. Known legacy contexts are
      * explicitly backfilled; a new missing or ambiguous context fails closed.
@@ -383,6 +383,15 @@ class OrderCommercialContextService
     private function resolveConfiguredChargeCapability(Device $device, People $provider): array
     {
         $deviceConfigs = $this->deviceService->findDeviceConfigs($device, $provider);
+
+        // A browser/device can run several apps. Select the local POS context,
+        // still requiring its persisted capability. Shared explicit denials and
+        // remote/external permissions retain their existing restrictive policy.
+        // Without a selector, preserve the restrictive legacy ambiguity policy.
+        $requestType = strtoupper(trim((string) $this->request?->headers->get('DEVICE-TYPE', '')));
+        if ($requestType !== '' && !in_array($requestType, ['PDV', 'MANAGER'], true)) {
+            return $this->deniedCapability('device-context-untrusted');
+        }
 
         $explicitValues = [];
         $explicitPdvValues = [];
@@ -425,7 +434,8 @@ class OrderCommercialContextService
             && !in_array(false, $explicitValues, true);
         $local = $enabled
             && $hasPdvContext
-            && !$hasManagerContext
+            && ($requestType === 'PDV' || !$hasManagerContext)
+            && $requestType !== 'MANAGER'
             && $explicitPdvValues !== []
             && !in_array(false, $explicitPdvValues, true);
 
@@ -435,9 +445,11 @@ class OrderCommercialContextService
             'source' => !$hasTrustedContext
                 ? 'device-context-untrusted'
                 : ($hasExplicitCapability ? 'device-config' : 'device-config-missing'),
-            'appType' => $hasManagerContext
-                ? 'MANAGER'
-                : ($hasPdvContext ? 'POS' : ''),
+            'appType' => match ($requestType) {
+                'PDV' => 'POS',
+                'MANAGER' => 'MANAGER',
+                default => $hasManagerContext ? 'MANAGER' : ($hasPdvContext ? 'POS' : ''),
+            },
         ];
     }
 

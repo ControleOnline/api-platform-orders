@@ -1,13 +1,19 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.6",
   "rc": 1,
-  "branch": "rc/1.0.3-rc.1",
-  "baseMaster": "61cda317ae54b7ec54aa57b02ca8971b039c1136",
+  "branch": "rc/1.0.6-rc.1",
+  "baseMaster": "195fd1b735fffb37522dbdd2bb271fa4511a2e62",
   "tasks": [
-    167
+    46
   ],
+  "frozen": true,
+  "contentCommit": "6a8773567301238ed8effdd4871843eb91fd0f5a",
   "repositories": {
-    "ControleOnline/api-platform-orders": "64469da277a973e32d24c751eb9573d63a6ca92d"
+    "ControleOnline/api-platform-orders": "6a8773567301238ed8effdd4871843eb91fd0f5a"
   },
-  "frozen": true
+  "validation": {
+    "local": "Same file hashes as validated #46 local patch: 36 tests/236 assertions and POS checkout without payment. Fresh PHP syntax and diff checks passed.",
+    "scope": "Cumulative company and personal order access only; preserve published 1.0.5/POS baseline; no schema changes.",
+    "next": "Publish stable package and update api-community#290 in dev/staging; human staging review required before application production."
+  }
 }

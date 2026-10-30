@@ -187,7 +187,7 @@ trait OrderServiceOperations3
         $currentPeople = $this->peopleService->getMyPeople();
         $isClientUser = $this->currentUserHasRole('ROLE_CLIENT');
 
-        if ($isClientUser && $currentPeople instanceof People) {
+        if ($isClientUser && $currentPeople instanceof People && $companies === []) {
             $queryBuilder->andWhere(sprintf(
                 '(%s.client = :currentPeople OR %s.payer = :currentPeople)',
                 $rootAlias,
@@ -222,7 +222,13 @@ trait OrderServiceOperations3
             $queryBuilder->setParameter('invoice', $invoice);
         }
 
-        $queryBuilder->andWhere(sprintf('%s.client IN(:companies) OR %s.provider IN(:companies)', $rootAlias, $rootAlias));
+        $companyScope = sprintf('%s.client IN(:companies) OR %s.provider IN(:companies)', $rootAlias, $rootAlias);
+        if ($isClientUser && $currentPeople instanceof People) {
+            // Accumulate scoped company and personal access; client status cannot revoke company access.
+            $companyScope = sprintf('(%s OR %s.client = :currentPeople OR %s.payer = :currentPeople)', $companyScope, $rootAlias, $rootAlias);
+            $queryBuilder->setParameter('currentPeople', $currentPeople);
+        }
+        $queryBuilder->andWhere($companyScope);
         $queryBuilder->setParameter('companies', $companies);
 
         if ($provider = $request?->query->get('provider', null)) {

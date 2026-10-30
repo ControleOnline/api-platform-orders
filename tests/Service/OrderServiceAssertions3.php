@@ -39,6 +39,54 @@ use Symfony\Component\Serializer\SerializerInterface;
 /** Methods shared by the original class; contracts and visibility are unchanged. */
 trait OrderServiceAssertions3
 {
+    #[\PHPUnit\Framework\Attributes\DataProvider('cumulativeOrderAccessRoles')]
+    public function testSecurityFilterAccumulatesClientAndCompanyAccess(array $roles): void
+    {
+        $currentPeople = new People();
+        $this->setEntityId(People::class, $currentPeople, 6);
+        $service = $this->buildService(
+            '/orders',
+            defaultCompanies: [3],
+            currentPeople: $currentPeople,
+            query: ['provider' => '/people/999'],
+            roleNames: $roles,
+        );
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+        $clauses = [];
+        $parameters = [];
+        $queryBuilder->method('andWhere')->willReturnCallback(
+            static function (string $clause) use (&$clauses, $queryBuilder) {
+                $clauses[] = $clause;
+                return $queryBuilder;
+            }
+        );
+        $queryBuilder->method('setParameter')->willReturnCallback(
+            static function (string $name, mixed $value) use (&$parameters, $queryBuilder) {
+                $parameters[$name] = $value;
+                return $queryBuilder;
+            }
+        );
+
+        $service->securityFilter($queryBuilder, null, null, 'orders');
+
+        self::assertContains('(orders.client IN(:companies) OR orders.provider IN(:companies) OR orders.client = :currentPeople OR orders.payer = :currentPeople)', $clauses);
+        self::assertSame([3], $parameters['companies']);
+        self::assertSame($currentPeople, $parameters['currentPeople']);
+        // An explicit provider filter must never replace the authorized scope.
+        self::assertContains('orders.provider IN(:provider)', $clauses);
+        self::assertSame('999', $parameters['provider']);
+    }
+
+    public static function cumulativeOrderAccessRoles(): array
+    {
+        return [
+            'owner and client' => [['ROLE_OWNER', 'ROLE_CLIENT']],
+            'client and owner' => [['ROLE_CLIENT', 'ROLE_OWNER']],
+            'manager and client' => [['ROLE_MANAGER', 'ROLE_CLIENT']],
+            'employee and client' => [['ROLE_EMPLOYEE', 'ROLE_CLIENT']],
+        ];
+    }
+
     public function testSecurityFilterBlocksClientUsersFromRequestingAnotherClientId(): void
     {
         $currentPeople = new People();

@@ -9,7 +9,7 @@ use Doctrine\ORM\QueryBuilder;
 
 class OrderSalesSummaryResolver implements CollectionSummaryResolverInterface
 {
-    public function __construct(private OrderRepository $orderRepository)
+    public function __construct(private OrderRepository $orderRepository, private OrderDashboardSummary $dashboard)
     {
     }
 
@@ -23,6 +23,13 @@ class OrderSalesSummaryResolver implements CollectionSummaryResolverInterface
     ): mixed {
         if (Order::class !== $resourceClass) {
             return null;
+        }
+
+        if (($summaryField['name'] ?? null) === 'movement') {
+            return $this->dashboard->resolveMovementSummary($filteredIdsQueryBuilder);
+        }
+        if (($summaryField['name'] ?? null) === 'paidOrders') {
+            return $this->dashboard->resolvePaidOrdersSummary($filteredIdsQueryBuilder);
         }
 
         if (($summaryField['name'] ?? null) === 'operational') {

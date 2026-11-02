@@ -50,6 +50,6 @@ final class OperationalOrderSummaryTest extends TestCase
         $repository = $this->createMock(OrderRepository::class);
         $repository->expects(self::never())->method('resolveSalesSummary');
         $repository->expects(self::once())->method('resolveOperationalStatusSummary')->with($ids)->willReturn(['total'=>0,'statuses'=>[]]);
-        self::assertSame(['total'=>0,'statuses'=>[]],(new OrderSalesSummaryResolver($repository))->resolve(new GetCollection(class:Order::class),Order::class,['name'=>'operational'],$ids));
+        self::assertSame(['total'=>0,'statuses'=>[]],(new OrderSalesSummaryResolver($repository, new \ControleOnline\Service\OrderDashboardSummary($repository)))->resolve(new GetCollection(class:Order::class),Order::class,['name'=>'operational'],$ids));
     }
 }

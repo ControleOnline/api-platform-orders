@@ -53,4 +53,15 @@ class OrderDashboardSummaryTest extends TestCase {
   self::assertSame(['valuePaidStatus'=>'paid','valuePaidRealStatus'=>'open'],$parameters);
  }
 
+ public function testImplicitEntityParameterMustRemainUntyped(): void {
+  $entity=new \stdClass();
+  $source=$this->createMock(QueryBuilder::class);
+  $source->method('getParameters')->willReturn(new ArrayCollection([new \Doctrine\ORM\Query\Parameter('company', $entity)]));
+  $target=$this->createMock(QueryBuilder::class);
+  $target->expects(self::once())->method('setParameter')->willReturnCallback(function(...$args)use($target,$entity){
+   self::assertSame(['company',$entity,null],$args); return $target;
+  });
+  $service=(new \ReflectionClass(\ControleOnline\Service\OrderDashboardSummary::class))->newInstanceWithoutConstructor();
+  (new \ReflectionMethod($service,'copyReportParameters'))->invoke($service,$target,$source);
+ }
 }

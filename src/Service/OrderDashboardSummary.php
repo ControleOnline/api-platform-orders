@@ -62,7 +62,12 @@ final class OrderDashboardSummary
   private function copyReportParameters(QueryBuilder $target, QueryBuilder $source): void
   {
     foreach ($source->getParameters() as $parameter) {
-      $target->setParameter($parameter->getName(), $parameter->getValue(), $parameter->getType());
+      // Preserve Doctrine's entity-to-identifier conversion for inferred types.
+      if ($parameter->typeWasSpecified()) {
+        $target->setParameter($parameter->getName(), $parameter->getValue(), $parameter->getType());
+      } else {
+        $target->setParameter($parameter->getName(), $parameter->getValue());
+      }
     }
   }
 

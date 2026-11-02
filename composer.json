@@ -16,8 +16,8 @@
         }
     ],
     "require": {
-        "controleonline/common": "^1.0",
-        "controleonline/queue": "^1.0"
+        "controleonline/common": "1.0.7",
+        "controleonline/queue": "1.0.3"
     },
     "require-dev": {
         "phpunit/phpunit": "^12.1"

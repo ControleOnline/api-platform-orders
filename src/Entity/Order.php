@@ -213,6 +213,8 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Entity(repositoryClass: OrderRepository::class)]
 class Order
 {
+    use OrderDashboardSummaries;
+
     use OrderAccessors1, OrderAccessors2;
 
     public const APP_IFOOD = 'iFood';

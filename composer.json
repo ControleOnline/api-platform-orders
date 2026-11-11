@@ -16,7 +16,7 @@
         }
     ],
     "require": {
-        "controleonline/common": "1.0.7",
+        "controleonline/common": "1.0.11",
         "controleonline/queue": "1.0.3"
     },
     "require-dev": {

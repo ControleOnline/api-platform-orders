@@ -36,7 +36,7 @@ class OrderSalesSummaryResolverTest extends TestCase
                 'monthly' => [],
             ]);
 
-        $resolver = new OrderSalesSummaryResolver($repository);
+        $resolver = new OrderSalesSummaryResolver($repository, new \ControleOnline\Service\OrderDashboardSummary($repository));
 
         self::assertSame([
             'sales' => [

@@ -1,13 +1,24 @@
 {
-  "version": "1.0.3",
-  "rc": 1,
-  "branch": "rc/1.0.3-rc.1",
-  "baseMaster": "61cda317ae54b7ec54aa57b02ca8971b039c1136",
+  "version": "1.0.6",
+  "rc": 2,
+  "branch": "rc/1.0.6-rc.2",
+  "baseMaster": "195fd1b735fffb37522dbdd2bb271fa4511a2e62",
   "tasks": [
-    167
+    46
   ],
+  "frozen": true,
+  "contentCommit": "6a8773567301238ed8effdd4871843eb91fd0f5a",
   "repositories": {
-    "ControleOnline/api-platform-orders": "64469da277a973e32d24c751eb9573d63a6ca92d"
+    "ControleOnline/api-platform-orders": "6a8773567301238ed8effdd4871843eb91fd0f5a"
   },
-  "frozen": true
+  "baselinePackage": {
+    "version": "1.0.5",
+    "commit": "adf023f697e3f64782fa36c3855655364f74847a"
+  },
+  "validation": {
+    "local": "Patch hashes identical to validated local 36 tests/236 assertions; PHP syntax checked.",
+    "reconciliation": "Historical module staging has outdated mark-as-paid logic. Retain published 1.0.5 behavior, POS fixes and removal of legacy SSH module deploys; record staging ancestry without introducing payment changes.",
+    "scope": "Only cumulative order access service and regression cases differ from published 1.0.5, plus this release manifest.",
+    "next": "Stable package publication and api-community#290 dev/staging; human review pending."
+  }
 }

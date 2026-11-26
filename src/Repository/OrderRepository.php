@@ -660,6 +660,27 @@ class OrderRepository extends ServiceEntityRepository
     }
   }
 
+  /** Counts the complete authorized and filtered collection, before pagination. */
+  public function resolveOperationalStatusSummary(QueryBuilder $filteredIdsQueryBuilder): array
+  {
+    $query = $this->createQueryBuilder('operational_order');
+    $query->innerJoin('operational_order.status', 'operational_status')
+      ->select('operational_status.id AS id', 'operational_status.status AS status',
+        'operational_status.color AS color', 'COUNT(DISTINCT operational_order.id) AS quantity')
+      ->andWhere(sprintf('operational_order.id IN (%s)', $filteredIdsQueryBuilder->getDQL()))
+      ->groupBy('operational_status.id, operational_status.status, operational_status.color')
+      ->orderBy('operational_status.status', 'ASC');
+    $this->copyReportParameters($query, $filteredIdsQueryBuilder);
+    $rows = $query->getQuery()->getArrayResult();
+    $total = 0;
+    foreach ($rows as &$row) {
+      $row['quantity'] = (int) $row['quantity'];
+      $total += $row['quantity'];
+    }
+    unset($row);
+    return ['total' => $total, 'statuses' => $rows];
+  }
+
   /**
    * @param array<string, mixed> $context
    * @return array<int, array<string, mixed>>

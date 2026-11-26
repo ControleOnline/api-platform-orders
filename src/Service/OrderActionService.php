@@ -11,6 +11,8 @@ use Doctrine\ORM\EntityManagerInterface;
 
 class OrderActionService
 {
+    use OrderActionOperations1;
+
     private const ORDER_ACTION_KEY = 'order_action';
     public const ORDER_CANCELLATION_REASON_CONTEXT = 'order_cancellation_reason';
 
@@ -162,187 +164,11 @@ class OrderActionService
         return $this->normalizeStatusValue($order->getApp()) === strtolower(Order::APP_FOOD99);
     }
 
-    private function getCancellationReasonCompany(Order $order, ?People $company = null): ?People
-    {
-        if ($company instanceof People) {
-            return $company;
-        }
-
-        $provider = $order->getProvider();
-
-        return $provider instanceof People ? $provider : null;
-    }
-
-    private function resolveCancellationReason(Order $order, mixed $reasonId, ?People $company = null): ?Category
-    {
-        $normalizedReasonId = $this->normalizeOptionalNumericId($reasonId);
-        if (!$normalizedReasonId) {
-            return null;
-        }
-
-        $reasonCompany = $this->getCancellationReasonCompany($order, $company);
-        $repository = $this->entityManager->getRepository(Category::class);
-
-        if ($reasonCompany instanceof People) {
-            $category = $repository->findOneBy([
-                'id' => $normalizedReasonId,
-                'company' => $reasonCompany,
-                'context' => self::ORDER_CANCELLATION_REASON_CONTEXT,
-            ]);
-            if ($category instanceof Category) {
-                return $category;
-            }
-        }
-
-        // Fallback: reason id is already scoped by the cancel-reasons list; accept by id+context.
-        $category = $repository->findOneBy([
-            'id' => $normalizedReasonId,
-            'context' => self::ORDER_CANCELLATION_REASON_CONTEXT,
-        ]);
-
-        return $category instanceof Category ? $category : null;
-    }
-
-    private function applyCancellationAudit(
-        Order $order,
-        ?Category $cancellationReason = null,
-        ?People $canceledBy = null,
-    ): void {
-        $order->setCancellationReason($cancellationReason);
-        $order->setCanceledBy($canceledBy);
-    }
-
     private function buildTerminalOrderResponse(): array
     {
         return [
             'errno' => 10001,
             'errmsg' => 'Pedido em estado final nao pode mais ser alterado.',
-        ];
-    }
-
-    public function getCapabilities(Order $order): array
-    {
-        $realStatus = $this->normalizeStatusValue($order->getStatus()?->getRealStatus());
-        $status = $this->normalizeStatusValue($order->getStatus()?->getStatus());
-        $terminal = in_array($realStatus, ['canceled', 'cancelled', 'closed'], true);
-
-        if ($this->isDeliveryOrder($order)) {
-            $awaitingAcceptance = in_array($status, [
-                'aguardando aceite',
-                'awaiting acceptance',
-                'waiting acceptance',
-                'pending acceptance',
-                'acceptance pending',
-                'pending',
-                'pendente',
-            ], true);
-            $accepted = in_array($status, ['aceito', 'accepted', 'accept'], true) || $realStatus === 'accepted';
-            $inRoute = in_array($status, [
-                'way',
-                'away',
-                'en route',
-                'in route',
-                'on route',
-                'picked up',
-                'pickup',
-                'dispatch',
-                'delivery',
-                'delivering',
-            ], true);
-            $deliveryTerminal = $terminal || in_array($status, [
-                'delivered',
-                'entregue',
-                'finished',
-                'finalizado',
-                'canceled',
-                'cancelado',
-                'cancelled',
-                'cancel',
-            ], true);
-
-            return [
-                'realStatus' => $realStatus,
-                'can_cancel' => $awaitingAcceptance && !$deliveryTerminal,
-                'can_confirm' => $awaitingAcceptance && !$deliveryTerminal,
-                'can_ready' => false,
-                'can_delivered' => ($accepted || $inRoute) && !$deliveryTerminal,
-                'is_delivering' => $accepted || $inRoute,
-                'is_terminal' => $deliveryTerminal,
-            ];
-        }
-
-        $isInitialPosOrShopState = $this->isPosOrShopOrder($order)
-            && $realStatus === 'open'
-            && in_array($status, ['', 'open', 'paid', 'confirmed'], true);
-        $isPreparingPosOrShopState = $this->isPosOrShopOrder($order)
-            && $realStatus === 'open'
-            && $status === 'preparing';
-        $isReadyPosOrShopState = $this->isPosOrShopOrder($order)
-            && $realStatus === 'pending'
-            && $status === 'ready';
-        $isDeliveringPosOrShopState = $this->isPosOrShopOrder($order)
-            && $realStatus === 'pending'
-            && $status === 'way';
-
-        $canConfirm = !$terminal && (!$this->isPosOrShopOrder($order) || $isInitialPosOrShopState);
-        $canReady = !$terminal && (!$this->isPosOrShopOrder($order) || $isPreparingPosOrShopState);
-        $canDelivered = !$terminal && (!$this->isPosOrShopOrder($order) || $isReadyPosOrShopState || $isDeliveringPosOrShopState);
-
-        return [
-            'realStatus' => $realStatus,
-            'can_cancel' => !$terminal,
-            'can_confirm' => $canConfirm,
-            'can_ready' => $canReady,
-            'can_delivered' => $canDelivered,
-            'is_delivering' => $isDeliveringPosOrShopState,
-            'is_terminal' => $terminal,
-        ];
-    }
-
-    public function getCancelReasons(Order $order, ?People $company = null): array
-    {
-        if ($this->isIfoodOrder($order) && $this->iFoodService instanceof iFoodService) {
-            return [
-                'errno' => 0,
-                'errmsg' => 'ok',
-                'data' => [
-                    'reasons' => $this->iFoodService->getIfoodCancellationReasons($order),
-                ],
-            ];
-        }
-
-        if ($this->isFood99Order($order) && $this->food99Service instanceof Food99Service) {
-            return $this->food99Service->getOrderCancelReasons($order);
-        }
-
-        $reasonCompany = $this->getCancellationReasonCompany($order, $company);
-        if (!$reasonCompany instanceof People) {
-            return ['errno' => 0, 'errmsg' => 'ok', 'data' => ['reasons' => []]];
-        }
-
-        $categories = $this->entityManager->getRepository(Category::class)->findBy(
-            [
-                'company' => $reasonCompany,
-                'context' => self::ORDER_CANCELLATION_REASON_CONTEXT,
-            ],
-            ['name' => 'ASC']
-        );
-
-        return [
-            'errno' => 0,
-            'errmsg' => 'ok',
-            'data' => [
-                'reasons' => array_map(
-                    static fn (Category $category): array => [
-                        'id' => $category->getId(),
-                        'reason_id' => $category->getId(),
-                        'description' => $category->getName(),
-                        'label' => $category->getName(),
-                        'requires_description' => false,
-                    ],
-                    $categories
-                ),
-            ],
         ];
     }
 
@@ -378,6 +204,25 @@ class OrderActionService
         }
 
         return $result;
+    }
+
+    public function discardDraft(
+        Order $order,
+        int $expectedMainOrderId,
+        ?string $reason = null,
+        ?People $canceledBy = null,
+        ?People $company = null,
+    ): array {
+        return $this->entityManager->wrapInTransaction(function () use ($order, $expectedMainOrderId, $reason, $canceledBy, $company): array {
+            // Re-read under a row lock: a concurrent confirmation must not cancel a sale.
+            $this->entityManager->refresh($order, \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+            if ($order->getOrderType() !== 'cart' || $this->isTerminalOrder($order)
+                || $expectedMainOrderId <= 0 || (int) $order->getMainOrderId() !== $expectedMainOrderId
+                || ($company instanceof People && $order->getProvider()?->getId() !== $company->getId())) {
+                throw new \InvalidArgumentException('O rascunho foi alterado ou enviado. Atualize a consulta.');
+            }
+            return $this->cancel($order, null, $reason, $canceledBy, $company);
+        });
     }
 
     public function cancel(
